@@ -33,16 +33,18 @@
   THE FOUR TABS
     Kalender  Week view. Days run top to bottom, hours left to right
               (scroll horizontally). Tap a block to open the event.
-    Kaart     Map of the school + "Meld aan" check-in, and a QR mode for
-              gate check-in at free events.
+    Kaart     Real map (OpenStreetMap) with each event's pin and check-in
+              circle. "Meld aan" unlocks when your live location is inside
+              the circle; check-ins go into the Excel export. QR mode for
+              gate check-in is still visual only.
     Soek      Search and filter by department.
     Myne      Events the user has tapped "Ek ondersteun" on.
 
   WHAT IS REAL vs FAKE IN THIS FILE
-    Real   layout, navigation, week maths, search, filtering, support toggle
+    Real   layout, navigation, week maths, search, filtering, support toggle,
+           map, live location, address search, location check-in
     Fake   EVENTS is hard-coded (see DATA below)
-           the map is a hand-drawn SVG, not a real map SDK
-           "Meld aan" and the QR screen are visual only
+           the QR screen is visual only
            ticket links point at quicket.co.za, not real event pages
 
   BUILD NOTES FOR THE DEVELOPER
@@ -79,6 +81,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garsie Army — prototipe</title>
+
+<!-- Maps: Leaflet + OpenStreetMap tiles. Free, no API key. The integrity
+     hashes make the browser refuse a tampered copy from the CDN. -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"
+      integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
+      integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous"></script>
 
 <style>
 /* ---------------------------------------------------------------------------
@@ -191,6 +200,20 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .mini-btn:disabled{opacity:.4;cursor:default}
 .toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:#1d1d1f;color:#fff;font-size:14px;padding:10px 16px;border-radius:20px;z-index:20;white-space:nowrap;pointer-events:none}
 
+/* Leaflet maps. "isolation" keeps Leaflet's internal z-indexes (400+) from
+   covering the tab bar and theme toggle. */
+.map{position:absolute;inset:0;isolation:isolate;background:#e5e3df}
+.map-inline{position:relative;height:240px;border-radius:14px;overflow:hidden;isolation:isolate;border:.5px solid var(--hairline);background:#e5e3df}
+.map-fab{position:absolute;right:14px;z-index:3;width:40px;height:40px;border-radius:20px;background:var(--surface);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+.map-card{position:absolute;left:12px;right:12px;bottom:88px;z-index:3;background:var(--surface);border-radius:18px;border:.5px solid var(--hairline);padding:12px 14px;box-shadow:0 2px 12px rgba(0,0,0,.12)}
+.map-card select{width:100%;border:none;background:transparent;font-size:15px;font-weight:600;color:var(--shadow-ink);font-family:inherit;padding:0;outline:none}
+.me-dot{width:16px;height:16px;border-radius:8px;background:#4285f4;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.btn-checkin{width:100%;height:42px;border-radius:21px;border:none;background:var(--brand);color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-checkin:disabled{background:var(--surface-2);color:var(--muted);cursor:not-allowed}
+.btn-checkin.done{background:var(--surface);color:var(--brand);border:1.5px solid var(--brand)}
+.field input[type=range]{height:auto;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand)}
+.geo-results button{display:block;width:100%;text-align:left;background:var(--surface);border:.5px solid var(--hairline);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px;color:var(--shadow-ink)}
+
 /* Week grid. Horizontal scroll is the whole point of this view. */
 .weekgrid{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
 .weekrow{display:flex;position:relative}
@@ -240,7 +263,14 @@ const CONFIG = {
 
   // The prototype pins "today" so the red now-line and the demo week line up.
   // TODO: in production this is simply new Date().
-  demoToday: "2026-06-16T16:34:00"
+  demoToday: "2026-06-16T16:34:00",
+
+  // Where an event is when an admin hasn't set its own pin: the school
+  // (coordinates from OpenStreetMap). radius = check-in area in metres.
+  schoolLocation: { lat:-25.7972578, lng:28.305468, radius:250,
+                    address:"Hoërskool Garsfontein, Jacqueline Drive, Constantia Park, Pretoria" },
+  radiusMin: 25, radiusMax: 1000
+
 };
 
 /* ===========================================================================
@@ -257,6 +287,8 @@ const CONFIG = {
      venue        string          free text, shown as "Plek"
      description  string          one or two sentences for supporters
      ticketUrl    string|null     null hides the "Koop kaartjies" button
+     location     {lat,lng,radius,address}|undefined   check-in pin + radius (m);
+                  missing = CONFIG.schoolLocation. Set by admins in Skep.
 
    Fields the real API will also need, not used by this prototype:
      status       "scheduled" | "moved" | "cancelled"   (rain is constant)
@@ -317,9 +349,20 @@ function persistData(){
   saveJSON("garsie.admins", ADMINS);
 }
 function resetData(){
-  DEPARTMENTS = SEED_DEPARTMENTS; EVENTS = SEED_EVENTS; ADMINS = SEED_ADMINS;
-  ["garsie.departments","garsie.events","garsie.admins"].forEach(k => saveJSON(k, null));
+  DEPARTMENTS = SEED_DEPARTMENTS; EVENTS = SEED_EVENTS; ADMINS = SEED_ADMINS; CHECKINS = {};
+  ["garsie.departments","garsie.events","garsie.admins","garsie.checkins"].forEach(k => saveJSON(k, null));
 }
+
+/* ---------------------------------------------------------------------------
+   CHECK-INS ("Meld aan")
+   Stand-in for POST /api/events/:id/checkins. One record per person per event.
+     { [eventId]: [{ name, surname, grade, email, at: ISO time, distance: m, simulated }] }
+   TODO: the server must re-check the distance — a phone's location can be
+   faked, so for events where it matters, pair this with the gate QR.
+--------------------------------------------------------------------------- */
+let CHECKINS = loadJSON("garsie.checkins") || {};
+function checkinFor(e, email){ return (CHECKINS[e.id] || []).find(c => c.email === email); }
+function locationOf(e){ return e.location || CONFIG.schoolLocation; }
 
 /* ---------------------------------------------------------------------------
    ATTENDEES ("Ek ondersteun")
@@ -340,12 +383,19 @@ function attendeesOf(e){
       const name    = SAMPLE_FIRST[(i * 3 + e.id) % SAMPLE_FIRST.length];
       const surname = SAMPLE_LAST[(i * 5 + e.id * 2) % SAMPLE_LAST.length];
       const slug    = `${name}.${surname}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "").toLowerCase();
-      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], email: `${slug}${i}@voorbeeld.co.za` });
+      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], email: `${slug}${i}@voorbeeld.co.za`, supports:true });
     }
   }
   if (state.user && state.supported.has(e.id)){
     const { name = "", surname = "", grade = "", email = "" } = state.user;
-    people.push({ name, surname, grade, email });
+    people.push({ name, surname, grade, email, supports:true });
+  }
+  // Everyone who checked in is on the list too — marked with the time, and
+  // added even if they never tapped "Ek ondersteun" (walk-ins).
+  for (const c of CHECKINS[e.id] || []){
+    const match = people.find(p => p.email && p.email === c.email);
+    if (match) Object.assign(match, { checkedInAt:c.at, distance:c.distance, simulated:c.simulated });
+    else people.push({ name:c.name, surname:c.surname, grade:c.grade, email:c.email, supports:false, checkedInAt:c.at, distance:c.distance, simulated:c.simulated });
   }
   return people;
 }
@@ -496,7 +546,7 @@ const state = {
   query: "",
   filter: "Alles",
   mapMode: "map",                   // map | qr
-  checkedIn: false,
+  mapEventId: null,                 // Kaart: event picked in the card (null = the next one)
   editingId: null,                  // Skep tab: id of the event being edited, null = new
   scrollLeft: null                  // remembers horizontal scroll between renders
 };
@@ -704,13 +754,80 @@ function screenCalendar(){
   return html + `</div></div>`;
 }
 
-/* --- 6b. Kaart ----------------------------------------------------------
-   The map is a hand-drawn SVG placeholder shaped like a road map.
-   TODO: replace with Google Maps / Mapbox. Pin the school, and later pin each
-   venue (Hoofveld, Kunsgrasveld, Saal) so visiting supporters can find them.
-   The blue dot and the 80 m distance are faked — real version needs location
-   permission, and the school should decide whether check-in is GPS or QR only.
+/* --- 6b. Kaart + location --------------------------------------------------
+   Real map (Leaflet + OpenStreetMap) with every event's pin. The selected
+   event shows its check-in circle. The user's live position comes from the
+   browser (needs HTTPS and the user's permission — we only ask after they tap
+   "Deel my ligging"). "Meld aan" only works inside the circle, and a check-in
+   lands in that event's Excel export.
+   TODO: check-in currently works on any day; in production only allow it
+   from shortly before the event starts until it ends.
 ------------------------------------------------------------------------- */
+const geo = { status:"idle", pos:null, watchId:null, simulated:false, framed:false };
+//            status: idle | asking | on | denied | unavailable
+
+function startLocation(){
+  if (!("geolocation" in navigator)){ geo.status = "unavailable"; onLocationUpdate(); return; }
+  if (geo.watchId != null) return;
+  geo.simulated = false; geo.status = "asking"; onLocationUpdate();
+  geo.watchId = navigator.geolocation.watchPosition(p => {
+    geo.pos = { lat:p.coords.latitude, lng:p.coords.longitude, accuracy:Math.round(p.coords.accuracy) };
+    geo.status = "on";
+    onLocationUpdate();
+  }, err => {
+    geo.status = err.code === 1 ? "denied" : "unavailable";   // 1 = PERMISSION_DENIED
+    stopWatching();
+    onLocationUpdate();
+  }, { enableHighAccuracy:true, maximumAge:10000, timeout:20000 });
+}
+function stopWatching(){
+  if (geo.watchId != null) navigator.geolocation.clearWatch(geo.watchId);
+  geo.watchId = null;
+}
+function stopLocation(){
+  stopWatching();
+  Object.assign(geo, { status:"idle", pos:null, simulated:false, framed:false });
+}
+// PROTOTYPE, admins only: pretend to stand on the pin, to test check-in
+// without driving to the school.
+function simulateLocationAt(loc){
+  stopWatching();
+  Object.assign(geo, { status:"on", pos:{ lat:loc.lat, lng:loc.lng, accuracy:5 }, simulated:true, framed:false });
+  onLocationUpdate();
+}
+
+function distanceM(a, b){                   // great-circle distance in metres
+  const R = 6371000, rad = x => x * Math.PI / 180;
+  const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
+          + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+function formatDistance(m){ return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0).replace(".", ",")} km`; }
+
+// Which event the Kaart card is about: the one picked, else the one on now,
+// else the next one, else the most recent.
+function mapEvent(){
+  const picked = state.mapEventId != null && eventById(state.mapEventId);
+  if (picked) return picked;
+  const at = e => new Date(`${e.date}T${e.end}`);
+  const sorted = [...EVENTS].sort((a,b) => at(a) - at(b));
+  return sorted.find(e => at(e) >= TODAY) || sorted[sorted.length - 1] || null;
+}
+
+function pinIcon(colour, big){
+  const s = big ? 40 : 30;
+  return L.divIcon({ className:"", iconSize:[s, s], iconAnchor:[s / 2, s - 2],
+    html:`<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="${colour}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>` });
+}
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+function newMap(el, opts){
+  const map = L.map(el, { zoomControl:false, ...opts });
+  L.tileLayer(OSM_TILES, { maxZoom:19, attribution:OSM_ATTRIBUTION }).addTo(map);
+  return map;
+}
+const MAP_UNAVAILABLE = `<div style="padding:40px 20px;text-align:center;color:#555;font-size:14px">Die kaart kon nie laai nie. Kyk of jy aan die internet gekoppel is.</div>`;
+
 function mapSegmentedControl(){
   return `<div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;background:var(--hairline);border-radius:18px;padding:3px;z-index:3">
     ${["map","qr"].map(mode => `<button data-action="map-${mode}"
@@ -725,35 +842,203 @@ function screenMap(){
       <div style="font-size:14px;margin-top:18px;text-align:center;padding:0 34px">Skandeer die QR-kode by die hek om aan te meld</div>
     </div>` + mapSegmentedControl();
   }
+  return `<div id="kaart-map" class="map" role="region" aria-label="Kaart met geleenthede"></div>
+    ${mapSegmentedControl()}
+    <button class="map-fab" style="top:58px" data-action="locate-me" aria-label="Wys my ligging">${icon("locate",20,"#4285f4")}</button>
+    <div class="bottom-bar map-card" id="map-card">${mapCardHtml()}</div>`;
+}
 
-  return `<svg viewBox="0 0 300 644" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0" role="img" aria-label="Kaart van die skool se omgewing">
-      <rect width="300" height="644" fill="#f1f3f4"/>
-      <rect x="160" y="60" width="120" height="130" rx="6" fill="#c8e6c9"/>
-      <rect x="20" y="410" width="95" height="120" rx="6" fill="#c8e6c9"/>
-      <path d="M0 270 L300 225" stroke="#fff" stroke-width="16"/>
-      <path d="M0 270 L300 225" stroke="#fdd663" stroke-width="10"/>
-      <path d="M125 0 L150 644" stroke="#fff" stroke-width="12"/>
-      <path d="M0 455 L300 410" stroke="#fff" stroke-width="9"/>
-      <path d="M215 0 L245 644" stroke="#fff" stroke-width="7"/>
-      <path d="M40 0 L62 644" stroke="#fff" stroke-width="6"/>
-      <text x="172" y="130" font-size="11" fill="#2e7d32">Park</text>
-      <text x="160" y="220" font-size="10" fill="#666" transform="rotate(-8 160 220)">Garsfonteinweg</text>
-      <circle cx="143" cy="345" r="75" fill="#C0262D" fill-opacity=".08" stroke="#C0262D" stroke-dasharray="4 3"/>
-      <path d="M143 343c-12-14-16-20-16-28a16 16 0 0 1 32 0c0 8-4 14-16 28z" fill="#ea4335"/>
-      <circle cx="143" cy="315" r="6" fill="#a50e0e"/>
-      <text x="143" y="362" text-anchor="middle" font-size="12" font-weight="600" fill="#C0262D">${CONFIG.school}</text>
-      <circle cx="175" cy="388" r="12" fill="#4285f4" fill-opacity=".2"/>
-      <circle cx="175" cy="388" r="6" fill="#4285f4" stroke="#fff" stroke-width="2"/>
-    </svg>`
-    + mapSegmentedControl()
-    + `<div style="position:absolute;top:60px;right:14px;width:40px;height:40px;border-radius:20px;background:var(--surface);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:center">${icon("locate",20,"#4285f4")}</div>
-    <div class="bottom-bar" style="position:absolute;left:12px;right:12px;bottom:88px;background:var(--surface);border-radius:18px;border:.5px solid var(--hairline);padding:12px 14px">
-      <div style="font-size:15px;font-weight:600">${CONFIG.school}</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Jy is 80 m weg en binne die area</div>
-      <button data-action="checkin" style="width:100%;height:40px;border-radius:20px;background:${state.checkedIn ? "var(--surface)" : "var(--brand)"};color:${state.checkedIn ? "var(--brand)" : "#fff"};border:${state.checkedIn ? "1.5px solid var(--brand)" : "none"};font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
-        ${state.checkedIn ? icon("check",16,"var(--brand)") + "Aangemeld" : "Meld aan"}
-      </button>
-    </div>`;
+// The card at the bottom of Kaart. Re-rendered on its own whenever the
+// location updates, so the map itself doesn't flicker.
+function mapCardHtml(){
+  const e = mapEvent();
+  if (!e) return `<div style="font-size:14px;color:var(--muted)">Daar is nog geen geleenthede nie.</div>`;
+  const loc = locationOf(e);
+  const mine = state.user && checkinFor(e, state.user.email);
+  const sorted = [...EVENTS].sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+  const d = toDate(e.date);
+
+  let status = "", button = "";
+  if (mine){
+    status = `<span style="color:var(--brand)">${icon("check",14,"var(--brand)")} Jy is aangemeld om ${formatDateTime(mine.at).slice(11)}</span>`;
+    button = `<button class="btn-checkin done" disabled>${icon("check",16,"var(--brand)")} Aangemeld</button>`;
+  } else if (geo.status === "on" && geo.pos){
+    const dist = distanceM(geo.pos, loc);
+    const inside = dist <= loc.radius;
+    status = inside
+      ? `<span style="color:#1f8a3b">Jy is ${formatDistance(dist)} weg — binne die area</span>`
+      : `Jy is ${formatDistance(dist)} weg — nog ${formatDistance(dist - loc.radius)} tot by die area`;
+    status += ` <span style="color:var(--muted)">(±${geo.pos.accuracy} m${geo.simulated ? ", toets" : ""})</span>`;
+    button = `<button class="btn-checkin" data-action="checkin" ${inside ? "" : "disabled"}>${inside ? "Meld aan" : "Kom nader om aan te meld"}</button>`;
+  } else if (geo.status === "asking"){
+    status = "Wag vir jou ligging…";
+    button = `<button class="btn-checkin" disabled>Meld aan</button>`;
+  } else if (geo.status === "denied"){
+    status = `<span style="color:var(--brand)">Ligging is geblokkeer.</span> Laat dit toe in jou blaaier se instellings en probeer weer.`;
+    button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
+  } else if (geo.status === "unavailable"){
+    status = "Kon nie jou ligging kry nie. Gaan buite of skakel ligging aan.";
+    button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
+  } else {
+    status = "Deel jou ligging sodat ons kan sien of jy daar is.";
+    button = `<button class="btn-checkin" data-action="start-location">${icon("locate",16,"#fff")} Deel my ligging</button>`;
+  }
+
+  const testLink = roleOf() !== "user" && !mine
+    ? `<button class="btn-link" data-action="simulate-location" style="font-size:12px;padding:6px 0 0">Toets (admin): sit my ligging by die pen</button>` : "";
+
+  return `
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="dot" style="background:${deptOf(e).colour}"></span>
+      <select id="map-event-select" aria-label="Kies geleentheid">
+        ${sorted.map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${esc(x.title)}</option>`).join("")}
+      </select>
+    </div>
+    <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${e.start} · ${esc(e.venue || loc.address)}</div>
+    <div style="font-size:13px;margin-bottom:10px;line-height:1.4">${status}</div>
+    ${button}${testLink}`;
+}
+
+// Live Leaflet objects for the Kaart tab. Rebuilt on every full render.
+const kaart = { map:null, me:null, meCircle:null, area:null };
+
+function mountKaartMap(el){
+  if (!window.L){ el.innerHTML = MAP_UNAVAILABLE; return; }
+  const selected = mapEvent();
+  const focus = selected ? locationOf(selected) : CONFIG.schoolLocation;
+  kaart.map = newMap(el, {}).setView([focus.lat, focus.lng], 16);
+
+  // One pin per event; the selected one is bigger, on top, and has its circle.
+  EVENTS.forEach(e => {
+    const loc = locationOf(e), isSel = selected && e.id === selected.id;
+    L.marker([loc.lat, loc.lng], { icon:pinIcon(deptOf(e).colour, isSel), zIndexOffset:isSel ? 1000 : 0, title:e.title })
+      .addTo(kaart.map)
+      .on("click", () => { state.mapEventId = e.id; render(); });
+  });
+  if (selected){
+    const loc = locationOf(selected);
+    kaart.area = L.circle([loc.lat, loc.lng], { radius:loc.radius, color:deptOf(selected).colour, weight:2, dashArray:"5 4", fillOpacity:.1 }).addTo(kaart.map);
+  }
+  updateMeOnMap();
+}
+
+function updateMeOnMap(){
+  if (!kaart.map) return;
+  if (!(geo.status === "on" && geo.pos)){
+    if (kaart.me){ kaart.me.remove(); kaart.meCircle.remove(); kaart.me = kaart.meCircle = null; }
+    return;
+  }
+  const ll = [geo.pos.lat, geo.pos.lng];
+  if (!kaart.me){
+    kaart.meCircle = L.circle(ll, { radius:geo.pos.accuracy, color:"#4285f4", weight:1, fillOpacity:.12 }).addTo(kaart.map);
+    kaart.me = L.marker(ll, { icon:L.divIcon({ className:"", html:'<div class="me-dot"></div>', iconSize:[16,16], iconAnchor:[8,8] }), zIndexOffset:2000, interactive:false }).addTo(kaart.map);
+  } else {
+    kaart.me.setLatLng(ll); kaart.meCircle.setLatLng(ll).setRadius(geo.pos.accuracy);
+  }
+  // First fix: show both you and the event, if you're anywhere nearby.
+  if (!geo.framed && kaart.area){
+    geo.framed = true;
+    const bounds = kaart.area.getBounds().extend(ll);
+    if (distanceM(geo.pos, kaart.area.getLatLng()) < 30000) kaart.map.fitBounds(bounds, { padding:[40, 40], maxZoom:17 });
+  }
+}
+
+// Tear down Leaflet maps before their DOM is replaced by render().
+function unmountMaps(){
+  if (kaart.map){ kaart.map.remove(); Object.assign(kaart, { map:null, me:null, meCircle:null, area:null }); }
+  if (picker.map){ picker.map.remove(); Object.assign(picker, { map:null, pin:null, circle:null }); }
+}
+function mountMaps(){
+  const k = document.getElementById("kaart-map");
+  if (k) mountKaartMap(k);
+  const p = document.getElementById("pick-map");
+  if (p) mountPickerMap(p);
+}
+
+function onLocationUpdate(){
+  const card = document.getElementById("map-card");
+  if (card) card.innerHTML = mapCardHtml();
+  updateMeOnMap();
+}
+
+function checkIn(){
+  const e = mapEvent();
+  if (!e || !state.user || !(geo.status === "on" && geo.pos) || checkinFor(e, state.user.email)) return;
+  const loc = locationOf(e), dist = distanceM(geo.pos, loc);
+  if (dist > loc.radius) return;             // TODO: the server re-checks this
+  const { name = "", surname = "", grade = "", email = "" } = state.user;
+  CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
+    { name, surname, grade, email, at:new Date().toISOString(), distance:Math.round(dist), simulated:geo.simulated }] };
+  saveJSON("garsie.checkins", CHECKINS);
+  toast("Jy is aangemeld");
+  onLocationUpdate();
+}
+
+/* --- Location picker (Skep form) -------------------------------------------
+   Admins set an event's pin by searching an address, tapping/dragging on the
+   map, or "Gebruik my ligging", then choose the radius with the slider.
+   Address search: OpenStreetMap Nominatim (free; max ~1 search per second —
+   fine for admins, but TODO: use a paid geocoder or our own proxy if usage grows).
+------------------------------------------------------------------------- */
+const picker = { map:null, pin:null, circle:null };
+
+function mountPickerMap(el){
+  if (!window.L){ el.innerHTML = MAP_UNAVAILABLE; return; }
+  const form = el.closest("form");
+  const lat = Number(form.lat.value), lng = Number(form.lng.value), radius = Number(form.radius.value);
+  picker.map = newMap(el, { zoomControl:true }).setView([lat, lng], 16);
+  picker.circle = L.circle([lat, lng], { radius, color:"#C0262D", weight:2, dashArray:"5 4", fillOpacity:.1 }).addTo(picker.map);
+  picker.pin = L.marker([lat, lng], { draggable:true, icon:pinIcon("#C0262D", true), autoPan:true }).addTo(picker.map);
+  picker.pin.on("drag", ev => picker.circle.setLatLng(ev.target.getLatLng()));
+  picker.pin.on("dragend", ev => setPickerPoint(ev.target.getLatLng()));
+  picker.map.on("click", ev => setPickerPoint(ev.latlng));
+  fitPickerCircle();
+}
+
+// Zoom so the whole check-in circle is visible.
+function fitPickerCircle(){
+  if (picker.map) picker.map.fitBounds(picker.circle.getBounds(), { padding:[24, 24], maxZoom:18, animate:false });
+}
+
+function setPickerPoint(ll, address, zoom){
+  const form = document.querySelector('[data-form="event"]');
+  if (!form || !picker.map) return;
+  form.lat.value = Number(ll.lat).toFixed(7); form.lng.value = Number(ll.lng).toFixed(7);
+  if (address != null) form.address.value = address;
+  picker.pin.setLatLng(ll); picker.circle.setLatLng(ll);
+  if (zoom) fitPickerCircle(); else picker.map.panTo(ll);
+}
+
+function setPickerRadius(radius){
+  const label = document.getElementById("radius-label");
+  if (label) label.textContent = `${radius} m`;
+  if (picker.circle){ picker.circle.setRadius(Number(radius)); fitPickerCircle(); }
+}
+
+async function geocodeAddress(){
+  const form = document.querySelector('[data-form="event"]');
+  const out = document.getElementById("geo-results");
+  const q = form.address.value.trim();
+  if (!q){ toast("Tik eers 'n adres in"); return; }
+  out.innerHTML = `<div style="font-size:13px;color:var(--muted);margin-top:6px">Soek…</div>`;
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=za&accept-language=af,en&q=${encodeURIComponent(q)}`;
+    const results = await (await fetch(url, { headers:{ "Accept":"application/json" } })).json();
+    out.innerHTML = results.length
+      ? results.map(r => `<button type="button" data-action="pick-geocode" data-lat="${esc(r.lat)}" data-lng="${esc(r.lon)}" data-label="${esc(r.display_name)}">${esc(r.display_name)}</button>`).join("")
+      : `<div style="font-size:13px;color:var(--muted);margin-top:6px">Niks gevind nie. Probeer 'n straatnaam en voorstad, of sleep die pen.</div>`;
+  } catch {
+    out.innerHTML = `<div style="font-size:13px;color:var(--brand);margin-top:6px">Kon nie soek nie. Kyk jou internet, of sleep die pen.</div>`;
+  }
+}
+
+function useMyLocationForPin(){
+  if (!("geolocation" in navigator)){ toast("Jou toestel deel nie ligging nie"); return; }
+  toast("Kry jou ligging…");
+  navigator.geolocation.getCurrentPosition(
+    p => setPickerPoint({ lat:p.coords.latitude, lng:p.coords.longitude }, null, 17),
+    () => toast("Kon nie jou ligging kry nie"),
+    { enableHighAccuracy:true, timeout:15000 });
 }
 
 /* --- 6c. Soek -----------------------------------------------------------
@@ -881,7 +1166,7 @@ function screenEventDetail(){
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
       <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom</span>
+        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom · <b>${(CHECKINS[e.id] || []).length}</b> aangemeld</span>
         <span style="display:flex;gap:6px">
           <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
           <button class="mini-btn" data-action="export" data-id="${e.id}">${icon("download",14)} Excel</button>
@@ -904,6 +1189,11 @@ function screenEventDetail(){
         </div>`).join("")}
     </div>
 
+    <button data-action="open-map" data-id="${e.id}" class="card" style="margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;border:none;text-align:left;cursor:pointer;color:inherit;padding:12px 14px">
+      ${icon("pin",18,"var(--brand)")}
+      <span style="flex:1;font-size:14px">${state.user && checkinFor(e, state.user.email) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
+      ${icon("right",16,"var(--muted)")}
+    </button>
     ${e.description ? `<div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
     <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
     ${adminCard}
@@ -934,6 +1224,7 @@ function screenCreate(){
   }
   const editing = state.editingId != null ? eventById(state.editingId) : null;
   const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
+  const loc = locationOf(e);
 
   const mine = EVENTS.filter(canAdmin)
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
@@ -955,6 +1246,24 @@ function screenCreate(){
       </div>
       <label class="field"><span>Plek</span>
         <input name="venue" placeholder="bv. Hoofveld" value="${esc(e.venue)}"></label>
+
+      <div class="field"><span>Aanmeld-ligging</span>
+        <div style="display:flex;gap:8px">
+          <input name="address" placeholder="Soek 'n adres…" value="${esc(loc.address)}" style="flex:1;min-width:0"
+            onkeydown="if(event.key==='Enter'){event.preventDefault();geocodeAddress()}">
+          <button type="button" class="mini-btn" data-action="geocode" style="height:46px;padding:0 14px">${icon("search",14)} Soek</button>
+        </div>
+        <div id="geo-results" class="geo-results"></div>
+        <div id="pick-map" class="map-inline" style="margin-top:8px"></div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
+          <small style="color:var(--muted);font-size:12px">Sleep die pen of tik op die kaart om dit te skuif.</small>
+          <button type="button" class="btn-link" data-action="pick-my-location" style="font-size:12px;padding:4px 0;flex:none">${icon("locate",12,"var(--brand)")} Gebruik my ligging</button>
+        </div>
+        <input type="hidden" name="lat" value="${loc.lat}">
+        <input type="hidden" name="lng" value="${loc.lng}">
+      </div>
+      <label class="field"><span>Radius: <b id="radius-label">${loc.radius} m</b> — mense binne hierdie sirkel kan aanmeld</span>
+        <input name="radius" type="range" min="${CONFIG.radiusMin}" max="${CONFIG.radiusMax}" step="25" value="${loc.radius}"></label>
       <label class="field"><span>Bykomende inligting</span>
         <textarea name="description" placeholder="Een of twee sinne vir ondersteuners">${esc(e.description)}</textarea></label>
       <label class="field"><span>Kaartjie-skakel (opsioneel)</span>
@@ -1134,19 +1443,26 @@ function buildXlsx(sheetName, rows, boldRows, colWidths){
 // Rows for one event's attendance sheet. Kept separate so it can be tested.
 function attendeeRows(e){
   const people = attendeesOf(e);
+  const checkedIn = people.filter(p => p.checkedInAt).length;
   return [
     [e.title],
     [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}`],
-    [`Totaal: ${people.length}`],
+    [`Totaal: ${people.length}  ·  Aangemeld: ${checkedIn}`],
     [],
-    ["Naam", "Van", "Graad", "E-pos"],
-    ...people.map(p => [p.name, p.surname, p.grade, p.email])
+    ["Naam", "Van", "Graad", "E-pos", "Ondersteun", "Aangemeld"],
+    ...people.map(p => [p.name, p.surname, p.grade, p.email, p.supports ? "Ja" : "Nee",
+                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} (${p.distance} m)${p.simulated ? " — toets" : ""}` : ""])
   ];
+}
+
+function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local time
+  const d = new Date(iso), p = n => String(n).padStart(2,"0");
+  return `${toISO(d)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 function exportAttendees(e){
   if (!canAdmin(e)) return;   // TODO: the server must refuse too
-  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 36]);
+  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 36, 12, 24]);
   const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href:url, download:filename });
@@ -1184,6 +1500,7 @@ const tabbarEl = document.getElementById("tabbar");
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
   tabbarEl.style.display = state.user ? "" : "none";
+  unmountMaps();
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
 
   // Drop state that points at something that no longer exists or isn't allowed.
@@ -1193,6 +1510,7 @@ function render(){
   if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
 
   screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
+  mountMaps();
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
     const active = id === state.tab && !state.openEventId;
@@ -1236,7 +1554,28 @@ function handle(target){
         break;
       case "map-map":        state.mapMode = "map"; break;
       case "map-qr":         state.mapMode = "qr";  break;
-      case "checkin":        state.checkedIn = !state.checkedIn; break;  // TODO: real check-in
+      // --- Location + check-in. These update in place instead of re-rendering,
+      // so the map keeps its position and a half-filled Skep form isn't wiped.
+      case "start-location": startLocation(); return;
+      case "checkin":        checkIn(); return;
+      case "simulate-location": {
+        const e = mapEvent();
+        if (e && roleOf() !== "user") simulateLocationAt(locationOf(e));
+        return;
+      }
+      case "locate-me":
+        if (geo.status === "on" && geo.pos && kaart.map) kaart.map.setView([geo.pos.lat, geo.pos.lng], 17);
+        else startLocation();
+        return;
+      case "open-map":
+        state.mapEventId = Number(target.dataset.id); state.tab = "map"; state.mapMode = "map"; state.openEventId = null;
+        break;
+      case "geocode":        geocodeAddress(); return;
+      case "pick-geocode":
+        setPickerPoint({ lat:Number(target.dataset.lat), lng:Number(target.dataset.lng) }, target.dataset.label, 17);
+        document.getElementById("geo-results").innerHTML = "";
+        return;
+      case "pick-my-location": useMyLocationForPin(); return;
       case "week-prev":      state.weekStart = addDays(state.weekStart, -7); state.scrollLeft = null; break;
       case "week-next":      state.weekStart = addDays(state.weekStart,  7); state.scrollLeft = null; break;
       case "auth-mode-signup":
@@ -1250,6 +1589,7 @@ function handle(target){
       case "auth-back":      state.auth.step = "details"; break;
       case "auth-resend":    alert("Nuwe kode gestuur (prototipe)."); return;   // TODO: call signInWithOtp again
       case "signout":        // TODO: supabase.auth.signOut()
+        stopLocation(); state.mapEventId = null;
         state.user = null; saveJSON("garsie.user", null);
         state.auth = { mode: "signin", step: "details", draft: {} };
         state.tab = "calendar"; state.openEventId = null; state.editingId = null;
@@ -1311,6 +1651,9 @@ window.addEventListener("resize", () => {
     // Guard on state.user: the phone keyboard opening fires resize, and
     // re-rendering the auth screen would wipe what the user is typing.
     if (state.user && state.tab === "calendar" && !state.openEventId){ state.scrollLeft = null; render(); }
+    // Maps: re-measure so tiles fill the new size (e.g. phone rotated).
+    if (kaart.map) kaart.map.invalidateSize();
+    if (picker.map) picker.map.invalidateSize();
   });
 });
 
@@ -1379,10 +1722,16 @@ function saveEventForm(data){
     end = `${String(Math.min(h + 1, 23)).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
   }
   const ticketUrl = /^https?:\/\//i.test((data.ticketUrl || "").trim()) ? data.ticketUrl.trim() : null;
+  // Check-in pin. Anything unparseable falls back to the school.
+  const lat = Number(data.lat), lng = Number(data.lng);
+  const radius = Math.min(CONFIG.radiusMax, Math.max(CONFIG.radiusMin, Number(data.radius) || CONFIG.schoolLocation.radius));
+  const location = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
+    ? { lat, lng, radius, address: (data.address || "").trim() }
+    : { ...CONFIG.schoolLocation, radius };
   const fields = {
     title: (data.title || "").trim() || "Nuwe geleentheid",
     department, date: data.date || toISO(TODAY), start, end,
-    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl
+    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl, location
   };
 
   const existing = state.editingId != null ? eventById(state.editingId) : null;
@@ -1398,6 +1747,11 @@ function saveEventForm(data){
   persistData();
 }
 
+// Radius slider in Skep: move the circle live while dragging.
+phoneEl.addEventListener("input", ev => {
+  if (ev.target.name === "radius" && ev.target.closest('[data-form="event"]')) setPickerRadius(ev.target.value);
+});
+
 // Dropdowns that change something straight away, without a submit button.
 phoneEl.addEventListener("change", ev => {
   const el = ev.target;
@@ -1408,6 +1762,8 @@ phoneEl.addEventListener("change", ev => {
   } else if (el.dataset.adminDept && roleOf() === "key"){
     ADMINS = ADMINS.map(a => a.email === el.dataset.adminDept ? { ...a, department: el.value } : a);
     persistData(); toast("Departement opgedateer");
+  } else if (el.id === "map-event-select"){
+    state.mapEventId = Number(el.value); geo.framed = false; render();
   } else if (el.dataset.deptColour && roleOf() === "key"){
     DEPARTMENTS = DEPARTMENTS.map(d => d.id === el.dataset.deptColour ? { ...d, colour: el.value } : d);
     persistData(); render();
