@@ -710,6 +710,61 @@ function profileFields(draft){
         </select>
       </label>`;
 }
+/* POPIA: the consent box on Registreer / Voltooi jou profiel, and the
+   privacy notice it links to.
+   TODO (school): have the notice approved and fill in the information
+   officer's contact details before the app goes to learners. */
+function consentField(checked){
+  return `<div class="field consent" style="margin:4px 0 12px">
+      <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--shadow-ink);cursor:pointer">
+        <input type="checkbox" name="popia" ${checked ? "checked" : ""} style="width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--brand)">
+        <span>Ek het die <button type="button" data-action="privacy-open" style="background:none;border:none;padding:0;color:var(--brand);font:inherit;text-decoration:underline;cursor:pointer">privaatheidskennisgewing</button>
+        gelees en stem in dat my inligting so gebruik word. As ek jonger as 18 is, het my ouer of voog ook ingestem.</span>
+      </label>
+    </div>`;
+}
+const PRIVACY_NOTICE = `
+  <h2 style="font-size:20px;margin:0 0 10px">Privaatheidskennisgewing</h2>
+  <p>Garsie Army wys al ${esc(CONFIG.school)} se geleenthede op een plek. Die skool is verantwoordelik vir jou inligting, soos die Wet op die Beskerming van Persoonlike Inligting (POPIA) vereis.</p>
+  <h3>Wat ons stoor</h3>
+  <ul>
+    <li>Jou naam, van, e-posadres, graad en geslag.</li>
+    <li>Watter geleenthede jy ondersteun.</li>
+    <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
+    <li>As jy kennisgewings aanskakel: jou toestel se push-adres.</li>
+  </ul>
+  <h3>Hoekom</h3>
+  <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings uit te wys, en om vir jou kennisgewings te stuur.</p>
+  <h3>Jou ligging</h3>
+  <p>Ons kyk net na jou ligging as jy self "Meld aan" druk of 'n QR-kode skandeer. Nooit in die agtergrond nie.</p>
+  <h3>Wie dit sien</h3>
+  <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van wie ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
+  <h3>Waar en hoe lank</h3>
+  <p>Op 'n beveiligde bediener (Supabase, in Ierland). Solank jy 'n rekening het.</p>
+  <h3>Jou regte</h3>
+  <p>Jy mag jou inligting sien, dit laat regstel, of jou rekening laat skrap. Vra die skool se inligtingsbeampte.</p>
+  <h3>Jonger as 18?</h3>
+  <p>Dan moet jou ouer of voog ook instem voordat jy die app gebruik.</p>`;
+function openPrivacy(){
+  if (document.getElementById("privacy")) return;
+  const el = document.createElement("div");
+  el.id = "privacy";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px";
+  el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;padding:20px 20px 16px;font-size:14px;line-height:1.5">
+      <style>#privacy h3{font-size:15px;margin:14px 0 4px}#privacy p,#privacy ul{margin:0 0 6px}#privacy ul{padding-left:20px}</style>
+      ${PRIVACY_NOTICE}
+      <button class="btn-primary" data-close style="margin-top:14px">Maak toe</button>
+    </div>`;
+  const close = () => { el.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = ev => { if (ev.key === "Escape") close(); };
+  el.addEventListener("click", ev => { if (ev.target === el || ev.target.closest("[data-close]")) close(); });
+  document.addEventListener("keydown", onKey);
+  document.body.appendChild(el);
+  el.querySelector("[data-close]").focus({ preventScroll:true });
+}
+
 // Checks the profile fields; returns [clean values, errors].
 function checkProfile(data){
   const v = {
@@ -758,21 +813,48 @@ function screenAuth(){
       <label class="field"><span>E-pos</span>
         <input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
       </label>
-      ${isSignup ? profileFields(draft) : ""}
+      ${isSignup ? profileFields(draft) + consentField(draft.popia) : ""}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
     <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
+    ${state.googleEnabled ? `
+    <div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:6px 0 12px">
+      <span style="flex:1;height:.5px;background:var(--hairline)"></span>of<span style="flex:1;height:.5px;background:var(--hairline)"></span></div>
+    <button data-action="auth-google" style="width:100%;height:48px;border-radius:24px;border:1px solid #dadce0;background:#fff;color:#1f1f1f;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer">
+      <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Gaan voort met Google</button>` : ""}
   </div></div>`;
 }
 
-// Signed in but no profile yet (e.g. an account made in the Supabase dashboard).
+// Signed in but no profile yet: signed up with Google (or an account made in
+// the Supabase dashboard). Google gives us the name; we still need the grade.
 function screenProfile(){
+  let draft = state.auth.draft || {};
+  if (!draft.name){
+    const md = (state.session && state.session.user && state.session.user.user_metadata) || {};
+    const full = String(md.full_name || md.name || "").trim().split(/\s+/);
+    draft = { ...draft, name: md.given_name || full[0] || "", surname: md.family_name || full.slice(1).join(" ") };
+  }
   return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
     <form data-form="profile" novalidate>
       <h2 style="font-size:20px;margin:0 0 6px">Voltooi jou profiel</h2>
       <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het nog jou naam en graad nodig.</p>
-      ${profileFields(state.auth.draft || {})}
+      ${profileFields(draft)}
+      ${consentField(draft.popia)}
       <button class="btn-primary" type="submit">Stoor</button>
+    </form>
+    <button class="btn-link" data-action="signout" style="width:100%;margin-top:10px">Teken uit</button>
+  </div></div>`;
+}
+
+// Registered before the consent box existed: accept once to carry on.
+function screenConsent(){
+  return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
+    <form data-form="consent" novalidate>
+      <h2 style="font-size:20px;margin:0 0 6px">Jou privaatheid</h2>
+      <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Lees asseblief hoe ons jou inligting gebruik, en merk die blokkie om voort te gaan.</p>
+      ${consentField(false)}
+      <button class="btn-primary" type="submit">Gaan voort</button>
     </form>
     <button class="btn-link" data-action="signout" style="width:100%;margin-top:10px">Teken uit</button>
   </div></div>`;
@@ -2067,10 +2149,11 @@ const tabbarEl = document.getElementById("tabbar");
 
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
-  tabbarEl.style.display = state.user && !state.loading ? "" : "none";
+  tabbarEl.style.display = state.user && !state.loading && !state.needsConsent ? "" : "none";
   unmountMaps(); stopScanner(); stopQrTicker();
   if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); return; }
   if (state.session && state.needsProfile){ screenEl.innerHTML = screenProfile(); return; }
+  if (state.session && state.needsConsent){ screenEl.innerHTML = screenConsent(); return; }
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
 
   // Drop state that points at something that no longer exists or isn't allowed.
@@ -2206,6 +2289,8 @@ function handle(target){
         break;
       }
       case "auth-back":      state.auth.step = "details"; break;
+      case "privacy-open":   openPrivacy(); return;
+      case "auth-google":    signInWithGoogle(); return;
       case "auth-resend": {
         const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
         if (wait > 0){ toast(`Wag nog ${wait} sekondes voor jy weer 'n kode vra.`); return; }
@@ -2305,7 +2390,11 @@ phoneEl.addEventListener("submit", async ev => {
     let v = { email }, errors = {};
     if (!email) errors.email = "Tik jou e-posadres in.";
     else if (!isEmail(email)) errors.email = "Dit lyk nie soos 'n e-posadres nie (bv. naam@voorbeeld.co.za).";
-    if (isSignup){ const [p, pe] = checkProfile(data); v = { ...v, ...p }; errors = { ...errors, ...pe }; }
+    if (isSignup){
+      const [p, pe] = checkProfile(data);
+      v = { ...v, ...p, popia: data.popia === "on" }; errors = { ...errors, ...pe };
+      if (!v.popia) errors.popia = "Jy moet die privaatheidskennisgewing aanvaar om te registreer.";
+    }
     if (!showErrors(form, errors)) return;
 
     busy(true);
@@ -2342,10 +2431,23 @@ phoneEl.addEventListener("submit", async ev => {
 
   if (form.dataset.form === "profile"){
     const [p, errors] = checkProfile(data);
+    if (data.popia !== "on") errors.popia = "Jy moet die privaatheidskennisgewing aanvaar om voort te gaan.";
     if (!showErrors(form, errors)) return;
     busy(true);
     const u = state.session.user;
-    const { error } = await sb.from("profiles").insert({ id:u.id, email:(u.email || "").toLowerCase(), name:p.name, surname:p.surname, grade:p.grade, gender:p.gender || null });
+    // popia_accepted_at: the server replaces it with its own clock.
+    const { error } = await sb.from("profiles").insert({ id:u.id, email:(u.email || "").toLowerCase(), name:p.name, surname:p.surname,
+                                                       grade:p.grade, gender:p.gender || null, popia_accepted_at:new Date().toISOString() });
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "consent"){
+    if (!showErrors(form, data.popia === "on" ? {} : { popia: "Merk die blokkie om voort te gaan." })) return;
+    busy(true);
+    const { error } = await sb.from("profiles").update({ popia_accepted_at:new Date().toISOString() }).eq("id", state.session.user.id);
     busy(false);
     if (error){ toast(dbMessage(error)); return; }
     await loadAll(); render();
@@ -2621,7 +2723,7 @@ async function sendCode(draft, isSignup){
   const { error } = await sb.auth.signInWithOtp({
     email: draft.email,
     options: isSignup
-      ? { shouldCreateUser: true, data: { name: draft.name, surname: draft.surname, grade: draft.grade, gender: draft.gender || "" } }
+      ? { shouldCreateUser: true, data: { name: draft.name, surname: draft.surname, grade: draft.grade, gender: draft.gender || "", popia: "true" } }
       : { shouldCreateUser: false }
   });
   if (!error){ state.auth.sentAt = Date.now(); return ""; }
@@ -2630,6 +2732,32 @@ async function sendCode(draft, isSignup){
   }
   if (/rate limit|security purposes|seconds/i.test(error.message)) return "Te veel kodes gevra. Wag 'n minuut (of langer) en probeer weer.";
   return dbMessage(error);
+}
+
+// "Gaan voort met Google": leaves for Google and comes back signed in.
+// New Google users then get "Voltooi jou profiel" (grade + consent).
+async function signInWithGoogle(){
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: "select_account" } }
+  });
+  if (error) toast(dbMessage(error));
+}
+// Show the Google button only once Google is switched on in Supabase.
+async function checkGoogle(){
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } });
+    state.googleEnabled = !!(res.ok && (await res.json()).external?.google);
+  } catch { state.googleEnabled = false; }
+  if (!state.user && !state.session && !state.loading) render();
+}
+// Coming back from Google with an error (e.g. pressed Cancel).
+function takeOAuthError(){
+  const q = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
+  if (!q.get("error")) return;
+  history.replaceState(null, "", location.pathname);
+  setTimeout(() => toast(q.get("error") === "access_denied" ? "Google-inteken is gekanselleer."
+                                                            : "Kon nie met Google inteken nie. Probeer weer."), 300);
 }
 
 // Database rows -> the shapes the screens use.
@@ -2652,7 +2780,7 @@ async function loadAll(){
   if (!u) return;
   try {
     const [prof, role, depts, evs, sup, chk] = await Promise.all([
-      sb.from("profiles").select("name,surname,grade,gender,notify_new").eq("id", u.id).maybeSingle(),
+      sb.from("profiles").select("name,surname,grade,gender,notify_new,popia_accepted_at").eq("id", u.id).maybeSingle(),
       sb.rpc("my_role"),
       sb.from("departments").select("id,name,colour").order("name"),
       sb.from("events").select("*").order("date").order("start_time"),
@@ -2691,6 +2819,7 @@ async function loadAll(){
 }
 function applyData(d){
   state.needsProfile = !d.profile;
+  state.needsConsent = !!d.profile && !d.profile.popia_accepted_at;
   state.user = d.profile ? {
     id: d.uid, email: (d.email || "").toLowerCase(), name: d.profile.name, surname: d.profile.surname,
     grade: d.profile.grade, gender: d.profile.gender || "", notifyNew: d.profile.notify_new !== false,
@@ -2917,6 +3046,8 @@ async function signOut(){
 }
 
 async function init(){
+  takeOAuthError();
+  checkGoogle();
   takeScanFromUrl();
   takeEventFromUrl();
   if (!sb){
