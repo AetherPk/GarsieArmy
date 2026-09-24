@@ -21,12 +21,21 @@
   or Teken in (e-pos), then a one-time code. Built for Supabase magic OTP
   but not connected yet — it accepts anything. Search "screenAuth".
 
+  ROLES (picked on the sign-in screen in this prototype)
+    Gebruiker          supporter: the four tabs below
+    Departement-admin  + "Skep" tab: create / edit / export events of ONE department
+    Hoof-admin         + "Bestuur" tab: departments and who is admin of what,
+                       and can create / edit / export events of ANY department
+  Admin tabs sit in front of the normal four. Search "ROLES & PERMISSIONS".
+  TODO: in production the role comes from the admins table (managed in
+  Bestuur), never from a picker the user controls.
+
   THE FOUR TABS
     Kalender  Week view. Days run top to bottom, hours left to right
               (scroll horizontally). Tap a block to open the event.
     Kaart     Map of the school + "Meld aan" check-in, and a QR mode for
               gate check-in at free events.
-    Soek      Search and filter by category.
+    Soek      Search and filter by department.
     Myne      Events the user has tapped "Ek ondersteun" on.
 
   WHAT IS REAL vs FAKE IN THIS FILE
@@ -81,9 +90,6 @@
   --brand:#C0262D;          /* primary — school red (PLACEHOLDER) */
   --brand-ink:#8e1d24;      /* text on light red */
   --brand-wash:#fde4e4;     /* light red fill */
-  --culture:#5856d6;        /* second category — culture */
-  --culture-ink:#3a38a0;
-  --culture-wash:#ebeafd;
   --myne-bg:#1f2a44;        /* "Myne" tab background */
 
   --page:#ececef; --ink:#1d1d1f; --muted:#6e6e73;
@@ -137,18 +143,39 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 
 /* Bottom tab bar — persistent across all four tabs */
 .tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:rgba(242,242,244,.96);border:.5px solid #d8d8dc;display:flex;align-items:center;justify-content:space-around;z-index:5}
-.tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:#6b6b70;padding:5px 10px;border-radius:22px;background:none;border:none}
+.tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:#6b6b70;padding:5px 8px;border-radius:22px;background:none;border:none;min-width:0}
 .tab.is-active{color:var(--brand);background:var(--brand-wash)}
 
 /* Shared list row */
 .row-event{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid #e5e5ea;cursor:pointer}
 
-/* Filter chips */
-.chip{font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid #d1d1d6;background:#fff;color:#333}
-.chip.is-active{background:var(--brand);color:#fff;border-color:var(--brand)}
+/* Filter chips — one per department, shared by Kalender, Soek and Myne */
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid #d1d1d6;background:#fff;color:#333}
+.chip.is-active{color:#fff}
+.chip.on-dark{background:transparent;border-color:#5a6680;color:#e6e6ec}
+.dot{width:8px;height:8px;border-radius:4px;flex:none}
+
+/* Scrollable admin / form screens */
+.panel{position:absolute;inset:0;overflow-y:auto;padding:10px 16px 110px}
+.panel h1{font-size:30px;font-weight:700;margin:0 0 12px}
+.panel h2{font-size:17px;margin:22px 0 10px}
+.card{background:#f2f2f4;border-radius:16px;padding:14px}
+.field textarea{width:100%;min-height:76px;border-radius:14px;border:.5px solid #d1d1d6;background:#f2f2f4;padding:12px 14px;font-size:16px;color:#111;font-family:inherit;outline:none;resize:vertical}
+.field textarea:focus{border-color:var(--brand);background:#fff}
+.card .field input,.card .field select,.card .field textarea{background:#fff}
+.field input[type=color]{padding:4px 6px;cursor:pointer}
+.field select:disabled{opacity:.7}
+.list-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid #dcdce0}
+.list-row:last-child{border-bottom:none}
+.mini-btn{flex:none;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border-radius:15px;border:.5px solid #d1d1d6;background:#fff;color:#111;font-size:12px}
+.mini-btn.danger{color:#c0262d}
+.mini-btn:disabled{opacity:.4;cursor:default}
+.toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:#1d1d1f;color:#fff;font-size:14px;padding:10px 16px;border-radius:20px;z-index:20;white-space:nowrap;pointer-events:none}
 
 /* Week grid. Horizontal scroll is the whole point of this view. */
-.weekgrid{position:absolute;top:92px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
+.weekgrid{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
 .weekrow{display:flex;position:relative}
 .daylabel{position:sticky;left:0;z-index:2;background:#fff;width:48px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:.5px solid #e5e5ea}
 .block{position:absolute;top:5px;bottom:5px;border-radius:7px;padding:4px 6px;font-size:10px;line-height:1.2;overflow:hidden;cursor:pointer;border:none;text-align:left}
@@ -167,12 +194,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <div class="phone" id="phone">
   <div class="statusbar"><span id="clock">16:34</span><span id="statusicons"></span></div>
   <div class="screen" id="screen"></div>
-  <div class="tabbar" role="tablist">
-    <button class="tab" role="tab" data-tab="calendar" id="tab-calendar"></button>
-    <button class="tab" role="tab" data-tab="map"      id="tab-map"></button>
-    <button class="tab" role="tab" data-tab="search"   id="tab-search"></button>
-    <button class="tab" role="tab" data-tab="mine"     id="tab-mine"></button>
-  </div>
+  <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
+  <div class="tabbar" role="tablist" id="tabbar"></div>
 </div>
 
 <p class="hint" style="display:none">Prototipe — klik deur die app soos op 'n foon. Die data is voorbeelddata.</p>
@@ -198,13 +221,6 @@ const CONFIG = {
   // Most school events are afternoon, so don't start the user at 06:00.
   initialScrollHour: 13,
 
-  // Categories drive colour and the filter chips.
-  // TODO: move to the API so the school can add e.g. "Skaak" without a release.
-  categories: {
-    Sport:   { colour:"var(--brand)",   wash:"var(--brand-wash)",   ink:"var(--brand-ink)",   icon:"ball"  },
-    Kultuur: { colour:"var(--culture)", wash:"var(--culture-wash)", ink:"var(--culture-ink)", icon:"music" }
-  },
-
   // The prototype pins "today" so the red now-line and the demo week line up.
   // TODO: in production this is simply new Date().
   demoToday: "2026-06-16T16:34:00"
@@ -218,7 +234,7 @@ const CONFIG = {
    Event shape (keep these field names — the UI reads them directly):
      id           number|string   stable unique id
      title        string          shown on the block and the detail screen
-     category     string          must be a key of CONFIG.categories
+     department   string          id of an entry in DEPARTMENTS
      date         "YYYY-MM-DD"    local date, no timezone games
      start,end    "HH:MM"         24h local time
      venue        string          free text, shown as "Plek"
@@ -231,19 +247,91 @@ const CONFIG = {
      updatedAt    timestamp        for sync and "changed" badges
      isHome       boolean          away fixtures need travel info instead
 =========================================================================== */
-const EVENTS = [
-  { id:1,  title:"Rugby: Garsies teen Menlopark",   category:"Sport",   date:"2026-06-15", start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
-  { id:2,  title:"Debat",                           category:"Kultuur", date:"2026-06-16", start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
-  { id:3,  title:"Netbal: o/16",                    category:"Sport",   date:"2026-06-16", start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
-  { id:4,  title:"Oggend-byeenkoms",                category:"Kultuur", date:"2026-06-17", start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
-  { id:5,  title:"Koor-konsert",                    category:"Kultuur", date:"2026-06-18", start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
-  { id:6,  title:"Atletiek-oefenbyeenkoms",         category:"Sport",   date:"2026-06-19", start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
-  { id:7,  title:"Hokkie: Garsies teen Waterkloof", category:"Sport",   date:"2026-06-20", start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
-  { id:8,  title:"Rugby o/15",                      category:"Sport",   date:"2026-06-20", start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
-  { id:9,  title:"Kultuuraand",                     category:"Kultuur", date:"2026-06-23", start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
-  { id:10, title:"Tennis: eerste span",             category:"Sport",   date:"2026-06-10", start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
-  { id:11, title:"Sokker o/19",                     category:"Sport",   date:"2026-06-25", start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
+const SEED_EVENTS = [
+  { id:1,  title:"Rugby: Garsies teen Menlopark",   department:"sport",   date:"2026-06-15", start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
+  { id:2,  title:"Debat",                           department:"kultuur", date:"2026-06-16", start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
+  { id:3,  title:"Netbal: o/16",                    department:"sport",   date:"2026-06-16", start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
+  { id:4,  title:"Oggend-byeenkoms",                department:"kultuur", date:"2026-06-17", start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
+  { id:5,  title:"Koor-konsert",                    department:"kultuur", date:"2026-06-18", start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
+  { id:6,  title:"Atletiek-oefenbyeenkoms",         department:"sport",   date:"2026-06-19", start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
+  { id:7,  title:"Hokkie: Garsies teen Waterkloof", department:"sport",   date:"2026-06-20", start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
+  { id:8,  title:"Rugby o/15",                      department:"sport",   date:"2026-06-20", start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
+  { id:9,  title:"Kultuuraand",                     department:"kultuur", date:"2026-06-23", start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
+  { id:10, title:"Tennis: eerste span",             department:"sport",   date:"2026-06-10", start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
+  { id:11, title:"Sokker o/19",                     department:"sport",   date:"2026-06-25", start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
 ];
+
+/* ---------------------------------------------------------------------------
+   DEPARTMENTS
+   Stand-in for GET /api/departments. Each department is just a name and a
+   colour; every event belongs to exactly one. Hoof-admins create them in
+   Bestuur, and every department gets a filter chip in Kalender, Soek and Myne.
+     id       string   stable, never shown
+     name     string   shown on chips, badges and the export
+     colour   "#rrggbb"  the block/badge colour; light + dark tints are derived
+--------------------------------------------------------------------------- */
+const SEED_DEPARTMENTS = [
+  { id:"sport",   name:"Sport",   colour:"#C0262D" },
+  { id:"kultuur", name:"Kultuur", colour:"#5856d6" }
+];
+
+/* ---------------------------------------------------------------------------
+   ADMINS
+   Stand-in for the admins table: who may edit what. Managed in Bestuur.
+     email       string
+     role        "key" (Hoof-admin, everything) | "dept" (Departement-admin)
+     department  department id — only for role "dept"
+--------------------------------------------------------------------------- */
+const SEED_ADMINS = [
+  { email:"hoof@garsies.co.za",   role:"key",  department:null },
+  { email:"rugby@garsies.co.za",  role:"dept", department:"sport" },
+  { email:"koor@garsies.co.za",   role:"dept", department:"kultuur" }
+];
+
+// PROTOTYPE: departments, events and admins live in this browser so that
+// what you create survives a refresh. Nobody else sees it — that needs the
+// real backend (TODO: Supabase tables departments / events / admins).
+let DEPARTMENTS = loadJSON("garsie.departments") || SEED_DEPARTMENTS;
+let EVENTS      = loadJSON("garsie.events")      || SEED_EVENTS;
+let ADMINS      = loadJSON("garsie.admins")      || SEED_ADMINS;
+function persistData(){
+  saveJSON("garsie.departments", DEPARTMENTS);
+  saveJSON("garsie.events", EVENTS);
+  saveJSON("garsie.admins", ADMINS);
+}
+function resetData(){
+  DEPARTMENTS = SEED_DEPARTMENTS; EVENTS = SEED_EVENTS; ADMINS = SEED_ADMINS;
+  ["garsie.departments","garsie.events","garsie.admins"].forEach(k => saveJSON(k, null));
+}
+
+/* ---------------------------------------------------------------------------
+   ATTENDEES ("Ek ondersteun")
+   Stand-in for GET /api/events/:id/attendees. The sample events get a
+   deterministic list of FAKE people so the Excel export has something in it;
+   new events start empty. The signed-in user is added when they tap
+   "Ek ondersteun".
+--------------------------------------------------------------------------- */
+const SAMPLE_FIRST = ["Anika","Ruan","Liezl","Jaco","Marli","Pieter","Chané","Wian","Elna","Dewald","Carla","Juan","Mia","Stefan","Zelda","Hendrik"];
+const SAMPLE_LAST  = ["van der Merwe","Botha","Pretorius","Nel","du Plessis","Venter","Kruger","Steyn","Coetzee","Smit","Fourie","Joubert"];
+const SEED_EVENT_IDS = new Set(SEED_EVENTS.map(e => e.id));
+
+function attendeesOf(e){
+  const people = [];
+  if (SEED_EVENT_IDS.has(e.id)){
+    const n = 4 + (e.id * 7) % 15;
+    for (let i = 0; i < n; i++){
+      const name    = SAMPLE_FIRST[(i * 3 + e.id) % SAMPLE_FIRST.length];
+      const surname = SAMPLE_LAST[(i * 5 + e.id * 2) % SAMPLE_LAST.length];
+      const slug    = `${name}.${surname}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "").toLowerCase();
+      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], email: `${slug}${i}@voorbeeld.co.za` });
+    }
+  }
+  if (state.user && state.supported.has(e.id)){
+    const { name = "", surname = "", grade = "", email = "" } = state.user;
+    people.push({ name, surname, grade, email });
+  }
+  return people;
+}
 
 /* ---------------------------------------------------------------------------
    STRINGS
@@ -278,6 +366,10 @@ const ICON_PATHS = {
   mic:'<rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M8 21h8M12 17v4"/>',
   ball:'<circle cx="12" cy="12" r="9"/><path d="m12 7 4.76 3.45-1.82 5.6H9.06l-1.82-5.6z"/>',
   music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  shield:'<path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+  download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>'
 };
 function icon(name, size = 20, colour = "currentColor"){
@@ -318,11 +410,42 @@ function sameDay(a, b){ return toISO(a) === toISO(b); }
 // Events on a given day, earliest first.
 function eventsOn(date){
   const iso = toISO(date);
-  return EVENTS.filter(e => e.date === iso)
+  return EVENTS.filter(e => e.date === iso && passesFilter(e))
                .sort((a,b) => hmToDecimal(a.start) - hmToDecimal(b.start));
 }
 function eventById(id){ return EVENTS.find(e => e.id === id); }
-function categoryOf(e){ return CONFIG.categories[e.category]; }
+
+// Department of an event, with the tints the UI needs derived from its one colour.
+function deptById(id){
+  const d = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"#8e8e93" };
+  return { ...d,
+    wash: `color-mix(in srgb, ${d.colour} 14%, white)`,   // block / badge fill
+    ink:  `color-mix(in srgb, ${d.colour} 72%, black)`,   // text on the wash
+    deep: `color-mix(in srgb, ${d.colour} 70%, black)` }; // Myne card background
+}
+function deptOf(e){ return deptById(e.department); }
+
+// Shared department filter (state.filter is "Alles" or a department id).
+function passesFilter(e){ return state.filter === "Alles" || e.department === state.filter; }
+
+/* ---------------------------------------------------------------------------
+   ROLES & PERMISSIONS
+   Every admin check in the UI goes through these two functions.
+   TODO: enforce the same rules server-side (Supabase row-level security) —
+   hiding a button is not security.
+--------------------------------------------------------------------------- */
+const ROLE_LABELS = { user:"Gebruiker", dept:"Departement-admin", key:"Hoof-admin" };
+function roleOf(){ return (state.user && state.user.role) || "user"; }
+function canAdmin(e){
+  if (roleOf() === "key") return true;
+  return roleOf() === "dept" && e.department === state.user.department;
+}
+// Departments this user may create events in.
+function adminDepartments(){
+  if (roleOf() === "key") return DEPARTMENTS;
+  if (roleOf() === "dept") return DEPARTMENTS.filter(d => d.id === state.user.department);
+  return [];
+}
 
 /* ===========================================================================
    5. STATE
@@ -355,6 +478,7 @@ const state = {
   filter: "Alles",
   mapMode: "map",                   // map | qr
   checkedIn: false,
+  editingId: null,                  // Skep tab: id of the event being edited, null = new
   scrollLeft: null                  // remembers horizontal scroll between renders
 };
 
@@ -381,6 +505,23 @@ const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Nie 'n lee
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+// PROTOTYPE ONLY: lets you try each role. In production the role is looked
+// up from ADMINS after sign-in and this picker disappears.
+function roleFields(draft){
+  const role = draft.role || "user";
+  return `
+    <label class="field"><span>Ek teken in as</span>
+      <select name="role">
+        ${Object.entries(ROLE_LABELS).map(([v, label]) => `<option value="${v}" ${role===v ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+    </label>
+    <label class="field" id="auth-dept" style="${role === "dept" ? "" : "display:none"}"><span>Departement</span>
+      <select name="department">
+        ${DEPARTMENTS.map(d => `<option value="${esc(d.id)}" ${draft.department===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
+      </select>
+    </label>`;
 }
 
 function screenAuth(){
@@ -436,6 +577,7 @@ function screenAuth(){
           ${GRADES.map(g => `<option ${draft.grade===g ? "selected" : ""}>${g}</option>`).join("")}
         </select>
       </label>` : ""}
+      ${roleFields(draft)}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
     <p style="font-size:13px;color:#8e8e93;text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
@@ -454,6 +596,18 @@ function hourWidth(){
   return Math.max(MIN, Math.floor((screenEl.clientWidth - 48) / (H1 - H0)));
 }
 
+// Department filter chips, shared by Kalender, Soek and Myne so the choice
+// carries across tabs. New departments show up here automatically.
+function filterChips(onDark = false){
+  const chip = (value, label, colour) => {
+    const active = state.filter === value;
+    const style = active ? `background:${colour};border-color:${colour}` : "";
+    return `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""}" data-filter="${esc(value)}" style="${style}">
+      ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? "#fff" : colour}"></span>`}${esc(label)}</button>`;
+  };
+  return `<div class="chips">${chip("Alles", "Alles", "var(--brand)")}${DEPARTMENTS.map(d => chip(d.id, d.name, d.colour)).join("")}</div>`;
+}
+
 function screenCalendar(){
   const { dayStartHour:H0, dayEndHour:H1, rowHeightPx:RH } = CONFIG;
   const PX = hourWidth();
@@ -465,7 +619,10 @@ function screenCalendar(){
   <div style="padding:6px 16px 0">
     <div style="display:flex;justify-content:space-between;align-items:center;color:var(--brand);font-size:15px">
       <span style="display:flex;align-items:center">${icon("left",20,"var(--brand)")}${monthName}</span>
-      <span style="display:flex;gap:14px">${icon("search",20,"var(--brand)")}${icon("plus",20,"var(--brand)")}</span>
+      <span style="display:flex;gap:6px">
+        <button data-tab="search" aria-label="Soek" style="background:none;border:none;padding:4px">${icon("search",20,"var(--brand)")}</button>
+        ${roleOf() !== "user" ? `<button data-action="new-event" aria-label="Skep geleentheid" style="background:none;border:none;padding:4px">${icon("plus",20,"var(--brand)")}</button>` : ""}
+      </span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 0">
       <div style="font-size:26px;font-weight:700">${state.weekStart.getDate()} – ${weekEnd.getDate()} ${monthName.slice(0,3)}</div>
@@ -474,6 +631,7 @@ function screenCalendar(){
         <button data-action="week-next" aria-label="Volgende week" style="width:30px;height:30px;border-radius:15px;border:none;background:#f2f2f4;display:flex;align-items:center;justify-content:center">${icon("right",16,"var(--brand)")}</button>
       </div>
     </div>
+    <div style="margin-top:8px">${filterChips()}</div>
   </div>
   <div class="weekgrid" id="weekgrid"><div style="width:${gridWidth + 48}px;position:relative">`;
 
@@ -501,7 +659,7 @@ function screenCalendar(){
       <div style="position:relative;width:${gridWidth}px;flex:none;background:repeating-linear-gradient(90deg,transparent 0 ${PX-1}px,#f0f0f2 ${PX-1}px ${PX}px)">`;
 
     eventsOn(day).forEach(e => {
-      const cat   = categoryOf(e);
+      const cat   = deptOf(e);
       const left  = (hmToDecimal(e.start) - H0) * PX + 1;
       const width = (hmToDecimal(e.end) - hmToDecimal(e.start)) * PX - 3;
       const tick  = state.supported.has(e.id) ? " " + icon("check",10,cat.ink) : "";
@@ -509,7 +667,7 @@ function screenCalendar(){
       // finds them unreadable, raise CONFIG.hourWidthPx rather than shrinking type.
       html += `<button class="block" data-event="${e.id}"
         style="left:${left}px;width:${width}px;background:${cat.wash};color:${cat.ink};border-left:3px solid ${cat.colour}">
-        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.title}</b>${e.start}${tick}</button>`;
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title)}</b>${e.start}${tick}</button>`;
     });
 
     html += `</div></div>`;
@@ -585,18 +743,15 @@ function screenMap(){
    and add team/grade as filter dimensions.
 ------------------------------------------------------------------------- */
 function screenSearch(){
-  const chips = ["Alles", ...Object.keys(CONFIG.categories)];
   return `<div class="content" style="padding:10px 16px">
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
     <div style="display:flex;align-items:center;gap:8px;background:#eeeef0;border-radius:14px;height:42px;padding:0 12px">
       ${icon("search",18,"#8e8e93")}
-      <input id="searchbox" value="${state.query}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
+      <input id="searchbox" value="${esc(state.query)}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
         style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:#111">
       ${icon("mic",18,"#8e8e93")}
     </div>
-    <div style="display:flex;gap:6px;margin:12px 0">
-      ${chips.map(c => `<button class="chip ${state.filter===c ? "is-active" : ""}" data-filter="${c}">${c}</button>`).join("")}
-    </div>
+    <div style="margin:12px 0">${filterChips()}</div>
     <div id="results">${searchResults()}</div>
   </div>`;
 }
@@ -604,9 +759,9 @@ function screenSearch(){
 function searchResults(){
   const q = state.query.trim().toLowerCase();
   const matches = EVENTS
-    .filter(e => state.filter === "Alles" || e.category === state.filter)
+    .filter(passesFilter)
     .filter(e => !q || e.title.toLowerCase().includes(q)
-                    || e.category.toLowerCase().includes(q)
+                    || deptOf(e).name.toLowerCase().includes(q)
                     || e.venue.toLowerCase().includes(q))
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
     .slice(0, 7);   // TODO: paginate instead of truncating
@@ -617,13 +772,14 @@ function searchResults(){
 
   return matches.map(e => {
     const day = toDate(e.date);
+    const dept = deptOf(e);
     return `<div class="row-event" data-event="${e.id}" tabindex="0" role="button">
-      <div style="width:40px;height:40px;border-radius:10px;background:${categoryOf(e).wash};display:flex;align-items:center;justify-content:center">
-        ${icon(categoryOf(e).icon, 20, categoryOf(e).colour)}
+      <div style="width:40px;height:40px;border-radius:10px;background:${dept.wash};color:${dept.colour};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px">
+        ${esc(dept.name.charAt(0).toUpperCase())}
       </div>
       <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:600">${e.title}</div>
-        <div style="font-size:12px;color:#8e8e93">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${e.category}</div>
+        <div style="font-size:14px;font-weight:600">${esc(e.title)}</div>
+        <div style="font-size:12px;color:#8e8e93">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${esc(dept.name)}</div>
       </div>
     </div>`;
   }).join("");
@@ -637,7 +793,7 @@ function searchResults(){
 ------------------------------------------------------------------------- */
 function screenMine(){
   const mine = EVENTS
-    .filter(e => state.supported.has(e.id))
+    .filter(e => state.supported.has(e.id) && passesFilter(e))
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
   let html = `<div style="position:absolute;top:-36px;left:0;right:0;bottom:0;background:var(--myne-bg);padding:46px 14px 0;overflow-y:auto">
@@ -646,6 +802,7 @@ function screenMine(){
       <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
     </div>
     <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
+    <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
     <div class="mine-grid">`;
 
   if (!mine.length){
@@ -654,13 +811,13 @@ function screenMine(){
 
   mine.forEach(e => {
     const day = toDate(e.date);
-    const bg  = e.category === "Sport" ? "#8e1d24" : "#3d4f7a";
+    const dept = deptOf(e);
     html += `<div data-event="${e.id}" tabindex="0" role="button"
-      style="cursor:pointer;background:${bg};border-radius:20px;padding:13px 15px;color:#fff;display:flex;justify-content:space-between;gap:8px">
+      style="cursor:pointer;background:${dept.deep};border-radius:20px;padding:13px 15px;color:#fff;display:flex;justify-content:space-between;gap:8px">
       <div style="min-width:0">
-        <div style="font-size:16px;font-weight:600;line-height:1.25">${e.title}</div>
-        <div style="font-size:12px;color:#e6e6ec">${e.venue}</div>
-        <div style="font-size:12px;margin-top:16px;color:#e6e6ec">${e.category}</div>
+        <div style="font-size:16px;font-weight:600;line-height:1.25">${esc(e.title)}</div>
+        <div style="font-size:12px;color:#e6e6ec">${esc(e.venue)}</div>
+        <div style="font-size:12px;margin-top:16px;color:#e6e6ec">${esc(dept.name)}</div>
       </div>
       <div style="text-align:right;flex:none">
         <div style="font-size:36px;font-weight:300;line-height:1">${day.getDate()}</div>
@@ -693,29 +850,45 @@ function screenEventDetail(){
   ];
 
   const ticketButton = e.ticketUrl
-    ? `<a href="${e.ticketUrl}" target="_blank" rel="noopener"
+    ? `<a href="${esc(e.ticketUrl)}" target="_blank" rel="noopener"
          style="width:100%;display:flex;align-items:center;justify-content:space-between;border:.5px solid #d1d1d6;background:#fff;color:#111;border-radius:14px;padding:11px 14px;margin-bottom:10px;text-decoration:none">
          <span style="font-size:14px;display:flex;align-items:center;gap:8px">${icon("ticket",18,"var(--brand)")}Koop kaartjies</span>
          <span style="font-size:12px;color:#8e8e93;display:flex;align-items:center;gap:4px">Quicket ${icon("external",14,"#8e8e93")}</span>
        </a>`
     : "";
 
-  return `<div class="content" style="padding:8px 18px">
+  // Only people with admin rights over this event see who is coming.
+  const adminCard = canAdmin(e) ? `
+    <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
+      <div style="font-size:12px;color:#8e8e93;display:flex;align-items:center;gap:6px">${icon("shield",14,"#8e8e93")} Net vir admins</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
+        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom</span>
+        <span style="display:flex;gap:6px">
+          <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
+          <button class="mini-btn" data-action="export" data-id="${e.id}">${icon("download",14)} Excel</button>
+        </span>
+      </div>
+    </div>` : "";
+
+  return `<div style="position:absolute;inset:0;overflow-y:auto;padding-bottom:${e.ticketUrl ? 220 : 160}px">
+  <div class="content" style="padding:8px 18px">
     <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:#f2f2f4;border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
-    <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${e.title}</h1>
-    <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${categoryOf(e).wash};color:${categoryOf(e).ink}">${e.category}</span>
+    <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${esc(e.title)}</h1>
+    <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptOf(e).name)}</span>
 
     <div style="margin-top:14px;background:#f2f2f4;border-radius:14px;padding:4px 14px">
       ${rows.map(([ic_, label, value], i) => `
         <div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i < rows.length-1 ? "border-bottom:.5px solid #dcdce0" : ""}">
           ${icon(ic_,18,"var(--brand)")}
           <span style="font-size:13px;color:#8e8e93;width:46px">${label}</span>
-          <span style="font-size:14px">${value}</span>
+          <span style="font-size:14px">${esc(value)}</span>
         </div>`).join("")}
     </div>
 
-    <div style="font-size:13px;color:#8e8e93;margin:14px 0 6px">Bykomende inligting</div>
-    <div style="background:#f2f2f4;border-radius:14px;padding:12px 14px;font-size:14px">${e.description}</div>
+    ${e.description ? `<div style="font-size:13px;color:#8e8e93;margin:14px 0 6px">Bykomende inligting</div>
+    <div style="background:#f2f2f4;border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
+    ${adminCard}
+  </div>
   </div>
 
   <div class="bottom-bar" style="position:absolute;left:18px;right:18px;bottom:90px">
@@ -727,34 +900,285 @@ function screenEventDetail(){
   </div>`;
 }
 
+/* --- 6f. Skep (Departement-admin + Hoof-admin) ---------------------------
+   Create or edit an event, and see every event you have rights over with
+   its attendee count, Excel export and delete.
+   Departement-admins can only pick their own department; Hoof-admins any.
+   TODO: POST /api/events, PATCH /api/events/:id, DELETE /api/events/:id —
+   and have the server re-check canAdmin(), don't trust the client.
+------------------------------------------------------------------------- */
+function screenCreate(){
+  const depts = adminDepartments();
+  if (!depts.length){
+    return `<div class="panel"><div class="content"><h1>Skep</h1>
+      <p style="color:#6e6e73">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n hoof-admin.</p></div></div>`;
+  }
+  const editing = state.editingId != null ? eventById(state.editingId) : null;
+  const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
+
+  const mine = EVENTS.filter(canAdmin)
+    .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+
+  return `<div class="panel"><div class="content">
+    <h1>${editing ? "Wysig geleentheid" : "Skep geleentheid"}</h1>
+    <form data-form="event" class="card">
+      <label class="field"><span>Titel</span>
+        <input name="title" placeholder="bv. Rugby: Garsies teen Affies" value="${esc(e.title)}"></label>
+      <label class="field"><span>Departement</span>
+        <select name="department" ${depts.length === 1 ? "disabled" : ""}>
+          ${depts.map(d => `<option value="${esc(d.id)}" ${e.department===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
+        </select></label>
+      <label class="field"><span>Datum</span>
+        <input name="date" type="date" value="${esc(e.date)}"></label>
+      <div style="display:flex;gap:10px">
+        <label class="field" style="flex:1;min-width:0"><span>Begin</span><input name="start" type="time" value="${esc(e.start)}"></label>
+        <label class="field" style="flex:1;min-width:0"><span>Einde</span><input name="end" type="time" value="${esc(e.end)}"></label>
+      </div>
+      <label class="field"><span>Plek</span>
+        <input name="venue" placeholder="bv. Hoofveld" value="${esc(e.venue)}"></label>
+      <label class="field"><span>Bykomende inligting</span>
+        <textarea name="description" placeholder="Een of twee sinne vir ondersteuners">${esc(e.description)}</textarea></label>
+      <label class="field"><span>Kaartjie-skakel (opsioneel)</span>
+        <input name="ticketUrl" inputmode="url" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
+      <button class="btn-primary" type="submit">${editing ? "Stoor veranderinge" : "Skep geleentheid"}</button>
+      ${editing ? `<button type="button" class="btn-link" data-action="cancel-edit" style="width:100%;margin-top:6px">Kanselleer</button>` : ""}
+    </form>
+
+    <h2>Geleenthede wat jy bestuur (${mine.length})</h2>
+    <div class="card" style="padding:4px 14px">
+      ${mine.length ? mine.map(ev => {
+        const d = toDate(ev.date);
+        return `<div class="list-row">
+          <span class="dot" style="background:${deptOf(ev).colour}"></span>
+          <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
+            <div style="font-size:12px;color:#8e8e93">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom</div>
+          </div>
+          <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
+          <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel af">${icon("download",14)} Excel</button>
+          <button class="mini-btn danger" data-action="delete-event" data-id="${ev.id}" aria-label="Skrap">${icon("trash",14)}</button>
+        </div>`;
+      }).join("") : `<p style="font-size:14px;color:#8e8e93">Nog geen geleenthede nie.</p>`}
+    </div>
+  </div></div>`;
+}
+
+/* --- 6g. Bestuur (Hoof-admin only) ----------------------------------------
+   Departments (name + colour) and the admins list: who may edit what.
+   TODO: /api/departments and /api/admins, Hoof-admin only on the server.
+------------------------------------------------------------------------- */
+// Never allow removing the last Hoof-admin — nobody could manage the app after that.
+function isLastKeyAdmin(a){ return a.role === "key" && ADMINS.filter(x => x.role === "key").length === 1; }
+
+const DEPT_PALETTE = ["#0a84ff","#34c759","#ff9f0a","#af52de","#30b0c7","#ff375f","#a2845e"];
+
+function screenManage(){
+  const nextColour = DEPT_PALETTE[DEPARTMENTS.length % DEPT_PALETTE.length];
+  const deptOptions = (selected) => DEPARTMENTS.map(d =>
+    `<option value="${esc(d.id)}" ${selected===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("");
+
+  return `<div class="panel"><div class="content">
+    <h1>Bestuur</h1>
+
+    <h2>Departemente</h2>
+    <div class="card" style="padding:4px 14px">
+      ${DEPARTMENTS.map(d => {
+        const eventCount = EVENTS.filter(e => e.department === d.id).length;
+        const adminCount = ADMINS.filter(a => a.role === "dept" && a.department === d.id).length;
+        const inUse = eventCount + adminCount > 0;
+        return `<div class="list-row">
+          <input type="color" value="${esc(d.colour)}" data-dept-colour="${esc(d.id)}" aria-label="Kleur van ${esc(d.name)}"
+            style="width:30px;height:30px;border:none;border-radius:8px;padding:0;background:none;cursor:pointer;flex:none">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:14px;font-weight:600">${esc(d.name)}</div>
+            <div style="font-size:12px;color:#8e8e93">${eventCount} geleenthede · ${adminCount} admins</div>
+          </div>
+          <button class="mini-btn danger" data-action="delete-dept" data-id="${esc(d.id)}" ${inUse ? "disabled title='Skuif of skrap eers sy geleenthede en admins'" : ""}>${icon("trash",14)}</button>
+        </div>`;
+      }).join("")}
+    </div>
+    <form data-form="dept" class="card" style="margin-top:10px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:160px;margin:0"><span>Nuwe departement</span>
+        <input name="name" placeholder="bv. Skaak"></label>
+      <label class="field" style="width:70px;margin:0"><span>Kleur</span>
+        <input name="colour" type="color" value="${nextColour}"></label>
+      <button class="mini-btn" type="submit" style="height:46px;padding:0 16px;background:var(--brand);color:#fff;border:none">${icon("plus",14,"#fff")} Voeg by</button>
+    </form>
+
+    <h2>Admins</h2>
+    <p style="font-size:13px;color:#6e6e73;margin:-4px 0 10px">Hoof-admins kan alles wysig. Departement-admins net hul eie departement.</p>
+    <div class="card" style="padding:4px 14px">
+      ${ADMINS.map(a => `<div class="list-row" style="flex-wrap:wrap">
+          <div style="flex:1;min-width:160px">
+            <div style="font-size:14px;font-weight:600;word-break:break-all">${esc(a.email)}</div>
+            <div style="font-size:12px;color:#8e8e93">${ROLE_LABELS[a.role]}</div>
+          </div>
+          ${a.role === "dept" ? `<label class="field" style="margin:0;width:150px"><select data-admin-dept="${esc(a.email)}" aria-label="Departement vir ${esc(a.email)}" style="height:34px;font-size:14px">${deptOptions(a.department)}</select></label>` : ""}
+          <button class="mini-btn danger" data-action="delete-admin" data-email="${esc(a.email)}" aria-label="Verwyder"
+            ${isLastKeyAdmin(a) ? "disabled title='Daar moet altyd minstens een hoof-admin wees'" : ""}>${icon("trash",14)}</button>
+        </div>`).join("")}
+    </div>
+    <form data-form="admin" class="card" style="margin-top:10px">
+      <label class="field"><span>E-pos van nuwe admin</span>
+        <input name="email" inputmode="email" placeholder="naam@garsies.co.za"></label>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <label class="field" style="flex:1;min-width:140px"><span>Rol</span>
+          <select name="role"><option value="dept">${ROLE_LABELS.dept}</option><option value="key">${ROLE_LABELS.key}</option></select></label>
+        <label class="field" style="flex:1;min-width:140px" id="new-admin-dept"><span>Departement</span>
+          <select name="department">${deptOptions(DEPARTMENTS[0] && DEPARTMENTS[0].id)}</select></label>
+      </div>
+      <button class="btn-primary" type="submit">Voeg admin by</button>
+    </form>
+
+    <h2>Voorbeelddata</h2>
+    <p style="font-size:13px;color:#6e6e73;margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is.</p>
+    <button class="mini-btn danger" data-action="reset-data" style="height:40px;padding:0 16px">Herstel voorbeelddata</button>
+  </div></div>`;
+}
+
+/* --- 6h. Excel export ------------------------------------------------------
+   Builds a real .xlsx (not CSV) in the browser with no library: an .xlsx is
+   a zip of a few XML files, written here uncompressed. Opens in Excel,
+   Google Sheets and Numbers.
+   POPIA: this file holds names + grades of minors. It leaves the system the
+   moment it is downloaded — the school should say who may export and how
+   long exports may be kept. TODO: log every export server-side.
+------------------------------------------------------------------------- */
+const CRC_TABLE = Array.from({ length:256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+function crc32(bytes){
+  let crc = 0xFFFFFFFF;
+  for (const b of bytes) crc = CRC_TABLE[(crc ^ b) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// Minimal zip writer (method 0 = stored). files: [{ name, data:string }]
+function zipStored(files){
+  const enc = new TextEncoder();
+  const chunks = [], central = [];
+  let offset = 0;
+  for (const f of files){
+    const name = enc.encode(f.name), data = enc.encode(f.data), crc = crc32(data);
+    const local = new DataView(new ArrayBuffer(30));
+    local.setUint32(0, 0x04034b50, true);  local.setUint16(4, 20, true);
+    local.setUint16(6, 0x0800, true);       // UTF-8 names
+    local.setUint16(12, 0x21, true);        // date 1980-01-01
+    local.setUint32(14, crc, true);
+    local.setUint32(18, data.length, true); local.setUint32(22, data.length, true);
+    local.setUint16(26, name.length, true);
+    chunks.push(local, name, data);
+
+    const cen = new DataView(new ArrayBuffer(46));
+    cen.setUint32(0, 0x02014b50, true);  cen.setUint16(4, 20, true); cen.setUint16(6, 20, true);
+    cen.setUint16(8, 0x0800, true);      cen.setUint16(14, 0x21, true);
+    cen.setUint32(16, crc, true);
+    cen.setUint32(20, data.length, true); cen.setUint32(24, data.length, true);
+    cen.setUint16(28, name.length, true);
+    cen.setUint32(42, offset, true);
+    central.push(cen, name);
+    offset += 30 + name.length + data.length;
+  }
+  const centralSize = central.reduce((n, p) => n + p.byteLength, 0);
+  const end = new DataView(new ArrayBuffer(22));
+  end.setUint32(0, 0x06054b50, true);
+  end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+  end.setUint32(12, centralSize, true); end.setUint32(16, offset, true);
+  return new Blob([...chunks, ...central, end], { type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+}
+
+function xmlEsc(s){
+  return String(s ?? "").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, "")
+    .replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+}
+
+// rows: array of arrays of strings. boldRows: row indexes (0-based) to bold.
+function buildXlsx(sheetName, rows, boldRows, colWidths){
+  const colLetter = i => String.fromCharCode(65 + i);   // A–Z is plenty here
+  const sheetRows = rows.map((row, r) => `<row r="${r+1}">${row.map((v, c) =>
+    `<c r="${colLetter(c)}${r+1}" t="inlineStr"${boldRows.includes(r) ? ' s="1"' : ""}><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`).join("")}</row>`).join("");
+  const cols = colWidths.map((w, i) => `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`).join("");
+  const safeName = sheetName.replace(/[\[\]:*?\/\\]/g, " ").slice(0, 31) || "Bywoning";
+  const NS = "http://schemas.openxmlformats.org";
+  return zipStored([
+    { name:"[Content_Types].xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="${NS}/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name:"_rels/.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}/package/2006/relationships"><Relationship Id="rId1" Type="${NS}/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name:"xl/workbook.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}/spreadsheetml/2006/main" xmlns:r="${NS}/officeDocument/2006/relationships"><sheets><sheet name="${xmlEsc(safeName)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name:"xl/_rels/workbook.xml.rels", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="${NS}/package/2006/relationships"><Relationship Id="rId1" Type="${NS}/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${NS}/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>` },
+    { name:"xl/styles.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${NS}/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>` },
+    { name:"xl/worksheets/sheet1.xml", data:`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}/spreadsheetml/2006/main"><cols>${cols}</cols><sheetData>${sheetRows}</sheetData></worksheet>` }
+  ]);
+}
+
+// Rows for one event's attendance sheet. Kept separate so it can be tested.
+function attendeeRows(e){
+  const people = attendeesOf(e);
+  return [
+    [e.title],
+    [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}`],
+    [`Totaal: ${people.length}`],
+    [],
+    ["Naam", "Van", "Graad", "E-pos"],
+    ...people.map(p => [p.name, p.surname, p.grade, p.email])
+  ];
+}
+
+function exportAttendees(e){
+  if (!canAdmin(e)) return;   // TODO: the server must refuse too
+  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 36]);
+  const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement("a"), { href:url, download:filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast("Excel-lêer afgelaai");
+}
+
+function toast(message){
+  const t = Object.assign(document.createElement("div"), { className:"toast", textContent:message });
+  document.getElementById("phone").appendChild(t);
+  setTimeout(() => t.remove(), 2200);
+}
+
 /* ===========================================================================
    7. RENDER + EVENT HANDLING
    One render function, one delegated click handler. Every state change is
    followed by render() — no partial DOM updates except the search results,
    which re-render on keystroke so the input does not lose focus.
 =========================================================================== */
-const SCREENS = { calendar:screenCalendar, map:screenMap, search:screenSearch, mine:screenMine };
-const TAB_META = [
-  ["calendar","calendar","Kalender"],
-  ["map","pin","Kaart"],
-  ["search","search","Soek"],
-  ["mine","heart","Myne"]
-];
+const SCREENS = { manage:screenManage, create:screenCreate, calendar:screenCalendar, map:screenMap, search:screenSearch, mine:screenMine };
+
+// Tabs per role. Admin tabs go in front: Bestuur (Hoof-admin), then Skep.
+function tabsForRole(){
+  const base = [["calendar","calendar","Kalender"], ["map","pin","Kaart"], ["search","search","Soek"], ["mine","heart","Myne"]];
+  const role = roleOf();
+  if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], ...base];
+  if (role === "dept") return [["create","plus","Skep"], ...base];
+  return base;
+}
 
 const screenEl = document.getElementById("screen");
+const tabbarEl = document.getElementById("tabbar");
 
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
-  document.querySelector(".tabbar").style.display = state.user ? "" : "none";
+  tabbarEl.style.display = state.user ? "" : "none";
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
+
+  // Drop state that points at something that no longer exists or isn't allowed.
+  const tabs = tabsForRole();
+  if (!tabs.some(([id]) => id === state.tab)) state.tab = "calendar";
+  if (state.openEventId != null && !eventById(state.openEventId)) state.openEventId = null;
+  if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
 
   screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
 
-  document.querySelectorAll(".tab").forEach(btn => {
-    const active = btn.dataset.tab === state.tab && !state.openEventId;
-    btn.classList.toggle("is-active", active);
-    btn.setAttribute("aria-selected", active);
-  });
+  tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
+    const active = id === state.tab && !state.openEventId;
+    return `<button class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-tab="${id}">${icon(iconName, 22)}${label}</button>`;
+  }).join("");
 
   // Restore horizontal scroll, or land on the configured hour first time.
   const grid = document.getElementById("weekgrid");
@@ -809,7 +1233,50 @@ function handle(target){
       case "signout":        // TODO: supabase.auth.signOut()
         state.user = null; saveJSON("garsie.user", null);
         state.auth = { mode: "signin", step: "details", draft: {} };
-        state.tab = "calendar"; state.openEventId = null;
+        state.tab = "calendar"; state.openEventId = null; state.editingId = null;
+        break;
+
+      // --- Admin actions. Each re-checks permission; the UI hiding a button isn't enough.
+      case "new-event":      state.editingId = null; state.tab = "create"; state.openEventId = null; break;
+      case "edit-event": {
+        const e = eventById(Number(target.dataset.id));
+        if (!e || !canAdmin(e)) return;
+        state.editingId = e.id; state.tab = "create"; state.openEventId = null;
+        break;
+      }
+      case "cancel-edit":    state.editingId = null; break;
+      case "export": {
+        const e = eventById(Number(target.dataset.id));
+        if (e) exportAttendees(e);
+        return;
+      }
+      case "delete-event": {
+        const e = eventById(Number(target.dataset.id));
+        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Dit kan nie ontdoen word nie.`)) return;
+        EVENTS = EVENTS.filter(x => x.id !== e.id);
+        state.supported.delete(e.id);
+        if (state.editingId === e.id) state.editingId = null;
+        persistData(); toast("Geleentheid geskrap");
+        break;
+      }
+      case "delete-dept": {
+        if (roleOf() !== "key") return;
+        const d = DEPARTMENTS.find(d => d.id === target.dataset.id);
+        if (!d || !confirm(`Skrap departement "${d.name}"?`)) return;
+        DEPARTMENTS = DEPARTMENTS.filter(x => x.id !== d.id);
+        persistData(); toast("Departement geskrap");
+        break;
+      }
+      case "delete-admin": {
+        const admin = ADMINS.find(a => a.email === target.dataset.email);
+        if (roleOf() !== "key" || !admin || isLastKeyAdmin(admin)) return;
+        ADMINS = ADMINS.filter(a => a !== admin);
+        persistData(); toast("Admin verwyder");
+        break;
+      }
+      case "reset-data":
+        if (roleOf() !== "key" || !confirm("Herstel al die voorbeelddata? Alles wat jy geskep het, gaan verlore.")) return;
+        resetData(); state.editingId = null; toast("Voorbeelddata herstel");
         break;
       default: return;
     }
@@ -834,7 +1301,7 @@ phoneEl.addEventListener("click", ev => {
   // Let real links (the Quicket button) behave like links.
   if (target && !ev.target.closest("a")) handle(target);
 });
-// Auth forms. PROTOTYPE: accepts anything, including empty fields and any code.
+// All forms. Auth is PROTOTYPE: accepts anything, including empty fields and any code.
 phoneEl.addEventListener("submit", ev => {
   ev.preventDefault();
   const form = ev.target;
@@ -847,17 +1314,85 @@ phoneEl.addEventListener("submit", ev => {
       // Sign in only asks for email; reuse the name/grade from a previous sign-up on this device.
       // TODO: with Supabase the profile comes back from the session instead.
       const known = loadJSON("garsie.profile");
-      if (known && known.email === auth.draft.email) auth.draft = { ...known };
+      if (known && known.email === auth.draft.email) auth.draft = { ...known, role: data.role, department: data.department };
     }
     auth.step = "code";
   } else if (form.dataset.form === "auth-code"){
-    const { email = "", name = "", surname = "", grade = "" } = auth.draft;
-    state.user = { email, name, surname, grade };
+    const { email = "", name = "", surname = "", grade = "", role = "user" } = auth.draft;
+    const department = role === "dept" ? (auth.draft.department || (DEPARTMENTS[0] && DEPARTMENTS[0].id)) : null;
+    state.user = { email, name, surname, grade, role, department };
     saveJSON("garsie.user", state.user);
     saveJSON("garsie.profile", state.user);
     state.auth = { mode: "signin", step: "details", draft: {} };
+    state.tab = "calendar"; state.editingId = null;
+  } else if (form.dataset.form === "event"){
+    saveEventForm(data);
+  } else if (form.dataset.form === "dept"){
+    if (roleOf() !== "key") return;
+    const name = (data.name || "").trim();
+    if (!name){ toast("Gee die departement 'n naam"); return; }
+    if (DEPARTMENTS.some(d => d.name.toLowerCase() === name.toLowerCase())){ toast("Daardie departement bestaan reeds"); return; }
+    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour || "#8e8e93" }];
+    persistData(); toast(`${name} bygevoeg`);
+  } else if (form.dataset.form === "admin"){
+    if (roleOf() !== "key") return;
+    const email = (data.email || "").trim().toLowerCase();
+    if (!email){ toast("Tik 'n e-posadres in"); return; }
+    if (ADMINS.some(a => a.email === email)){ toast("Hierdie persoon is reeds 'n admin"); return; }
+    // TODO: Supabase — this row is what decides the user's role at sign-in.
+    ADMINS = [...ADMINS, { email, role: data.role, department: data.role === "dept" ? data.department : null }];
+    persistData(); toast("Admin bygevoeg");
   }
   render();
+});
+
+// Create / update an event from the Skep form. Lenient on purpose: missing
+// fields get sensible defaults rather than blocking the admin.
+function saveEventForm(data){
+  const allowed = adminDepartments();
+  if (!allowed.length) return;
+  // A disabled <select> (Departement-admin) isn't submitted, so fall back to their department.
+  const department = allowed.some(d => d.id === data.department) ? data.department : allowed[0].id;
+  let { start = "15:00", end = "16:00" } = data;
+  start = start || "15:00";
+  if (!end || end <= start){                              // end must be after start
+    const [h, m] = start.split(":").map(Number);
+    end = `${String(Math.min(h + 1, 23)).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  }
+  const ticketUrl = /^https?:\/\//i.test((data.ticketUrl || "").trim()) ? data.ticketUrl.trim() : null;
+  const fields = {
+    title: (data.title || "").trim() || "Nuwe geleentheid",
+    department, date: data.date || toISO(TODAY), start, end,
+    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl
+  };
+
+  const existing = state.editingId != null ? eventById(state.editingId) : null;
+  if (existing){
+    if (!canAdmin(existing)) return;
+    EVENTS = EVENTS.map(e => e.id === existing.id ? { ...e, ...fields } : e);
+    toast("Veranderinge gestoor");
+  } else {
+    EVENTS = [...EVENTS, { id: Date.now(), ...fields }];
+    toast("Geleentheid geskep");
+  }
+  state.editingId = null;
+  persistData();
+}
+
+// Dropdowns that change something straight away, without a submit button.
+phoneEl.addEventListener("change", ev => {
+  const el = ev.target;
+  if (el.name === "role" && el.closest('[data-form="auth-details"]')){
+    document.getElementById("auth-dept").style.display = el.value === "dept" ? "" : "none";
+  } else if (el.name === "role" && el.closest('[data-form="admin"]')){
+    document.getElementById("new-admin-dept").style.display = el.value === "dept" ? "" : "none";
+  } else if (el.dataset.adminDept && roleOf() === "key"){
+    ADMINS = ADMINS.map(a => a.email === el.dataset.adminDept ? { ...a, department: el.value } : a);
+    persistData(); toast("Departement opgedateer");
+  } else if (el.dataset.deptColour && roleOf() === "key"){
+    DEPARTMENTS = DEPARTMENTS.map(d => d.id === el.dataset.deptColour ? { ...d, colour: el.value } : d);
+    persistData(); render();
+  }
 });
 
 phoneEl.addEventListener("keydown", ev => {
@@ -870,9 +1405,6 @@ phoneEl.addEventListener("keydown", ev => {
 });
 
 /* --- Prototype-only chrome: jump buttons and the fake status bar --------- */
-TAB_META.forEach(([id, iconName, label]) => {
-  document.getElementById("tab-" + id).innerHTML = icon(iconName, 22) + label;
-});
 document.getElementById("statusicons").innerHTML = icon("wifi", 15);
 document.getElementById("clock").textContent =
   `${String(TODAY.getHours()).padStart(2,"0")}:${String(TODAY.getMinutes()).padStart(2,"0")}`;
