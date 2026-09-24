@@ -42,8 +42,9 @@
   Bestuur), never from a picker the user controls.
 
   THE FOUR TABS
-    Kalender  Week view. Days run top to bottom, hours left to right
-              (scroll horizontally). Tap a block to open the event.
+    Kalender  Real calendar on today's date. Week view (days top to bottom,
+              hours left to right) or Maand view (grid; tap a day for its
+              events). "Vandag" button; tap the title to jump to a date.
     Kaart     Real map (OpenStreetMap) with each event's pin and check-in
               circle. "Meld aan" unlocks when your live location is inside
               the circle; check-ins go into the Excel export. The QR
@@ -54,7 +55,7 @@
   WHAT IS REAL vs FAKE IN THIS FILE
     Real   layout, navigation, week maths, search, filtering, support toggle,
            map, live location, address search, location check-in
-    Fake   EVENTS is hard-coded (see DATA below)
+    Fake   the sample EVENTS (placed around the current week, see DATA)
            the "server" (QR checks, sync) runs in this browser — see QR check-in
            ticket links point at quicket.co.za, not real event pages
 
@@ -253,6 +254,38 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
   .qr-print-hint{display:block;font-size:18pt;margin-top:1cm}
 }
 
+/* Form errors */
+:root{--danger:#c5221f}
+:root[data-theme="dark"]{--danger:#ff7b72}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){--danger:#ff7b72} }
+.field-error{color:var(--danger);font-size:12.5px;margin:6px 4px 0;line-height:1.35}
+.field.invalid input:not([type=checkbox]):not([type=radio]):not([type=range]),.field.invalid select,.field.invalid textarea{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
+.counter{display:block;text-align:right;font-size:11px;color:var(--muted);margin:4px 4px 0}
+
+/* Calendar header + month view */
+.cal-title{display:inline-flex;align-items:center;gap:6px;font-size:26px;font-weight:700;background:none;border:none;padding:0;color:var(--shadow-ink);cursor:pointer;font-family:inherit;min-width:0;white-space:nowrap}
+#date-jump{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
+.monthview{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;padding:0 12px 12px}
+.month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;max-width:1100px;margin:0 auto}
+.mg-head{font-size:11px;color:var(--muted);text-align:center;padding:4px 0}
+.mg-cell{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:54px;padding:4px 2px;border:none;border-radius:10px;background:none;color:var(--shadow-ink);font-family:inherit;cursor:pointer;min-width:0}
+.mg-cell.other{opacity:.4}
+.mg-cell.selected{background:var(--surface-2)}
+.mg-num{width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500}
+.mg-cell.weekend .mg-num{color:var(--muted)}
+.mg-cell.today .mg-num{background:var(--brand);color:#fff;font-weight:700}
+.mg-events{display:flex;flex-wrap:wrap;justify-content:center;gap:3px;width:100%}
+.mg-pill{width:6px;height:6px;border-radius:3px;background:var(--c);font-size:0;overflow:hidden}
+.mg-more{font-size:9px;color:var(--muted);line-height:6px}
+@media (min-width:700px){
+  .mg-cell{align-items:stretch;min-height:100px;padding:4px}
+  .mg-num{align-self:flex-start}
+  .mg-events{flex-direction:column;flex-wrap:nowrap;align-items:stretch}
+  .mg-pill{width:auto;height:auto;font-size:11px;padding:1px 5px;border-radius:4px;background:var(--w);color:var(--i);border-left:3px solid var(--c);white-space:nowrap;text-overflow:ellipsis;text-align:left}
+  .mg-more{font-size:11px;line-height:1.2;text-align:left}
+}
+.day-list{max-width:1100px;margin:14px auto 0;padding-top:10px;border-top:.5px solid var(--hairline)}
+
 /* Week grid. Horizontal scroll is the whole point of this view. */
 .weekgrid{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
 .weekrow{display:flex;position:relative}
@@ -300,10 +333,6 @@ const CONFIG = {
   // Most school events are afternoon, so don't start the user at 06:00.
   initialScrollHour: 13,
 
-  // The prototype pins "today" so the red now-line and the demo week line up.
-  // TODO: in production this is simply new Date().
-  demoToday: "2026-06-16T16:34:00",
-
   // Where an event is when an admin hasn't set its own pin: the school
   // (coordinates from OpenStreetMap). radius = check-in area in metres.
   schoolLocation: { lat:-25.7972578, lng:28.305468, radius:250,
@@ -337,19 +366,24 @@ const CONFIG = {
      updatedAt    timestamp        for sync and "changed" badges
      isHome       boolean          away fixtures need travel info instead
 =========================================================================== */
-const SEED_EVENTS = [
-  { id:1,  title:"Rugby: Garsies teen Menlopark",   department:"sport",   date:"2026-06-15", start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
-  { id:2,  title:"Debat",                           department:"kultuur", date:"2026-06-16", start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
-  { id:3,  title:"Netbal: o/16",                    department:"sport",   date:"2026-06-16", start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
-  { id:4,  title:"Oggend-byeenkoms",                department:"kultuur", date:"2026-06-17", start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
-  { id:5,  title:"Koor-konsert",                    department:"kultuur", date:"2026-06-18", start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
-  { id:6,  title:"Atletiek-oefenbyeenkoms",         department:"sport",   date:"2026-06-19", start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
-  { id:7,  title:"Hokkie: Garsies teen Waterkloof", department:"sport",   date:"2026-06-20", start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
-  { id:8,  title:"Rugby o/15",                      department:"sport",   date:"2026-06-20", start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
-  { id:9,  title:"Kultuuraand",                     department:"kultuur", date:"2026-06-23", start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
-  { id:10, title:"Tennis: eerste span",             department:"sport",   date:"2026-06-10", start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
-  { id:11, title:"Sokker o/19",                     department:"sport",   date:"2026-06-25", start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
+// Sample events, placed relative to the Monday of the CURRENT week (day 0) so
+// the calendar always has something to show. "Herstel voorbeelddata" in
+// Bestuur re-anchors them to the week you're in.
+const SAMPLE_EVENTS = [
+  { id:1,  title:"Rugby: Garsies teen Menlopark",   department:"sport",   day:0,             start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
+  { id:2,  title:"Debat",                           department:"kultuur", day:1,             start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
+  { id:3,  title:"Netbal: o/16",                    department:"sport",   day:1,             start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
+  { id:4,  title:"Oggend-byeenkoms",                department:"kultuur", day:2,             start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
+  { id:5,  title:"Koor-konsert",                    department:"kultuur", day:3,             start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
+  { id:6,  title:"Atletiek-oefenbyeenkoms",         department:"sport",   day:4,             start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
+  { id:7,  title:"Hokkie: Garsies teen Waterkloof", department:"sport",   day:5,             start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
+  { id:8,  title:"Rugby o/15",                      department:"sport",   day:5,             start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
+  { id:9,  title:"Kultuuraand",                     department:"kultuur", day:8,             start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
+  { id:10, title:"Tennis: eerste span",             department:"sport",   day:-5,            start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
+  { id:11, title:"Sokker o/19",                     department:"sport",   day:10,            start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
 ];
+const SEED_WEEK = mondayOf(new Date());
+const SEED_EVENTS = SAMPLE_EVENTS.map(({ day, ...e }) => ({ ...e, date: toISO(addDays(SEED_WEEK, day)) }));
 
 /* ---------------------------------------------------------------------------
    DEPARTMENTS
@@ -381,9 +415,16 @@ const SEED_ADMINS = [
 // PROTOTYPE: departments, events and admins live in this browser so that
 // what you create survives a refresh. Nobody else sees it — that needs the
 // real backend (TODO: Supabase tables departments / events / admins).
-let DEPARTMENTS = loadJSON("garsie.departments") || SEED_DEPARTMENTS;
-let EVENTS      = loadJSON("garsie.events")      || SEED_EVENTS;
-let ADMINS      = loadJSON("garsie.admins")      || SEED_ADMINS;
+// Anything unreadable or the wrong shape (an old version, a hand-edited value)
+// falls back to the sample data instead of crashing the app.
+function loadList(key, fallback, ok){
+  const v = loadJSON(key);
+  return Array.isArray(v) && v.every(x => x && typeof x === "object" && ok(x)) ? v : fallback;
+}
+let DEPARTMENTS = loadList("garsie.departments", SEED_DEPARTMENTS, d => typeof d.id === "string" && typeof d.name === "string");
+let EVENTS      = loadList("garsie.events", SEED_EVENTS, e => e.id != null && typeof e.title === "string"
+                    && isValidISODate(e.date) && isValidTime(e.start) && isValidTime(e.end) && e.start < e.end);
+let ADMINS      = loadList("garsie.admins", SEED_ADMINS, a => typeof a.email === "string" && (a.role === "key" || a.role === "dept"));
 function persistData(){
   saveJSON("garsie.departments", DEPARTMENTS);
   saveJSON("garsie.events", EVENTS);
@@ -401,7 +442,7 @@ function resetData(){
    TODO: the server must re-check the distance — a phone's location can be
    faked, so for events where it matters, pair this with the gate QR.
 --------------------------------------------------------------------------- */
-let CHECKINS = loadJSON("garsie.checkins") || {};
+let CHECKINS = (v => v && typeof v === "object" && !Array.isArray(v) ? v : {})(loadJSON("garsie.checkins"));
 function checkinFor(e, email){ return (CHECKINS[e.id] || []).find(c => c.email === email); }
 function locationOf(e){ return e.location || CONFIG.schoolLocation; }
 
@@ -498,7 +539,7 @@ function icon(name, size = 20, colour = "currentColor"){
    Deliberately plain: no date library, local time only. If the real app ever
    handles away fixtures in another timezone, swap these for a library.
 =========================================================================== */
-const TODAY = new Date(CONFIG.demoToday);
+let TODAY = new Date();            // refreshed every minute (see the clock at the bottom)
 
 function toDate(iso){                       // "2026-06-16" -> Date (local midnight)
   const [y,m,d] = iso.split("-").map(Number);
@@ -532,7 +573,8 @@ function eventById(id){ return EVENTS.find(e => e.id === id); }
 
 // Department of an event, with the tints the UI needs derived from its one colour.
 function deptById(id){
-  const d = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"var(--muted)" };
+  const found = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"#8e8e93" };
+  const d = { ...found, colour: isHexColour(found.colour) ? found.colour : "#8e8e93" };
   return { ...d,
     wash: `color-mix(in srgb, ${d.colour} 14%, white)`,   // block / badge fill
     ink:  `color-mix(in srgb, ${d.colour} 72%, black)`,   // text on the wash
@@ -620,12 +662,17 @@ function saveJSON(key, value){
 
 const state = {
   // Signed-in profile: { email, name, surname, grade } — null shows the auth screen.
-  user: loadJSON("garsie.user"),
+  user: (u => u && typeof u === "object" && typeof u.email === "string" ? u : null)(loadJSON("garsie.user")),
   auth: { mode: "signup", step: "details", draft: {} },   // mode: signup | signin, step: details | code
 
   tab: "calendar",                  // calendar | map | search | mine
   openEventId: null,                // null = tab view, otherwise detail screen
+  // Calendar. selectedDate is the anchor; week and month follow it (goToDate).
+  calView: loadJSON("garsie.calView") === "month" ? "month" : "week",   // week | month
+  selectedDate: toISO(TODAY),
   weekStart: mondayOf(TODAY),       // Monday of the visible week
+  monthStart: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1),
+  calHours: [CONFIG.dayStartHour, CONFIG.dayEndHour, CONFIG.hourWidthPx],
 
   // TODO: persist per user, server-side. localStorage is not good enough —
   // supporters change phones and the school wants attendance numbers.
@@ -648,11 +695,80 @@ const state = {
    in the real app these become components.
 =========================================================================== */
 
+/* --- 6·. Input checks --------------------------------------------------------
+   Every form goes through these. The rule of thumb: clean up what's obviously
+   meant (extra spaces, capitals in an email, a missing https://), and for
+   everything else show a clear Afrikaans message next to the field instead of
+   quietly guessing. Forms use `novalidate` so the browser's own bubbles
+   (English, different per browser) never appear.
+   TODO: the server must repeat these checks — the browser can be bypassed.
+------------------------------------------------------------------------- */
+const LIMITS = { name:40, email:254, title:80, venue:80, address:200, description:600, deptName:30, search:100, url:500 };
+
+function cleanText(v, max){        // one line: no control characters, single spaces, trimmed
+  return String(v ?? "").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
+}
+function cleanMultiline(v, max){   // keeps line breaks, max one empty line in a row
+  return String(v ?? "").replace(/\r\n?/g, "\n").replace(/[\u0000-\u0009\u000B-\u001F\u007F]/g, "")
+    .replace(/[ \t]+/g, " ").replace(/ ?\n ?/g, "\n").replace(/\n{3,}/g, "\n\n").trim().slice(0, max);
+}
+function normEmail(v){ return String(v ?? "").trim().toLowerCase(); }
+function isEmail(v){ return v.length <= LIMITS.email && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[a-z]{2,}$/i.test(v); }
+function isName(v){ return /^\p{L}[\p{L}\p{M}'’\- ]*$/u.test(v); }
+function isDeptName(v){ return /^[\p{L}\p{N}][\p{L}\p{N}\p{M} &'’\-\/().]*$/u.test(v); }
+function isValidISODate(s){ return /^\d{4}-\d{2}-\d{2}$/.test(s) && toISO(toDate(s)) === s; }
+function isValidTime(s){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(s); }
+function isWebUrl(s){
+  try { const u = new URL(s); return (u.protocol === "https:" || u.protocol === "http:") && /\.[a-z]{2,}$/i.test(u.hostname); }
+  catch { return false; }
+}
+function isHexColour(c){ return /^#[0-9a-f]{6}$/i.test(String(c)); }
+function luminance(hex){           // WCAG relative luminance, 0 (black) … 1 (white)
+  const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+// Department colours show as pins, blocks and chips on white — too light and they vanish.
+function colourProblem(hex){
+  if (!isHexColour(hex)) return "Kies 'n kleur.";
+  if (luminance(hex) > 0.7) return "Hierdie kleur is te lig — dit sal op 'n wit agtergrond verdwyn. Kies 'n donkerder kleur.";
+  return "";
+}
+
+// Show messages under the fields that are wrong; returns true when there are none.
+function showErrors(form, errors){
+  form.querySelectorAll(".field-error").forEach(n => n.remove());
+  form.querySelectorAll(".invalid").forEach(n => n.classList.remove("invalid"));
+  let first = null;
+  for (const [name, message] of Object.entries(errors)){
+    let el = form.elements[name];
+    if (el && !el.tagName && el.length) el = el[0];          // radio group
+    const field = (el && el.closest(".field")) || form;
+    field.classList.add("invalid");
+    field.insertAdjacentHTML("beforeend", `<div class="field-error" role="alert">${esc(message)}</div>`);
+    if (!first) first = (el && el.type !== "hidden") ? el : field;
+  }
+  if (first){
+    first.scrollIntoView({ block:"center", behavior:"smooth" });
+    if (first.focus) first.focus({ preventScroll:true });
+  }
+  return !first;
+}
+function clearFieldError(el){
+  const field = el.closest && el.closest(".field.invalid");
+  if (!field) return;
+  field.classList.remove("invalid");
+  field.querySelectorAll(".field-error").forEach(n => n.remove());
+}
+
 /* --- 6·. Aanmeld (sign up / sign in) ------------------------------------
    Passwordless, two steps, shaped like Supabase magic OTP:
      1. details  Registreer: e-pos, naam, van, graad.   Teken in: e-pos only.
      2. code     The 6-digit code emailed to the user.
-   PROTOTYPE: nothing is validated or sent — any input and any code works.
+   Fields are checked (see "Input checks"); the code must be 6 digits.
+   PROTOTYPE: no e-mail is sent and ANY 6 digits work. "Accounts" are the
+   profiles saved on this device (PROFILES) — sign in on another phone and
+   you'll be asked to register again. Supabase fixes both.
    TODO (Supabase):
      step 1  supabase.auth.signInWithOtp({ email,
                options: { shouldCreateUser: mode === "signup",
@@ -662,6 +778,21 @@ const state = {
    note at the top of this file before creating the profiles table.
 ------------------------------------------------------------------------- */
 const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Nie 'n leerder nie"];
+const RESEND_WAIT_S = 30;
+
+// PROTOTYPE "accounts": profiles registered on this device, by e-mail.
+// TODO: Supabase auth users + a profiles table.
+let PROFILES = (() => {
+  const stored = loadJSON("garsie.profiles");
+  const map = stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
+  const old = loadJSON("garsie.profile");                  // single profile from an older version
+  if (old && typeof old.email === "string" && !map[normEmail(old.email)]) map[normEmail(old.email)] = { ...old, email:normEmail(old.email) };
+  return map;
+})();
+function saveProfile(u){
+  PROFILES = { ...PROFILES, [u.email]: { email:u.email, name:u.name, surname:u.surname, grade:u.grade, gender:u.gender } };
+  saveJSON("garsie.profiles", PROFILES);
+}
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
@@ -696,11 +827,11 @@ function screenAuth(){
 
   if (step === "code"){
     return `<div class="auth"><div class="auth-card">${header}
-      <form data-form="auth-code">
+      <form data-form="auth-code" novalidate>
         <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
         <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur.</p>
         <label class="field"><span>Kode</span>
-          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" autofocus
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" autofocus pattern="[0-9]*"
             style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
         </label>
         <button class="btn-primary" type="submit">Bevestig</button>
@@ -709,7 +840,7 @@ function screenAuth(){
         <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
         <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
       </div>
-      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:18px">Prototipe: enige kode werk.</p>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:18px">Prototipe: enige 6 syfers werk.</p>
     </div></div>`;
   }
 
@@ -719,17 +850,17 @@ function screenAuth(){
       ${[["signup","Registreer"],["signin","Teken in"]].map(([m, label]) => `<button data-action="auth-mode-${m}"
         style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink);font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
     </div>
-    <form data-form="auth-details">
+    <form data-form="auth-details" novalidate>
       <label class="field"><span>E-pos</span>
-        <input name="email" type="text" inputmode="email" autocomplete="email" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
+        <input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
       </label>
       ${isSignup ? `
       <div style="display:flex;gap:10px">
         <label class="field" style="flex:1;min-width:0"><span>Naam</span>
-          <input name="name" autocomplete="given-name" placeholder="Naam" value="${esc(draft.name)}">
+          <input name="name" autocomplete="given-name" autocapitalize="words" maxlength="${LIMITS.name}" placeholder="Naam" value="${esc(draft.name)}">
         </label>
         <label class="field" style="flex:1;min-width:0"><span>Van</span>
-          <input name="surname" autocomplete="family-name" placeholder="Van" value="${esc(draft.surname)}">
+          <input name="surname" autocomplete="family-name" autocapitalize="words" maxlength="${LIMITS.name}" placeholder="Van" value="${esc(draft.surname)}">
         </label>
       </div>
       <label class="field"><span>Graad</span>
@@ -738,7 +869,7 @@ function screenAuth(){
           ${GRADES.map(g => `<option ${draft.grade===g ? "selected" : ""}>${g}</option>`).join("")}
         </select>
       </label>
-      <label class="field"><span>Geslag</span>
+      <label class="field" id="auth-gender" style="${LEARNER_GRADES.includes(draft.grade) ? "" : "display:none"}"><span>Geslag</span>
         <select name="gender">
           <option value="">Kies</option>
           ${GENDERS.map(g => `<option ${draft.gender===g ? "selected" : ""}>${g}</option>`).join("")}
@@ -752,55 +883,128 @@ function screenAuth(){
 }
 
 /* --- 6a. Kalender -------------------------------------------------------
-   The core screen. Days stack downwards, hours run left to right, so a whole
-   week is one horizontally scrollable grid — a zoomed-in day view turned on
-   its side. Blocks are positioned absolutely from start/end times.
+   A real calendar on today's date, with two views:
+     Week   days top-to-bottom, hours left-to-right (scroll sideways) — a day
+            view turned on its side. The hour range grows to fit any event
+            outside 06:00–22:00.
+     Maand  a month grid; tap a day to see its events underneath.
+   "Vandag" jumps back to today; tap the title to jump to any date.
+   state.selectedDate is the anchor: switching views keeps the same day.
 ------------------------------------------------------------------------- */
+const DAY_LONG = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrydag","Saterdag","Sondag"];
+
+// Hours shown in the week view: 06–22, stretched to fit this week's events.
+function weekHours(){
+  let H0 = CONFIG.dayStartHour, H1 = CONFIG.dayEndHour;
+  for (let i = 0; i < 7; i++){
+    eventsOn(addDays(state.weekStart, i)).forEach(e => {
+      H0 = Math.min(H0, Math.floor(hmToDecimal(e.start)));
+      H1 = Math.max(H1, Math.ceil(hmToDecimal(e.end)));
+    });
+  }
+  return [H0, Math.min(24, H1)];
+}
 // Hour column width. Never narrower than CONFIG.hourWidthPx (phones scroll
 // sideways), but on wide screens it grows so the whole day fits without scrolling.
-function hourWidth(){
-  const { dayStartHour:H0, dayEndHour:H1, hourWidthPx:MIN } = CONFIG;
-  return Math.max(MIN, Math.floor((screenEl.clientWidth - 48) / (H1 - H0)));
+function hourWidth(hours){
+  return Math.max(CONFIG.hourWidthPx, Math.floor((screenEl.clientWidth - 48) / hours));
 }
+
+function shortDate(d, withYear){ return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}${withYear ? " " + d.getFullYear() : ""}`; }
+function calendarTitle(){
+  const thisYear = TODAY.getFullYear();
+  if (state.calView === "month"){
+    const m = state.monthStart;
+    return `${MONTHS[m.getMonth()]}${m.getFullYear() !== thisYear ? " " + m.getFullYear() : ""}`;
+  }
+  const a = state.weekStart, b = addDays(a, 6);
+  const withYear = a.getFullYear() !== thisYear || b.getFullYear() !== thisYear;
+  if (a.getMonth() === b.getMonth()) return `${a.getDate()} – ${shortDate(b, withYear)}`;
+  return `${shortDate(a, withYear && a.getFullYear() !== b.getFullYear())} – ${shortDate(b, withYear)}`;
+}
+
+// Move the calendar to a date, keeping week, month and the picked day in step.
+function goToDate(date){
+  state.selectedDate = toISO(date);
+  state.weekStart = mondayOf(date);
+  state.monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+  state.scrollLeft = null;
+}
+
+// Readable text colour on top of a department colour (white on dark, black on light).
+function readableOn(colour){ return isHexColour(colour) && luminance(colour) > 0.45 ? "#111" : "#fff"; }
 
 // Department filter chips, shared by Kalender, Soek and Myne so the choice
 // carries across tabs. New departments show up here automatically.
 function filterChips(onDark = false){
   const chip = (value, label, colour) => {
     const active = state.filter === value;
-    const style = active ? `background:${colour};border-color:${colour}` : "";
-    return `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""}" data-filter="${esc(value)}" style="${style}">
-      ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? "#fff" : colour}"></span>`}${esc(label)}</button>`;
+    const text = readableOn(colour);
+    const style = active ? `background:${colour};border-color:${colour};color:${text}` : "";
+    return `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""}" data-filter="${esc(value)}" style="${style}" aria-pressed="${active}">
+      ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? text : colour}"></span>`}${esc(label)}</button>`;
   };
-  return `<div class="chips">${chip("Alles", "Alles", "var(--brand)")}${DEPARTMENTS.map(d => chip(d.id, d.name, d.colour)).join("")}</div>`;
+  return `<div class="chips">${chip("Alles", "Alles", "var(--brand)")}${DEPARTMENTS.map(d => chip(d.id, d.name, deptById(d.id).colour)).join("")}</div>`;
 }
 
-function screenCalendar(){
-  const { dayStartHour:H0, dayEndHour:H1, rowHeightPx:RH } = CONFIG;
-  const PX = hourWidth();
-  const gridWidth = (H1 - H0) * PX;
-  const weekEnd   = addDays(state.weekStart, 6);
-  const monthName = MONTHS[state.weekStart.getMonth()];
+// One event as a list row (Soek, and the day list under the month view).
+function eventRow(e){
+  const day = toDate(e.date), dept = deptOf(e);
+  const year = day.getFullYear() !== TODAY.getFullYear() ? ` ${day.getFullYear()}` : "";
+  return `<div class="row-event" data-event="${e.id}" tabindex="0" role="button">
+    <div style="width:40px;height:40px;border-radius:10px;background:${dept.wash};color:${dept.colour};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px;flex:none">
+      ${esc(dept.name.charAt(0).toUpperCase())}
+    </div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:14px;font-weight:600">${esc(e.title)}</div>
+      <div style="font-size:12px;color:var(--muted)">${DAY_SHORT[(day.getDay() + 6) % 7]} ${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}${year}, ${e.start}–${e.end} · ${esc(dept.name)}</div>
+    </div>
+  </div>`;
+}
 
-  let html = `
-  <div style="padding:6px 16px 0">
-    <div style="display:flex;justify-content:space-between;align-items:center;color:var(--brand);font-size:15px;min-height:42px;padding-right:48px">
-      <span style="display:flex;align-items:center">${icon("left",20,"var(--brand)")}${monthName}</span>
-      <span style="display:flex;gap:6px">
+function calendarHeader(){
+  const onToday = state.calView === "month"
+    ? state.monthStart.getMonth() === TODAY.getMonth() && state.monthStart.getFullYear() === TODAY.getFullYear()
+    : sameDay(state.weekStart, mondayOf(TODAY));
+  const unit = state.calView === "month" ? "maand" : "week";
+  const navBtn = (dir, label, ic) => `<button data-action="cal-${dir}" aria-label="${label} ${unit}"
+    style="width:32px;height:32px;border-radius:16px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon(ic,16,"var(--brand)")}</button>`;
+  return `<div style="padding:6px 16px 0">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px;padding-right:48px">
+      <div style="display:flex;align-items:center;gap:8px;min-width:0">
+        <button data-action="cal-today" class="mini-btn" ${onToday ? "disabled" : ""}>Vandag</button>
+        <div role="group" aria-label="Kalender-aansig" style="display:inline-flex;background:var(--hairline);border-radius:16px;padding:3px">
+          ${[["week","Week"],["month","Maand"]].map(([v, label]) => `<button data-action="cal-view-${v}" aria-pressed="${state.calView === v}"
+            style="border:none;font-size:13px;padding:5px 14px;border-radius:13px;background:${state.calView === v ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${label}</button>`).join("")}
+        </div>
+      </div>
+      <span style="display:flex;gap:2px;flex:none">
         <button data-tab="search" aria-label="Soek" style="background:none;border:none;padding:4px">${icon("search",20,"var(--brand)")}</button>
         ${roleOf() !== "user" ? `<button data-action="new-event" aria-label="Skep geleentheid" style="background:none;border:none;padding:4px">${icon("plus",20,"var(--brand)")}</button>` : ""}
       </span>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 0">
-      <div style="font-size:26px;font-weight:700">${state.weekStart.getDate()} – ${weekEnd.getDate()} ${monthName.slice(0,3)}</div>
-      <div style="display:flex;gap:4px">
-        <button data-action="week-prev" aria-label="Vorige week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("left",16,"var(--brand)")}</button>
-        <button data-action="week-next" aria-label="Volgende week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("right",16,"var(--brand)")}</button>
-      </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 0;position:relative">
+      <button class="cal-title" data-action="cal-jump" title="Spring na 'n datum">${calendarTitle()} ${icon("right",14,"var(--muted)")}</button>
+      <input type="date" id="date-jump" value="${state.selectedDate}" min="2000-01-01" max="2100-12-31" tabindex="-1" aria-label="Spring na 'n datum">
+      <div style="display:flex;gap:4px;flex:none">${navBtn("prev","Vorige","left")}${navBtn("next","Volgende","right")}</div>
     </div>
     <div style="margin-top:8px">${filterChips()}</div>
-  </div>
-  <div class="weekgrid" id="weekgrid"><div style="width:${gridWidth + 48}px;position:relative">`;
+  </div>`;
+}
+
+function screenCalendar(){
+  return calendarHeader() + (state.calView === "month" ? monthBody() : weekBody());
+}
+
+function weekBody(){
+  const [H0, H1] = weekHours();
+  const { rowHeightPx:RH } = CONFIG;
+  const PX = hourWidth(H1 - H0);
+  state.calHours = [H0, H1, PX];              // render() uses this to restore the scroll
+  const gridWidth = (H1 - H0) * PX;
+  const weekEnd = addDays(state.weekStart, 6);
+
+  let html = `<div class="weekgrid" id="weekgrid"><div style="width:${gridWidth + 48}px;position:relative">`;
 
   // Hour ruler, pinned to the top while the user scrolls vertically.
   html += `<div class="weekrow" style="height:24px;position:sticky;top:0;z-index:3;background:var(--surface);border-bottom:.5px solid var(--hairline)">
@@ -828,11 +1032,9 @@ function screenCalendar(){
     eventsOn(day).forEach(e => {
       const cat   = deptOf(e);
       const left  = (hmToDecimal(e.start) - H0) * PX + 1;
-      const width = (hmToDecimal(e.end) - hmToDecimal(e.start)) * PX - 3;
+      const width = Math.max(18, (hmToDecimal(e.end) - hmToDecimal(e.start)) * PX - 3);
       const tick  = state.supported.has(e.id) ? " " + icon("check",10,cat.ink) : "";
-      // NOTE: short events give very little room for the title. If the school
-      // finds them unreadable, raise CONFIG.hourWidthPx rather than shrinking type.
-      html += `<button class="block" data-event="${e.id}"
+      html += `<button class="block" data-event="${e.id}" title="${esc(e.title)} ${e.start}–${e.end}"
         style="left:${left}px;width:${width}px;background:${cat.wash};color:${cat.ink};border-left:3px solid ${cat.colour}">
         <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.title)}</b>${e.start}${tick}</button>`;
     });
@@ -841,15 +1043,53 @@ function screenCalendar(){
   }
 
   // "Now" line — only drawn when today falls inside the visible week.
-  if (TODAY >= state.weekStart && TODAY <= addDays(weekEnd, 1)){
+  if (TODAY >= state.weekStart && TODAY < addDays(weekEnd, 1)){
     const nowHours = TODAY.getHours() + TODAY.getMinutes() / 60;
-    const x = 48 + (nowHours - H0) * PX;
-    const label = `${String(TODAY.getHours()).padStart(2,"0")}:${String(TODAY.getMinutes()).padStart(2,"0")}`;
-    html += `<div style="position:absolute;left:${x}px;top:24px;bottom:0;width:1.5px;background:var(--brand);z-index:1;pointer-events:none"></div>
-             <div style="position:absolute;left:${x-15}px;top:3px;z-index:4;background:var(--brand);color:#fff;font-size:10px;font-weight:600;padding:2px 5px;border-radius:8px">${label}</div>`;
+    if (nowHours >= H0 && nowHours <= H1){
+      const x = 48 + (nowHours - H0) * PX;
+      const label = `${String(TODAY.getHours()).padStart(2,"0")}:${String(TODAY.getMinutes()).padStart(2,"0")}`;
+      html += `<div style="position:absolute;left:${x}px;top:24px;bottom:0;width:1.5px;background:var(--brand);z-index:1;pointer-events:none"></div>
+               <div style="position:absolute;left:${x-15}px;top:3px;z-index:4;background:var(--brand);color:#fff;font-size:10px;font-weight:600;padding:2px 5px;border-radius:8px">${label}</div>`;
+    }
   }
 
   return html + `</div></div>`;
+}
+
+function monthBody(){
+  const first = state.monthStart;
+  const gridStart = mondayOf(first);
+  const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+  const offset = (first.getDay() + 6) % 7;
+  const weeks = Math.ceil((offset + daysInMonth) / 7);
+
+  let cells = DAY_SHORT.map((d, i) => `<div class="mg-head${i > 4 ? " weekend" : ""}">${d}</div>`).join("");
+  for (let i = 0; i < weeks * 7; i++){
+    const day = addDays(gridStart, i), iso = toISO(day), evs = eventsOn(day);
+    const cls = ["mg-cell", day.getMonth() !== first.getMonth() && "other", i % 7 > 4 && "weekend",
+                 sameDay(day, TODAY) && "today", iso === state.selectedDate && "selected"].filter(Boolean).join(" ");
+    const count = evs.length === 1 ? ", 1 geleentheid" : evs.length ? `, ${evs.length} geleenthede` : "";
+    cells += `<button class="${cls}" data-action="pick-day" data-date="${iso}" aria-label="${day.getDate()} ${MONTHS[day.getMonth()]}${count}" aria-pressed="${iso === state.selectedDate}">
+      <span class="mg-num">${day.getDate()}</span>
+      <span class="mg-events">${evs.slice(0, 3).map(e => {
+        const d = deptOf(e);
+        return `<span class="mg-pill" style="--c:${d.colour};--w:${d.wash};--i:${d.ink}">${esc(e.title)}</span>`;
+      }).join("")}${evs.length > 3 ? `<span class="mg-more">+${evs.length - 3}</span>` : ""}</span>
+    </button>`;
+  }
+
+  const sel = toDate(state.selectedDate);
+  const dayEvents = eventsOn(sel);
+  return `<div class="monthview" id="monthview">
+    <div class="month-grid">${cells}</div>
+    <div class="day-list">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+        <h3 style="margin:0;font-size:16px">${DAY_LONG[(sel.getDay() + 6) % 7]} ${sel.getDate()} ${MONTHS[sel.getMonth()]}${sameDay(sel, TODAY) ? " · vandag" : ""}</h3>
+        <button class="btn-link" data-action="show-week" style="padding:4px 0;font-size:13px;flex:none">Wys week</button>
+      </div>
+      ${dayEvents.length ? dayEvents.map(eventRow).join("") : `<p style="font-size:14px;color:var(--muted);margin:8px 0">Niks beplan nie.</p>`}
+    </div>
+  </div>`;
 }
 
 /* --- 6b. Kaart + location --------------------------------------------------
@@ -1258,7 +1498,7 @@ function stopQrTicker(){
 }
 
 /* --- Supporter: scan ------------------------------------------------------- */
-let OUTBOX = loadJSON("garsie.outbox") || [];   // scans waiting to be sent
+let OUTBOX = loadList("garsie.outbox", [], o => typeof o.token === "string" && typeof o.email === "string");   // scans waiting to be sent
 function saveOutbox(){ saveJSON("garsie.outbox", OUTBOX); }
 
 function setScan(status, message){
@@ -1468,7 +1708,7 @@ function screenSearch(){
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
     <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:14px;height:42px;padding:0 12px">
       ${icon("search",18,"var(--muted)")}
-      <input id="searchbox" value="${esc(state.query)}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
+      <input id="searchbox" type="search" maxlength="${LIMITS.search}" autocomplete="off" value="${esc(state.query)}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
         style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:var(--shadow-ink)">
       ${icon("mic",18,"var(--muted)")}
     </div>
@@ -1478,32 +1718,23 @@ function screenSearch(){
 }
 
 function searchResults(){
-  const q = state.query.trim().toLowerCase();
+  const q = cleanText(state.query, LIMITS.search).toLowerCase();
   const matches = visibleEvents()
     .filter(passesFilter)
     .filter(e => !q || e.title.toLowerCase().includes(q)
                     || deptOf(e).name.toLowerCase().includes(q)
-                    || e.venue.toLowerCase().includes(q))
-    .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
-    .slice(0, 7);   // TODO: paginate instead of truncating
-
+                    || (e.venue || "").toLowerCase().includes(q));
   if (!matches.length){
-    return `<p style="font-size:14px;color:var(--muted)">Geen resultate nie. Probeer 'n ander woord.</p>`;
+    return `<p style="font-size:14px;color:var(--muted)">${q ? "Geen resultate nie. Probeer 'n ander woord." : "Daar is nog geen geleenthede nie."}</p>`;
   }
-
-  return matches.map(e => {
-    const day = toDate(e.date);
-    const dept = deptOf(e);
-    return `<div class="row-event" data-event="${e.id}" tabindex="0" role="button">
-      <div style="width:40px;height:40px;border-radius:10px;background:${dept.wash};color:${dept.colour};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:17px">
-        ${esc(dept.name.charAt(0).toUpperCase())}
-      </div>
-      <div style="flex:1;min-width:0">
-        <div style="font-size:14px;font-weight:600">${esc(e.title)}</div>
-        <div style="font-size:12px;color:var(--muted)">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${esc(dept.name)}</div>
-      </div>
-    </div>`;
-  }).join("");
+  // Coming up first (soonest on top), then what's already happened (latest on top).
+  const today = toISO(TODAY);
+  const key = e => `${e.date} ${e.start}`;
+  const upcoming = matches.filter(e => e.date >= today).sort((a,b) => key(a).localeCompare(key(b)));
+  const past     = matches.filter(e => e.date <  today).sort((a,b) => key(b).localeCompare(key(a)));
+  const LIMIT = 30;   // TODO: paginate once there are hundreds
+  return upcoming.slice(0, LIMIT).map(eventRow).join("")
+    + (past.length ? `<h3 style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 0 0">Verby</h3>${past.slice(0, 10).map(eventRow).join("")}` : "");
 }
 
 /* --- 6d. Myne -----------------------------------------------------------
@@ -1643,6 +1874,8 @@ function screenCreate(){
   }
   const editing = state.editingId != null ? eventById(state.editingId) : null;
   const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
+  // Not your department any more? (e.g. a Hoof-admin moved it) — show yours.
+  if (!depts.some(d => d.id === e.department)) e.department = depts[0].id;
   const loc = locationOf(e);
   const aud = e.audience || {};
 
@@ -1651,25 +1884,25 @@ function screenCreate(){
 
   return `<div class="panel"><div class="content">
     <h1>${editing ? "Wysig geleentheid" : "Skep geleentheid"}</h1>
-    <form data-form="event" class="card">
+    <form data-form="event" class="card" novalidate>
       <label class="field"><span>Titel</span>
-        <input name="title" placeholder="bv. Rugby: Garsies teen Affies" value="${esc(e.title)}"></label>
+        <input name="title" maxlength="${LIMITS.title}" placeholder="bv. Rugby: Garsies teen Affies" value="${esc(e.title)}"></label>
       <label class="field"><span>Departement</span>
         <select name="department" ${depts.length === 1 ? "disabled" : ""}>
           ${depts.map(d => `<option value="${esc(d.id)}" ${e.department===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
         </select></label>
       <label class="field"><span>Datum</span>
-        <input name="date" type="date" value="${esc(e.date)}"></label>
+        <input name="date" type="date" value="${esc(e.date)}" ${editing ? "" : `min="${toISO(TODAY)}"`} max="${toISO(addDays(TODAY, 730))}"></label>
       <div style="display:flex;gap:10px">
-        <label class="field" style="flex:1;min-width:0"><span>Begin</span><input name="start" type="time" value="${esc(e.start)}"></label>
-        <label class="field" style="flex:1;min-width:0"><span>Einde</span><input name="end" type="time" value="${esc(e.end)}"></label>
+        <label class="field" style="flex:1;min-width:0"><span>Begin</span><input name="start" type="time" step="300" value="${esc(e.start)}"></label>
+        <label class="field" style="flex:1;min-width:0"><span>Einde</span><input name="end" type="time" step="300" value="${esc(e.end)}"></label>
       </div>
       <label class="field"><span>Plek</span>
-        <input name="venue" placeholder="bv. Hoofveld" value="${esc(e.venue)}"></label>
+        <input name="venue" maxlength="${LIMITS.venue}" placeholder="bv. Hoofveld (opsioneel)" value="${esc(e.venue)}"></label>
 
       <div class="field"><span>Aanmeld-ligging</span>
         <div style="display:flex;gap:8px">
-          <input name="address" placeholder="Soek 'n adres…" value="${esc(loc.address)}" style="flex:1;min-width:0"
+          <input name="address" maxlength="${LIMITS.address}" placeholder="Soek 'n adres…" value="${esc(loc.address)}" style="flex:1;min-width:0"
             onkeydown="if(event.key==='Enter'){event.preventDefault();geocodeAddress()}">
           <button type="button" class="mini-btn" data-action="geocode" style="height:46px;padding:0 14px">${icon("search",14)} Soek</button>
         </div>
@@ -1685,7 +1918,8 @@ function screenCreate(){
       <label class="field"><span>Radius: <b id="radius-label">${loc.radius} m</b> — mense binne hierdie sirkel kan aanmeld</span>
         <input name="radius" type="range" min="${CONFIG.radiusMin}" max="${CONFIG.radiusMax}" step="25" value="${loc.radius}"></label>
       <label class="field"><span>Bykomende inligting</span>
-        <textarea name="description" placeholder="Een of twee sinne vir ondersteuners">${esc(e.description)}</textarea></label>
+        <textarea name="description" maxlength="${LIMITS.description}" placeholder="Een of twee sinne vir ondersteuners (opsioneel)">${esc(e.description)}</textarea>
+        <small class="counter" id="desc-count">${(e.description || "").length}/${LIMITS.description}</small></label>
       <div class="field"><span>Wie mag kom?</span>
         <div class="card" style="background:var(--surface);padding:12px">
           <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
@@ -1703,7 +1937,7 @@ function screenCreate(){
         </div>
       </div>
       <label class="field"><span>Kaartjie-skakel (opsioneel)</span>
-        <input name="ticketUrl" inputmode="url" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
+        <input name="ticketUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.url}" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
       <button class="btn-primary" type="submit">${editing ? "Stoor veranderinge" : "Skep geleentheid"}</button>
       ${editing ? `<button type="button" class="btn-link" data-action="cancel-edit" style="width:100%;margin-top:6px">Kanselleer</button>` : ""}
     </form>
@@ -1762,12 +1996,12 @@ function screenManage(){
         </div>`;
       }).join("")}
     </div>
-    <form data-form="dept" class="card" style="margin-top:10px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <form data-form="dept" class="card" novalidate style="margin-top:10px;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
       <label class="field" style="flex:1;min-width:160px;margin:0"><span>Nuwe departement</span>
-        <input name="name" placeholder="bv. Skaak"></label>
+        <input name="name" maxlength="${LIMITS.deptName}" placeholder="bv. Skaak"></label>
       <label class="field" style="width:70px;margin:0"><span>Kleur</span>
         <input name="colour" type="color" value="${nextColour}"></label>
-      <button class="mini-btn" type="submit" style="height:46px;padding:0 16px;background:var(--brand);color:#fff;border:none">${icon("plus",14,"#fff")} Voeg by</button>
+      <button class="mini-btn" type="submit" style="height:46px;padding:0 16px;margin-top:22px;background:var(--brand);color:#fff;border:none">${icon("plus",14,"#fff")} Voeg by</button>
     </form>
 
     <h2>Admins</h2>
@@ -1783,9 +2017,9 @@ function screenManage(){
             ${isLastKeyAdmin(a) ? "disabled title='Daar moet altyd minstens een hoof-admin wees'" : ""}>${icon("trash",14)}</button>
         </div>`).join("")}
     </div>
-    <form data-form="admin" class="card" style="margin-top:10px">
+    <form data-form="admin" class="card" novalidate style="margin-top:10px">
       <label class="field"><span>E-pos van nuwe admin</span>
-        <input name="email" inputmode="email" placeholder="naam@garsies.co.za"></label>
+        <input name="email" type="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@garsies.co.za"></label>
       <div style="display:flex;gap:10px;flex-wrap:wrap">
         <label class="field" style="flex:1;min-width:140px"><span>Rol</span>
           <select name="role"><option value="dept">${ROLE_LABELS.dept}</option><option value="key">${ROLE_LABELS.key}</option></select></label>
@@ -1964,6 +2198,7 @@ function render(){
   if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
   if (state.qrEventId != null && !(eventById(state.qrEventId) && canAdmin(eventById(state.qrEventId)))) state.qrEventId = null;
 
+  const keepMonthScroll = (document.getElementById("monthview") || {}).scrollTop;
   screenEl.innerHTML = state.qrEventId != null ? screenQr()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
@@ -1974,14 +2209,18 @@ function render(){
     return `<button class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-tab="${id}">${icon(iconName, 22)}${label}</button>`;
   }).join("");
 
-  // Restore horizontal scroll, or land on the configured hour first time.
+  // Week view: restore horizontal scroll, or start near "now" (this week)
+  // or at the usual afternoon hour (other weeks).
   const grid = document.getElementById("weekgrid");
   if (grid){
-    const { initialScrollHour:SH, dayStartHour:H0 } = CONFIG;
-    const PX = hourWidth();
-    grid.scrollLeft = state.scrollLeft == null ? (SH - H0) * PX : state.scrollLeft;
+    const [H0, , PX] = state.calHours;
+    const firstHour = sameDay(state.weekStart, mondayOf(TODAY)) ? TODAY.getHours() - 2 : CONFIG.initialScrollHour;
+    grid.scrollLeft = state.scrollLeft == null ? Math.max(0, firstHour - H0) * PX : state.scrollLeft;
     grid.addEventListener("scroll", () => { state.scrollLeft = grid.scrollLeft; });
   }
+
+  const monthView = document.getElementById("monthview");
+  if (monthView && keepMonthScroll) monthView.scrollTop = keepMonthScroll;
 
   const box = document.getElementById("searchbox");
   if (box){
@@ -2044,8 +2283,39 @@ function handle(target){
       case "print-qr":       window.print(); return;
       case "start-scan":     startScanner(); return;
       case "stop-scan":      stopScanner(); setScan("idle", ""); return;
-      case "week-prev":      state.weekStart = addDays(state.weekStart, -7); state.scrollLeft = null; break;
-      case "week-next":      state.weekStart = addDays(state.weekStart,  7); state.scrollLeft = null; break;
+      // --- Calendar
+      case "cal-view-week":
+      case "cal-view-month":
+        state.calView = target.dataset.action === "cal-view-month" ? "month" : "week";
+        saveJSON("garsie.calView", state.calView);
+        goToDate(toDate(state.selectedDate));
+        break;
+      case "cal-today":      goToDate(TODAY); break;
+      case "cal-prev":
+      case "cal-next": {
+        const dir = target.dataset.action === "cal-next" ? 1 : -1;
+        if (state.calView === "month"){
+          const m = new Date(state.monthStart.getFullYear(), state.monthStart.getMonth() + dir, 1);
+          const hasToday = m.getMonth() === TODAY.getMonth() && m.getFullYear() === TODAY.getFullYear();
+          goToDate(hasToday ? TODAY : m);
+        } else {
+          goToDate(addDays(toDate(state.selectedDate), 7 * dir));
+        }
+        break;
+      }
+      case "cal-jump": {
+        const input = document.getElementById("date-jump");
+        if (input){ try { input.showPicker(); } catch { input.focus(); input.click(); } }
+        return;
+      }
+      case "pick-day":
+        if (!isValidISODate(target.dataset.date)) return;
+        goToDate(toDate(target.dataset.date));
+        break;
+      case "show-week":
+        state.calView = "week"; saveJSON("garsie.calView", "week");
+        goToDate(toDate(state.selectedDate));
+        break;
       case "auth-mode-signup":
       case "auth-mode-signin": {
         // Keep whatever was typed when switching between Registreer and Teken in.
@@ -2055,7 +2325,13 @@ function handle(target){
         break;
       }
       case "auth-back":      state.auth.step = "details"; break;
-      case "auth-resend":    alert("Nuwe kode gestuur (prototipe)."); return;   // TODO: call signInWithOtp again
+      case "auth-resend": {  // TODO: call signInWithOtp again
+        const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
+        if (wait > 0){ toast(`Wag nog ${wait} sekondes voor jy weer 'n kode vra.`); return; }
+        state.auth.sentAt = Date.now();
+        toast("Nuwe kode gestuur (prototipe).");
+        return;
+      }
       case "signout":        // TODO: supabase.auth.signOut()
         stopLocation(); state.mapEventId = null;
         state.user = null; saveJSON("garsie.user", null);
@@ -2081,6 +2357,7 @@ function handle(target){
         const e = eventById(Number(target.dataset.id));
         if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Dit kan nie ontdoen word nie.`)) return;
         EVENTS = EVENTS.filter(x => x.id !== e.id);
+        const { [e.id]:_gone, ...keep } = CHECKINS; CHECKINS = keep; saveJSON("garsie.checkins", CHECKINS);
         state.supported.delete(e.id);
         if (state.editingId === e.id) state.editingId = null;
         persistData(); toast("Geleentheid geskrap");
@@ -2089,7 +2366,12 @@ function handle(target){
       case "delete-dept": {
         if (roleOf() !== "key") return;
         const d = DEPARTMENTS.find(d => d.id === target.dataset.id);
-        if (!d || !confirm(`Skrap departement "${d.name}"?`)) return;
+        if (!d) return;
+        // The button is disabled for these, but check again anyway.
+        if (EVENTS.some(e => e.department === d.id) || ADMINS.some(a => a.role === "dept" && a.department === d.id)){
+          toast("Skuif of skrap eers hierdie departement se geleenthede en admins."); return;
+        }
+        if (!confirm(`Skrap departement "${d.name}"?`)) return;
         DEPARTMENTS = DEPARTMENTS.filter(x => x.id !== d.id);
         persistData(); toast("Departement geskrap");
         break;
@@ -2131,7 +2413,8 @@ phoneEl.addEventListener("click", ev => {
   // Let real links (the Quicket button) behave like links.
   if (target && !ev.target.closest("a")) handle(target);
 });
-// All forms. Auth is PROTOTYPE: accepts anything, including empty fields and any code.
+// All forms. Each checks its input and shows messages next to the fields;
+// nothing is saved until everything is right.
 phoneEl.addEventListener("submit", ev => {
   ev.preventDefault();
   const form = ev.target;
@@ -2139,108 +2422,203 @@ phoneEl.addEventListener("submit", ev => {
   const auth = state.auth;
 
   if (form.dataset.form === "auth-details"){
-    auth.draft = { ...auth.draft, ...data };
-    if (auth.mode === "signin"){
-      // Sign in only asks for email; reuse the name/grade from a previous sign-up on this device.
-      // TODO: with Supabase the profile comes back from the session instead.
-      const known = loadJSON("garsie.profile");
-      if (known && known.email === auth.draft.email) auth.draft = { ...known, role: data.role, department: data.department };
+    const isSignup = auth.mode === "signup";
+    const errors = {};
+    const email = normEmail(data.email);
+    if (!email) errors.email = "Tik jou e-posadres in.";
+    else if (!isEmail(email)) errors.email = "Dit lyk nie soos 'n e-posadres nie (bv. naam@voorbeeld.co.za).";
+
+    const v = { email, role: ROLE_LABELS[data.role] ? data.role : "user", department: data.department };
+    if (isSignup){
+      v.name = cleanText(data.name, LIMITS.name);
+      v.surname = cleanText(data.surname, LIMITS.name);
+      v.grade = GRADES.includes(data.grade) ? data.grade : "";
+      v.gender = LEARNER_GRADES.includes(v.grade) && GENDERS.includes(data.gender) ? data.gender : "";
+      if (!v.name) errors.name = "Tik jou naam in.";
+      else if (!isName(v.name)) errors.name = "Net letters, spasies, - en ' asseblief.";
+      if (!v.surname) errors.surname = "Tik jou van in.";
+      else if (!isName(v.surname)) errors.surname = "Net letters, spasies, - en ' asseblief.";
+      if (!v.grade) errors.grade = "Kies jou graad.";
+      else if (LEARNER_GRADES.includes(v.grade) && !v.gender) errors.gender = "Kies seun of meisie.";
+      if (!errors.email && PROFILES[email]) errors.email = "Hierdie e-pos is reeds geregistreer. Kies \"Teken in\" hierbo.";
+    } else if (!errors.email && !PROFILES[email]){
+      errors.email = "Ons ken nie hierdie e-pos nie. Kies \"Registreer\" hierbo.";
     }
+    if (v.role === "dept"){
+      if (!DEPARTMENTS.length) errors.department = "Daar is nog geen departemente nie — vra 'n hoof-admin.";
+      else if (!DEPARTMENTS.some(d => d.id === v.department)) errors.department = "Kies 'n departement.";
+    }
+    if (!showErrors(form, errors)) return;
+
+    auth.draft = isSignup ? v : { ...PROFILES[email], email, role: v.role, department: v.department };
     auth.step = "code";
+    auth.sentAt = Date.now();
   } else if (form.dataset.form === "auth-code"){
+    const code = String(data.code || "").replace(/\D/g, "");
+    if (!showErrors(form, code.length === 6 ? {} : { code: "Tik die 6 syfers van die kode in." })) return;
+    // PROTOTYPE: any 6 digits. TODO: supabase.auth.verifyOtp({ email, token: code, type: "email" })
     const { email = "", name = "", surname = "", grade = "", gender = "", role = "user" } = auth.draft;
-    const department = role === "dept" ? (auth.draft.department || (DEPARTMENTS[0] && DEPARTMENTS[0].id)) : null;
+    if (!email){ auth.step = "details"; render(); return; }       // lost the draft somehow: start over
+    const department = role === "dept" ? auth.draft.department : null;
     state.user = { email, name, surname, grade, gender, role, department };
     saveJSON("garsie.user", state.user);
-    saveJSON("garsie.profile", state.user);
+    saveProfile(state.user);
     state.auth = { mode: "signin", step: "details", draft: {} };
     state.tab = "calendar"; state.editingId = null;
     render();
     processPendingScan();      // a QR opened before signing in
     return;
   } else if (form.dataset.form === "event"){
-    saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
+    const errors = saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
+    if (!showErrors(form, errors)) return;
   } else if (form.dataset.form === "dept"){
     if (roleOf() !== "key") return;
-    const name = (data.name || "").trim();
-    if (!name){ toast("Gee die departement 'n naam"); return; }
-    if (DEPARTMENTS.some(d => d.name.toLowerCase() === name.toLowerCase())){ toast("Daardie departement bestaan reeds"); return; }
-    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour || "var(--muted)" }];
+    const errors = {};
+    const name = cleanText(data.name, LIMITS.deptName);
+    if (!name) errors.name = "Gee die departement 'n naam.";
+    else if (name.length < 2) errors.name = "Die naam is te kort.";
+    else if (!isDeptName(name)) errors.name = "Net letters, syfers, spasies en - & ' ( ) asseblief.";
+    else if (DEPARTMENTS.some(d => d.name.toLowerCase() === name.toLowerCase())) errors.name = "Daardie departement bestaan reeds.";
+    const colourError = colourProblem(data.colour);
+    if (colourError) errors.colour = colourError;
+    if (!showErrors(form, errors)) return;
+    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour.toLowerCase() }];
     persistData(); toast(`${name} bygevoeg`);
   } else if (form.dataset.form === "admin"){
     if (roleOf() !== "key") return;
-    const email = (data.email || "").trim().toLowerCase();
-    if (!email){ toast("Tik 'n e-posadres in"); return; }
-    if (ADMINS.some(a => a.email === email)){ toast("Hierdie persoon is reeds 'n admin"); return; }
+    const errors = {};
+    const email = normEmail(data.email);
+    if (!email) errors.email = "Tik 'n e-posadres in.";
+    else if (!isEmail(email)) errors.email = "Dit lyk nie soos 'n e-posadres nie.";
+    else if (ADMINS.some(a => a.email === email)) errors.email = "Hierdie persoon is reeds 'n admin.";
+    const role = data.role === "key" ? "key" : "dept";
+    if (role === "dept" && !DEPARTMENTS.some(d => d.id === data.department)){
+      errors.department = DEPARTMENTS.length ? "Kies 'n departement." : "Skep eers 'n departement.";
+    }
+    if (!showErrors(form, errors)) return;
     // TODO: Supabase — this row is what decides the user's role at sign-in.
-    ADMINS = [...ADMINS, { email, role: data.role, department: data.role === "dept" ? data.department : null }];
+    ADMINS = [...ADMINS, { email, role, department: role === "dept" ? data.department : null }];
     persistData(); toast("Admin bygevoeg");
   }
   render();
 });
 
-// Create / update an event from the Skep form. Lenient on purpose: missing
-// fields get sensible defaults rather than blocking the admin.
+// Create / update an event from the Skep form. Returns { field: message } for
+// anything wrong (nothing is saved then), or {} after saving.
 function saveEventForm(data){
+  const errors = {};
   const allowed = adminDepartments();
-  if (!allowed.length) return;
+  if (!allowed.length) return { title: "Jy is aan geen departement gekoppel nie." };
+  const existing = state.editingId != null ? eventById(state.editingId) : null;
+  if (existing && !canAdmin(existing)) return { title: "Jy mag nie hierdie geleentheid wysig nie." };
+
   // A disabled <select> (Departement-admin) isn't submitted, so fall back to their department.
-  const department = allowed.some(d => d.id === data.department) ? data.department : allowed[0].id;
-  let { start = "15:00", end = "16:00" } = data;
-  start = start || "15:00";
-  if (!end || end <= start){                              // end must be after start
-    const [h, m] = start.split(":").map(Number);
-    end = `${String(Math.min(h + 1, 23)).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  const department = allowed.some(d => d.id === data.department) ? data.department
+                   : allowed.length === 1 ? allowed[0].id : null;
+  if (!department) errors.department = "Kies 'n departement.";
+
+  const title = cleanText(data.title, LIMITS.title);
+  if (!title) errors.title = "Gee die geleentheid 'n naam.";
+  else if (title.length < 3) errors.title = "Die naam is te kort (minstens 3 letters).";
+
+  const today = toISO(TODAY);
+  const date = String(data.date || "");
+  if (!date) errors.date = "Kies 'n datum.";
+  else if (!isValidISODate(date)) errors.date = "Dit is nie 'n geldige datum nie.";
+  else if ((!existing || existing.date !== date) && date < today) errors.date = "Hierdie datum is al verby. Kies vandag of later.";
+  else if (date > toISO(addDays(TODAY, 730))) errors.date = "Die datum is meer as twee jaar vooruit.";
+
+  const start = String(data.start || ""), end = String(data.end || "");
+  if (!isValidTime(start)) errors.start = "Kies 'n begintyd.";
+  if (!isValidTime(end)) errors.end = "Kies 'n eindtyd.";
+  if (isValidTime(start) && isValidTime(end)){
+    const minutes = (hmToDecimal(end) - hmToDecimal(start)) * 60;
+    if (minutes <= 0) errors.end = "Die einde moet ná die begin wees. (Geleenthede kan nie oor middernag loop nie.)";
+    else if (minutes < 15) errors.end = "'n Geleentheid moet minstens 15 minute duur.";
+    else if (!existing && date === today && hmToDecimal(start) < TODAY.getHours() + TODAY.getMinutes() / 60){
+      errors.start = "Hierdie tyd is vandag al verby.";
+    }
   }
-  const ticketUrl = /^https?:\/\//i.test((data.ticketUrl || "").trim()) ? data.ticketUrl.trim() : null;
-  // Check-in pin. Anything unparseable falls back to the school.
+
+  const venue = cleanText(data.venue, LIMITS.venue);
+  const address = cleanText(data.address, LIMITS.address);
   const lat = Number(data.lat), lng = Number(data.lng);
-  const radius = Math.min(CONFIG.radiusMax, Math.max(CONFIG.radiusMin, Number(data.radius) || CONFIG.schoolLocation.radius));
-  const location = Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180
-    ? { lat, lng, radius, address: (data.address || "").trim() }
-    : { ...CONFIG.schoolLocation, radius };
+  if (!(Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180)){
+    errors.address = "Kies die plek op die kaart (sleep die pen of soek 'n adres).";
+  }
+  const radius = Math.round(Number(data.radius));
+  if (!(radius >= CONFIG.radiusMin && radius <= CONFIG.radiusMax)){
+    errors.radius = `Die radius moet tussen ${CONFIG.radiusMin} en ${CONFIG.radiusMax} m wees.`;
+  }
+  const description = cleanMultiline(data.description, LIMITS.description);
+
+  // People paste "quicket.co.za/..." without https:// — add it for them.
+  let ticketUrl = cleanText(data.ticketUrl, LIMITS.url);
+  if (ticketUrl && !/^[a-z]+:\/\//i.test(ticketUrl)) ticketUrl = "https://" + ticketUrl;
+  if (ticketUrl && !isWebUrl(ticketUrl)) errors.ticketUrl = "Dit lyk nie soos 'n webadres nie (bv. https://www.quicket.co.za/...).";
+
+  if (!errors.title && !errors.date && !errors.start && EVENTS.some(e => (!existing || e.id !== existing.id)
+        && e.department === department && e.date === date && e.start === start && e.title.toLowerCase() === title.toLowerCase())){
+    errors.title = "Daar is reeds 'n geleentheid met hierdie naam op dié dag en tyd.";
+  }
+  if (Object.keys(errors).length) return errors;
+
   const fields = {
-    title: (data.title || "").trim() || "Nuwe geleentheid",
-    department, date: data.date || toISO(TODAY), start, end,
-    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl, location,
+    title, department, date, start, end, venue, description, ticketUrl: ticketUrl || null,
+    location: { lat, lng, radius, address },
     audience: {
       grades: (data.grades || []).filter(g => LEARNER_GRADES.includes(g)),
       gender: GENDERS.includes(data.gender) ? data.gender : "all",
       learnersOnly: data.learnersOnly === "on"
     }
   };
-
-  const existing = state.editingId != null ? eventById(state.editingId) : null;
   if (existing){
-    if (!canAdmin(existing)) return;
     EVENTS = EVENTS.map(e => e.id === existing.id ? { ...e, ...fields } : e);
     toast("Veranderinge gestoor");
   } else {
     EVENTS = [...EVENTS, { id: Date.now(), ...fields }];
     toast("Geleentheid geskep");
+    goToDate(toDate(date));       // so the calendar shows it straight away
   }
   state.editingId = null;
   persistData();
+  return {};
 }
 
 // Radius slider in Skep: move the circle live while dragging.
 phoneEl.addEventListener("input", ev => {
-  if (ev.target.name === "radius" && ev.target.closest('[data-form="event"]')) setPickerRadius(ev.target.value);
+  const el = ev.target;
+  clearFieldError(el);            // the message disappears as soon as they fix it
+  if (el.name === "radius" && el.closest('[data-form="event"]')) setPickerRadius(el.value);
+  if (el.name === "code") el.value = el.value.replace(/\D/g, "").slice(0, 6);   // digits only, even when pasted
+  if (el.name === "description"){
+    const c = document.getElementById("desc-count");
+    if (c) c.textContent = `${el.value.length}/${LIMITS.description}`;
+  }
 });
 
 // Dropdowns that change something straight away, without a submit button.
 phoneEl.addEventListener("change", ev => {
   const el = ev.target;
-  if (el.name === "role" && el.closest('[data-form="auth-details"]')){
+  clearFieldError(el);
+  if (el.name === "grade" && el.closest('[data-form="auth-details"]')){
+    // Boy/girl only matters for learners (events can be for girls or boys only).
+    document.getElementById("auth-gender").style.display = LEARNER_GRADES.includes(el.value) ? "" : "none";
+  } else if (el.id === "date-jump"){
+    if (isValidISODate(el.value)){ goToDate(toDate(el.value)); render(); }
+  } else if (el.name === "role" && el.closest('[data-form="auth-details"]')){
     document.getElementById("auth-dept").style.display = el.value === "dept" ? "" : "none";
   } else if (el.name === "role" && el.closest('[data-form="admin"]')){
     document.getElementById("new-admin-dept").style.display = el.value === "dept" ? "" : "none";
   } else if (el.dataset.adminDept && roleOf() === "key"){
+    if (!DEPARTMENTS.some(d => d.id === el.value)) return;
     ADMINS = ADMINS.map(a => a.email === el.dataset.adminDept ? { ...a, department: el.value } : a);
     persistData(); toast("Departement opgedateer");
   } else if (el.id === "map-event-select"){
     state.mapEventId = Number(el.value); geo.framed = false; render();
   } else if (el.dataset.deptColour && roleOf() === "key"){
+    const problem = colourProblem(el.value);
+    if (problem){ toast(problem); el.value = deptById(el.dataset.deptColour).colour; return; }
     DEPARTMENTS = DEPARTMENTS.map(d => d.id === el.dataset.deptColour ? { ...d, colour: el.value } : d);
     persistData(); render();
   }
@@ -2302,6 +2680,17 @@ phoneEl.addEventListener("keydown", ev => {
   btn.addEventListener("click", () => { fn(); render(); });
   document.getElementById("jump").appendChild(btn);
 });
+
+// Keep "today" and the red now-line current. Only the calendar redraws, and
+// only when something visible changed (a new minute on this week's now-line,
+// or a new day).
+setInterval(() => {
+  const before = toISO(TODAY);
+  TODAY = new Date();
+  if (!state.user || state.tab !== "calendar" || state.openEventId || state.qrEventId != null) return;
+  const nowLineVisible = state.calView === "week" && sameDay(state.weekStart, mondayOf(TODAY));
+  if (nowLineVisible || toISO(TODAY) !== before) render();
+}, 60000);
 
 takeScanFromUrl();
 render();
