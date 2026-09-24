@@ -2145,7 +2145,7 @@ function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local
 async function exportAttendees(e){
   if (!canAdmin(e)) return;                   // the database refuses non-admins too
   toast("Berei die Excel-lêer voor…");
-  const { data, error } = await sb.rpc("event_attendees", { p_event_id:e.id });
+  const { data, error } = await fetchAll(() => sb.rpc("event_attendees", { p_event_id:e.id }).order("email"));
   if (error){ toast(dbMessage(error)); return; }
   const { rows, bold } = attendeeRows(e, data);
   const blob = buildXlsx("Bywoning", rows, bold, [18, 20, 20, 10, 36, 22, 30, 50]);
@@ -2804,6 +2804,20 @@ function statsFor(e){ return STATS[e.id] || { supporters:0, checkedIn:0, suspici
 // Load everything this person may see. On failure (offline) fall back to the
 // copy cached on this phone for the same account.
 const CACHE_KEY = "garsie.cache";
+// Supabase returns at most 1000 rows per request (found in the 2000-user
+// load test: the export stopped at 1000). Lists that can grow past that are
+// fetched page by page; the order makes the pages line up.
+const PAGE_ROWS = 1000;
+async function fetchAll(query){
+  const rows = [];
+  for (let from = 0; ; from += PAGE_ROWS){
+    const { data, error } = await query().range(from, from + PAGE_ROWS - 1);
+    if (error) return { data:null, error };
+    rows.push(...data);
+    if (data.length < PAGE_ROWS) return { data:rows, error:null };
+  }
+}
+
 async function loadAll(){
   const u = state.session && state.session.user;
   if (!u) return;
@@ -2812,15 +2826,15 @@ async function loadAll(){
       sb.from("profiles").select("name,surname,grade,gender,notify_new,popia_accepted_at").eq("id", u.id).maybeSingle(),
       sb.rpc("my_role"),
       sb.from("departments").select("id,name,colour").order("name"),
-      sb.from("events").select("*").order("date").order("start_time"),
-      sb.from("supports").select("event_id"),
-      sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags")
+      fetchAll(() => sb.from("events").select("*").order("date").order("start_time").order("id")),
+      fetchAll(() => sb.from("supports").select("event_id").order("event_id")),
+      fetchAll(() => sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags").order("event_id"))
     ]);
     for (const r of [prof, role, depts, evs, sup, chk]) if (r.error) throw r.error;
     const myRole = (role.data || [])[0] || null;
     let admins = [], stats = [];
     if (myRole){
-      const st = await sb.rpc("admin_event_stats");
+      const st = await fetchAll(() => sb.rpc("admin_event_stats").order("event_id"));
       if (st.error) throw st.error;
       stats = st.data || [];
       if (myRole.role === "key"){
@@ -2864,7 +2878,7 @@ function applyData(d){
   (d.stats || []).forEach(x => { STATS[x.event_id] = { supporters:x.supporters, checkedIn:x.checked_in, suspicious:x.suspicious }; });
 }
 async function refreshMyCheckins(){
-  const { data, error } = await sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags");
+  const { data, error } = await fetchAll(() => sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags").order("event_id"));
   if (error) return;
   CHECKINS = {};
   data.forEach(c => { CHECKINS[c.event_id] = { at:c.scanned_at, method:c.method, distance:c.distance_m, flags:c.flags || [] }; });
