@@ -16,6 +16,11 @@
   to the ticket page. Ticketing, capacity and gate scanning stay on Quicket;
   this app is the supporter-facing front end on top of it.
 
+  SIGN IN
+  Before the tabs, an Aanmeld screen: Registreer (e-pos, naam, van, graad)
+  or Teken in (e-pos), then a one-time code. Built for Supabase magic OTP
+  but not connected yet — it accepts anything. Search "screenAuth".
+
   THE FOUR TABS
     Kalender  Week view. Days run top to bottom, hours left to right
               (scroll horizontally). Tap a block to open the event.
@@ -116,6 +121,17 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .content{max-width:720px;margin:0 auto}
 .bottom-bar{max-width:560px;margin:0 auto}
 .mine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;max-width:1100px;margin:0 auto}
+
+/* Sign-in / sign-up screen */
+.auth{position:absolute;inset:0;overflow-y:auto;padding:24px 20px 40px}
+.auth-card{max-width:420px;margin:0 auto}
+.field{display:block;margin-bottom:12px}
+.field span{display:block;font-size:13px;color:#6e6e73;margin:0 0 5px 4px}
+.field input,.field select{width:100%;height:46px;border-radius:14px;border:.5px solid #d1d1d6;background:#f2f2f4;padding:0 14px;font-size:16px;color:#111;font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
+.field select{padding-right:38px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
+.field input:focus,.field select:focus{border-color:var(--brand);background:#fff}
+.btn-primary{width:100%;height:48px;border-radius:24px;border:none;background:var(--brand);color:#fff;font-size:16px;font-weight:600;margin-top:6px}
+.btn-link{background:none;border:none;color:var(--brand);font-size:14px;padding:8px}
 .statusbar{height:36px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:13px;font-weight:600}
 .screen{position:absolute;top:36px;left:0;right:0;bottom:0;overflow:hidden}
 
@@ -313,7 +329,20 @@ function categoryOf(e){ return CONFIG.categories[e.category]; }
    One plain object; every change calls render(). Fine for a prototype —
    replace with the framework's own state layer in the real build.
 =========================================================================== */
+// Prototype-only persistence so a refresh doesn't sign you out.
+// TODO: Supabase keeps the session itself — drop these helpers then.
+function loadJSON(key){
+  try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
+}
+function saveJSON(key, value){
+  try { value == null ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(value)); } catch {}
+}
+
 const state = {
+  // Signed-in profile: { email, name, surname, grade } — null shows the auth screen.
+  user: loadJSON("garsie.user"),
+  auth: { mode: "signup", step: "details", draft: {} },   // mode: signup | signin, step: details | code
+
   tab: "calendar",                  // calendar | map | search | mine
   openEventId: null,                // null = tab view, otherwise detail screen
   weekStart: mondayOf(TODAY),       // Monday of the visible week
@@ -334,6 +363,84 @@ const state = {
    Each returns an HTML string. Kept as strings to stay dependency-free;
    in the real app these become components.
 =========================================================================== */
+
+/* --- 6·. Aanmeld (sign up / sign in) ------------------------------------
+   Passwordless, two steps, shaped like Supabase magic OTP:
+     1. details  Registreer: e-pos, naam, van, graad.   Teken in: e-pos only.
+     2. code     The 6-digit code emailed to the user.
+   PROTOTYPE: nothing is validated or sent — any input and any code works.
+   TODO (Supabase):
+     step 1  supabase.auth.signInWithOtp({ email,
+               options: { shouldCreateUser: mode === "signup",
+                          data: { name, surname, grade } } })
+     step 2  supabase.auth.verifyOtp({ email, token: code, type: "email" })
+   POPIA: name + grade of a learner is personal data of a minor — see the
+   note at the top of this file before creating the profiles table.
+------------------------------------------------------------------------- */
+const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Nie 'n leerder nie"];
+
+function esc(s){
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+function screenAuth(){
+  const { mode, step, draft } = state.auth;
+  const header = `
+    <div style="text-align:center;margin:18px 0 26px">
+      <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
+      <h1 style="font-size:28px;font-weight:700;margin:12px 0 4px">Garsie Army</h1>
+      <div style="font-size:14px;color:#6e6e73">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
+    </div>`;
+
+  if (step === "code"){
+    return `<div class="auth"><div class="auth-card">${header}
+      <form data-form="auth-code">
+        <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
+        <p style="font-size:14px;color:#6e6e73;margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:#111">${esc(draft.email) || "jou e-pos"}</b> gestuur.</p>
+        <label class="field"><span>Kode</span>
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" autofocus
+            style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
+        </label>
+        <button class="btn-primary" type="submit">Bevestig</button>
+      </form>
+      <div style="display:flex;justify-content:space-between;margin-top:10px">
+        <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
+        <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
+      </div>
+      <p style="font-size:12px;color:#8e8e93;text-align:center;margin-top:18px">Prototipe: enige kode werk.</p>
+    </div></div>`;
+  }
+
+  const isSignup = mode === "signup";
+  return `<div class="auth"><div class="auth-card">${header}
+    <div style="display:flex;background:#e9e9eb;border-radius:18px;padding:3px;margin-bottom:18px">
+      ${[["signup","Registreer"],["signin","Teken in"]].map(([m, label]) => `<button data-action="auth-mode-${m}"
+        style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "#fff" : "transparent"};color:#111;font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
+    </div>
+    <form data-form="auth-details">
+      <label class="field"><span>E-pos</span>
+        <input name="email" type="text" inputmode="email" autocomplete="email" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
+      </label>
+      ${isSignup ? `
+      <div style="display:flex;gap:10px">
+        <label class="field" style="flex:1;min-width:0"><span>Naam</span>
+          <input name="name" autocomplete="given-name" placeholder="Naam" value="${esc(draft.name)}">
+        </label>
+        <label class="field" style="flex:1;min-width:0"><span>Van</span>
+          <input name="surname" autocomplete="family-name" placeholder="Van" value="${esc(draft.surname)}">
+        </label>
+      </div>
+      <label class="field"><span>Graad</span>
+        <select name="grade">
+          <option value="">Kies jou graad</option>
+          ${GRADES.map(g => `<option ${draft.grade===g ? "selected" : ""}>${g}</option>`).join("")}
+        </select>
+      </label>` : ""}
+      <button class="btn-primary" type="submit">Stuur kode</button>
+    </form>
+    <p style="font-size:13px;color:#8e8e93;text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
+  </div></div>`;
+}
 
 /* --- 6a. Kalender -------------------------------------------------------
    The core screen. Days stack downwards, hours run left to right, so a whole
@@ -534,7 +641,11 @@ function screenMine(){
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
   let html = `<div style="position:absolute;top:-36px;left:0;right:0;bottom:0;background:var(--myne-bg);padding:46px 14px 0;overflow-y:auto">
-    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:0 auto 10px;max-width:1100px">My geleenthede</h1>
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c7cbd6;font-size:13px">
+      <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
+      <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
+    </div>
+    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
     <div class="mine-grid">`;
 
   if (!mine.length){
@@ -633,6 +744,10 @@ const TAB_META = [
 const screenEl = document.getElementById("screen");
 
 function render(){
+  // Not signed in: the auth screen replaces the whole app, tab bar included.
+  document.querySelector(".tabbar").style.display = state.user ? "" : "none";
+  if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
+
   screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
 
   document.querySelectorAll(".tab").forEach(btn => {
@@ -681,6 +796,21 @@ function handle(target){
       case "checkin":        state.checkedIn = !state.checkedIn; break;  // TODO: real check-in
       case "week-prev":      state.weekStart = addDays(state.weekStart, -7); state.scrollLeft = null; break;
       case "week-next":      state.weekStart = addDays(state.weekStart,  7); state.scrollLeft = null; break;
+      case "auth-mode-signup":
+      case "auth-mode-signin": {
+        // Keep whatever was typed when switching between Registreer and Teken in.
+        const form = document.querySelector('[data-form="auth-details"]');
+        if (form) state.auth.draft = { ...state.auth.draft, ...Object.fromEntries(new FormData(form)) };
+        state.auth.mode = target.dataset.action.slice("auth-mode-".length);
+        break;
+      }
+      case "auth-back":      state.auth.step = "details"; break;
+      case "auth-resend":    alert("Nuwe kode gestuur (prototipe)."); return;   // TODO: call signInWithOtp again
+      case "signout":        // TODO: supabase.auth.signOut()
+        state.user = null; saveJSON("garsie.user", null);
+        state.auth = { mode: "signin", step: "details", draft: {} };
+        state.tab = "calendar"; state.openEventId = null;
+        break;
       default: return;
     }
   }
@@ -692,7 +822,9 @@ let resizeFrame = null;
 window.addEventListener("resize", () => {
   cancelAnimationFrame(resizeFrame);
   resizeFrame = requestAnimationFrame(() => {
-    if (state.tab === "calendar" && !state.openEventId){ state.scrollLeft = null; render(); }
+    // Guard on state.user: the phone keyboard opening fires resize, and
+    // re-rendering the auth screen would wipe what the user is typing.
+    if (state.user && state.tab === "calendar" && !state.openEventId){ state.scrollLeft = null; render(); }
   });
 });
 
@@ -702,6 +834,32 @@ phoneEl.addEventListener("click", ev => {
   // Let real links (the Quicket button) behave like links.
   if (target && !ev.target.closest("a")) handle(target);
 });
+// Auth forms. PROTOTYPE: accepts anything, including empty fields and any code.
+phoneEl.addEventListener("submit", ev => {
+  ev.preventDefault();
+  const form = ev.target;
+  const data = Object.fromEntries(new FormData(form));
+  const auth = state.auth;
+
+  if (form.dataset.form === "auth-details"){
+    auth.draft = { ...auth.draft, ...data };
+    if (auth.mode === "signin"){
+      // Sign in only asks for email; reuse the name/grade from a previous sign-up on this device.
+      // TODO: with Supabase the profile comes back from the session instead.
+      const known = loadJSON("garsie.profile");
+      if (known && known.email === auth.draft.email) auth.draft = { ...known };
+    }
+    auth.step = "code";
+  } else if (form.dataset.form === "auth-code"){
+    const { email = "", name = "", surname = "", grade = "" } = auth.draft;
+    state.user = { email, name, surname, grade };
+    saveJSON("garsie.user", state.user);
+    saveJSON("garsie.profile", state.user);
+    state.auth = { mode: "signin", step: "details", draft: {} };
+  }
+  render();
+});
+
 phoneEl.addEventListener("keydown", ev => {
   if (ev.key !== "Enter" && ev.key !== " ") return;
   const target = ev.target.closest("[data-event]");
