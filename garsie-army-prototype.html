@@ -100,6 +100,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Garsie Army — prototipe</title>
+<!-- Home-screen install. On iPhone notifications only work from the home screen. -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="theme-color" content="#C0262D">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Garsie Army">
 
 <!-- Maps: Leaflet + OpenStreetMap tiles. Free, no API key. The integrity
      hashes make the browser refuse a tampered copy from the CDN. -->
@@ -1626,6 +1632,7 @@ function screenMine(){
       <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
     </div>
     <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
+    <div id="push-card" style="max-width:1100px;margin:0 auto">${pushCardHtml()}</div>
     <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
     <div class="mine-grid">`;
 
@@ -2206,6 +2213,10 @@ function handle(target){
         return;
       }
       case "signout":        signOut(); return;
+      case "push-on":        enablePush(); return;
+      case "push-off":       disablePush(); return;
+      case "push-test":      testPush(); return;
+      case "push-new":       toggleNotifyNew(); return;
 
       // --- Admin actions. Each re-checks permission; the UI hiding a button isn't enough.
       case "new-event":      state.editingId = null; state.tab = "create"; state.openEventId = null; break;
@@ -2641,7 +2652,7 @@ async function loadAll(){
   if (!u) return;
   try {
     const [prof, role, depts, evs, sup, chk] = await Promise.all([
-      sb.from("profiles").select("name,surname,grade,gender").eq("id", u.id).maybeSingle(),
+      sb.from("profiles").select("name,surname,grade,gender,notify_new").eq("id", u.id).maybeSingle(),
       sb.rpc("my_role"),
       sb.from("departments").select("id,name,colour").order("name"),
       sb.from("events").select("*").order("date").order("start_time"),
@@ -2682,7 +2693,7 @@ function applyData(d){
   state.needsProfile = !d.profile;
   state.user = d.profile ? {
     id: d.uid, email: (d.email || "").toLowerCase(), name: d.profile.name, surname: d.profile.surname,
-    grade: d.profile.grade, gender: d.profile.gender || "",
+    grade: d.profile.grade, gender: d.profile.gender || "", notifyNew: d.profile.notify_new !== false,
     role: d.role ? d.role.role : "user", department: d.role ? d.role.department_id : null
   } : null;
   DEPARTMENTS = d.departments || [];
@@ -2727,8 +2738,175 @@ async function toggleSupport(e){
   }
 }
 
+/* ---- Push notifications --------------------------------------------------
+   The server decides who gets what (supabase/migrations/..._push.sql):
+     - "Nuwe geleentheid" to everyone the event is for (can be switched off)
+     - "Verandering" / "Gekanselleer" to everyone who pressed Ek ondersteun
+     - "Begin binnekort" an hour before, to the same people
+   The phone only has to say yes and hand over its push address.
+   iPhone: works only once the app is on the home screen (iOS 16.4+). */
+const VAPID_PUBLIC_KEY = "BKlwMvldxc_6_1OBRuOyMyZCH_4UgS_w80kHTNxeIMxvMdg1NbT8mse6f1aeuERLRg3-rNr4Q1bQMUag-hjg5Nc";
+// status: unknown | checking | unsupported | install | blocked | off | on
+state.push = { status:"unknown", busy:false };
+
+function isStandalone(){ return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
+function isIos(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function base64UrlBytes(s){
+  const b = atob((s + "=".repeat((4 - s.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(b, c => c.charCodeAt(0));
+}
+// The service worker, or null if there isn't one (e.g. not https).
+function swReady(){
+  if (!("serviceWorker" in navigator) || !window.isSecureContext) return Promise.resolve(null);
+  return Promise.race([navigator.serviceWorker.ready, new Promise(r => setTimeout(() => r(null), 4000))]);
+}
+async function currentSubscription(){
+  const reg = await swReady();
+  return reg && reg.pushManager ? reg.pushManager.getSubscription() : null;
+}
+function saveSubscription(sub){
+  const j = sub.toJSON();
+  return sb.rpc("save_push_subscription", { p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth });
+}
+
+async function checkPush(){
+  const p = state.push;
+  p.status = "checking";
+  try {
+    if (!("Notification" in window) || !("PushManager" in window) || !("serviceWorker" in navigator)){
+      p.status = isIos() && !isStandalone() ? "install" : "unsupported";
+    } else if (Notification.permission === "denied"){
+      p.status = "blocked";
+    } else {
+      const sub = await currentSubscription();
+      p.status = sub && Notification.permission === "granted" ? "on" : "off";
+      // Re-save every time: keeps this phone linked to whoever is signed in now.
+      if (p.status === "on") saveSubscription(sub).then(() => {}, () => {});
+    }
+  } catch { p.status = "unsupported"; }
+  renderPushCard();
+}
+
+function pushCardHtml(){
+  const p = state.push;
+  if (p.status === "unknown"){ setTimeout(checkPush, 0); return ""; }
+  if (p.status === "checking") return "";
+  const box = inner => `<div style="background:rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;margin-bottom:12px;color:#e6e6ec;font-size:13px;line-height:1.4">${inner}</div>`;
+  const btn = (action, label, filled) => `<button data-action="${action}" ${p.busy ? "disabled" : ""}
+      style="border-radius:16px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;
+             ${filled ? "background:var(--brand);color:#fff;border:none" : "background:none;color:#fff;border:.5px solid #5a6680"}">${label}</button>`;
+  switch (p.status){
+    case "unsupported":
+      return box("Hierdie blaaier kan nie kennisgewings wys nie.");
+    case "install":
+      return box(`<b style="color:#fff">Wil jy kennisgewings kry?</b><br>
+        Op 'n iPhone moet die app eers op jou tuisskerm wees: druk <b>Deel</b> (die vierkant met die pyltjie),
+        dan <b>Voeg by tuisskerm</b>. Maak die app van daar af oop en kom terug na hierdie blad.`);
+    case "blocked":
+      return box("Kennisgewings is geblokkeer. Skakel dit aan in jou foon se instellings vir hierdie app, en maak die app weer oop.");
+    case "off":
+      return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>Kry 'n boodskap as 'n geleentheid wat jy ondersteun verskuif, gekanselleer word of binnekort begin.</span>
+        ${btn("push-on", p.busy ? "Wag…" : "Skakel kennisgewings aan", true)}</div>`);
+    case "on": {
+      const wantNew = !!(state.user && state.user.notifyNew);
+      return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+        <span>🔔 Kennisgewings is aan op hierdie toestel.</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap">${btn("push-test", "Stuur toets")}${btn("push-off", "Skakel af")}</span></div>
+        <button data-action="push-new" role="switch" aria-checked="${wantNew}" ${p.busy ? "disabled" : ""}
+          style="margin-top:10px;display:flex;align-items:center;gap:10px;background:none;border:none;color:#e6e6ec;font-size:13px;padding:0;cursor:pointer;text-align:left">
+          <span style="width:36px;height:22px;border-radius:11px;flex:none;position:relative;background:${wantNew ? "var(--brand)" : "#5a6680"}">
+            <span style="position:absolute;top:2px;${wantNew ? "right" : "left"}:2px;width:18px;height:18px;border-radius:50%;background:#fff"></span></span>
+          Ook as daar 'n nuwe geleentheid vir my is
+        </button>`);
+    }
+  }
+  return "";
+}
+function renderPushCard(){
+  const el = document.getElementById("push-card");
+  if (el) el.innerHTML = pushCardHtml();
+}
+
+async function enablePush(){
+  const p = state.push;
+  if (p.busy) return;
+  p.busy = true; renderPushCard();
+  try {
+    // Must be the first thing after the tap, or iPhone ignores it.
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted"){ p.status = perm === "denied" ? "blocked" : "off"; return; }
+    const reg = await swReady();
+    if (!reg) throw new Error("no service worker");
+    const sub = (await reg.pushManager.getSubscription()) ||
+      await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:base64UrlBytes(VAPID_PUBLIC_KEY) });
+    const { error } = await saveSubscription(sub);
+    if (error) throw error;
+    p.status = "on";
+    toast("Kennisgewings is aan.");
+  } catch (err){
+    toast(isNetworkError(err) ? dbMessage(err) : "Kon nie kennisgewings aanskakel nie. Probeer weer.");
+  } finally { p.busy = false; renderPushCard(); }
+}
+
+// Remove this phone from the server, then from the browser.
+async function forgetThisDevice(){
+  const sub = await currentSubscription();
+  if (!sub) return;
+  try { await sb.rpc("remove_push_subscription", { p_endpoint:sub.endpoint }); } catch {}
+  await sub.unsubscribe();       // if the server call failed, the next send finds it gone and cleans up
+}
+async function disablePush(){
+  const p = state.push;
+  if (p.busy) return;
+  p.busy = true; renderPushCard();
+  try { await forgetThisDevice(); p.status = "off"; toast("Kennisgewings is af."); }
+  catch { toast("Kon nie afskakel nie. Probeer weer."); }
+  finally { p.busy = false; renderPushCard(); }
+}
+
+async function testPush(){
+  const { data, error } = await sb.rpc("push_test");
+  if (error) return toast(dbMessage(error));
+  if (!data){ state.push.status = "off"; renderPushCard(); return toast("Hierdie toestel is nie meer geregistreer nie. Skakel weer aan."); }
+  toast("Toets gestuur. Dit behoort binne 'n paar sekondes te kom.");
+}
+
+async function toggleNotifyNew(){
+  if (!state.user || state.push.busy) return;
+  const want = !state.user.notifyNew;
+  state.user.notifyNew = want; renderPushCard();
+  const { error } = await sb.from("profiles").update({ notify_new:want }).eq("id", state.user.id);
+  if (error){ state.user.notifyNew = !want; renderPushCard(); toast(dbMessage(error)); }
+}
+
+// A notification (or a shared link) can open one event: #geleentheid=<id>.
+function takeEventFromUrl(){
+  const m = location.hash.match(/geleentheid=(\d+)/);
+  if (!m) return;
+  state.pendingEventId = Number(m[1]);
+  history.replaceState(null, "", location.pathname + location.search);
+}
+async function openPendingEvent(){
+  if (state.pendingEventId == null || !state.user) return;
+  const id = state.pendingEventId;
+  state.pendingEventId = null;
+  if (!eventById(id) && navigator.onLine) await loadAll();     // e.g. a brand-new event
+  if (!eventById(id)) return toast("Hierdie geleentheid bestaan nie meer nie.");
+  Object.assign(state, { openEventId:id, qrEventId:null, editingId:null });
+  render();
+}
+if ("serviceWorker" in navigator){
+  navigator.serviceWorker.addEventListener("message", ev => {
+    if (ev.data && ev.data.type === "open" && ev.data.hash) location.hash = ev.data.hash;
+  });
+}
+
 async function signOut(){
   stopLocation();
+  // Don't let the next person on this phone get this person's notifications.
+  try { await forgetThisDevice(); } catch {}
+  state.push = { status:"unknown", busy:false };
   try { if (sb) await sb.auth.signOut({ scope:"local" }); } catch {}
   saveJSON(CACHE_KEY, null);                    // don't leave data behind on a shared phone
   Object.assign(state, { session:null, user:null, needsProfile:false, offline:false, mapEventId:null,
@@ -2740,6 +2918,7 @@ async function signOut(){
 
 async function init(){
   takeScanFromUrl();
+  takeEventFromUrl();
   if (!sb){
     state.fatal = "Die app kon nie laai nie. Kyk jou internet en probeer weer.";
     render(); return;
@@ -2749,7 +2928,7 @@ async function init(){
   if (state.session) await loadAll();
   state.loading = false;
   render();
-  if (state.user){ processPendingScan(); syncOutbox(); }
+  if (state.user){ processPendingScan(); openPendingEvent(); syncOutbox(); }
 
   sb.auth.onAuthStateChange((event, session) => {
     state.session = session;
@@ -2763,7 +2942,8 @@ init();
 // A QR link opened while the app is already open.
 window.addEventListener("hashchange", () => {
   takeScanFromUrl();
-  if (state.user) processPendingScan();
+  takeEventFromUrl();
+  if (state.user){ processPendingScan(); openPendingEvent(); }
   else render();               // shows "Teken in om aan te meld" on the sign-in screen
 });
 
