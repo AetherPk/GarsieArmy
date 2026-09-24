@@ -23,10 +23,16 @@
 
   ROLES (picked on the sign-in screen in this prototype)
     Gebruiker          supporter: the four tabs below
-    Departement-admin  + "Skep" tab: create / edit / export events of ONE department
+    Departement-admin  "Skep" tab: create / edit / export events of ONE department
     Hoof-admin         + "Bestuur" tab: departments and who is admin of what,
                        and can create / edit / export events of ANY department
-  Admin tabs sit in front of the normal four. Search "ROLES & PERMISSIONS".
+  Admin tabs sit in front of Kalender, Soek and Myne. Admins don't get Kaart:
+  checking in is for supporters. Search "ROLES & PERMISSIONS".
+
+  AUDIENCE ("Wie mag kom?")
+  An event can be limited to some grades, to boys or girls, and/or to
+  learners only. Supporters outside the audience don't see the event at all;
+  admins always see the events they manage. Search "AUDIENCE".
   TODO: in production the role comes from the admins table (managed in
   Bestuur), never from a picker the user controls.
 
@@ -212,6 +218,11 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .btn-checkin:disabled{background:var(--surface-2);color:var(--muted);cursor:not-allowed}
 .btn-checkin.done{background:var(--surface);color:var(--brand);border:1.5px solid var(--brand)}
 .field input[type=range]{height:auto;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand)}
+.field input[type=checkbox],.field input[type=radio]{width:18px;height:18px;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand);flex:none;margin:0}
+.check-row{display:flex;flex-wrap:wrap;gap:8px}
+.check-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:12px;border:.5px solid var(--hairline);background:var(--surface);font-size:14px;cursor:pointer;color:var(--shadow-ink)}
+.check-chip:has(input:checked){border-color:var(--brand);background:var(--brand-wash)}
+.audience-badge{font-size:12px;padding:3px 10px;border-radius:10px;background:var(--surface-2);color:var(--shadow-ink);display:inline-flex;align-items:center;gap:4px}
 .geo-results button{display:block;width:100%;text-align:left;background:var(--surface);border:.5px solid var(--hairline);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px;color:var(--shadow-ink)}
 
 /* Week grid. Horizontal scroll is the whole point of this view. */
@@ -289,6 +300,8 @@ const CONFIG = {
      ticketUrl    string|null     null hides the "Koop kaartjies" button
      location     {lat,lng,radius,address}|undefined   check-in pin + radius (m);
                   missing = CONFIG.schoolLocation. Set by admins in Skep.
+     audience     {grades:[], gender, learnersOnly}|undefined   who may come;
+                  missing = everyone. See AUDIENCE.
 
    Fields the real API will also need, not used by this prototype:
      status       "scheduled" | "moved" | "cancelled"   (rain is constant)
@@ -356,7 +369,7 @@ function resetData(){
 /* ---------------------------------------------------------------------------
    CHECK-INS ("Meld aan")
    Stand-in for POST /api/events/:id/checkins. One record per person per event.
-     { [eventId]: [{ name, surname, grade, email, at: ISO time, distance: m, simulated }] }
+     { [eventId]: [{ name, surname, grade, gender, email, at: ISO time, distance: m }] }
    TODO: the server must re-check the distance — a phone's location can be
    faked, so for events where it matters, pair this with the gate QR.
 --------------------------------------------------------------------------- */
@@ -383,21 +396,24 @@ function attendeesOf(e){
       const name    = SAMPLE_FIRST[(i * 3 + e.id) % SAMPLE_FIRST.length];
       const surname = SAMPLE_LAST[(i * 5 + e.id * 2) % SAMPLE_LAST.length];
       const slug    = `${name}.${surname}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "").toLowerCase();
-      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], email: `${slug}${i}@voorbeeld.co.za`, supports:true });
+      // SAMPLE_FIRST alternates girls' and boys' names.
+      const gender = SAMPLE_FIRST.indexOf(name) % 2 === 0 ? "Meisie" : "Seun";
+      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], gender, email: `${slug}${i}@voorbeeld.co.za`, supports:true });
     }
   }
   if (state.user && state.supported.has(e.id)){
-    const { name = "", surname = "", grade = "", email = "" } = state.user;
-    people.push({ name, surname, grade, email, supports:true });
+    const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
+    people.push({ name, surname, grade, gender, email, supports:true });
   }
   // Everyone who checked in is on the list too — marked with the time, and
   // added even if they never tapped "Ek ondersteun" (walk-ins).
   for (const c of CHECKINS[e.id] || []){
     const match = people.find(p => p.email && p.email === c.email);
-    if (match) Object.assign(match, { checkedInAt:c.at, distance:c.distance, simulated:c.simulated });
-    else people.push({ name:c.name, surname:c.surname, grade:c.grade, email:c.email, supports:false, checkedInAt:c.at, distance:c.distance, simulated:c.simulated });
+    if (match) Object.assign(match, { checkedInAt:c.at, distance:c.distance });
+    else people.push({ name:c.name, surname:c.surname, grade:c.grade, gender:c.gender || "", email:c.email, supports:false, checkedInAt:c.at, distance:c.distance });
   }
-  return people;
+  // If an admin narrows the audience later, people outside it drop off the list.
+  return people.filter(p => fitsAudience(e, p));
 }
 
 /* ---------------------------------------------------------------------------
@@ -479,7 +495,7 @@ function sameDay(a, b){ return toISO(a) === toISO(b); }
 // Events on a given day, earliest first.
 function eventsOn(date){
   const iso = toISO(date);
-  return EVENTS.filter(e => e.date === iso && passesFilter(e))
+  return visibleEvents().filter(e => e.date === iso && passesFilter(e))
                .sort((a,b) => hmToDecimal(a.start) - hmToDecimal(b.start));
 }
 function eventById(id){ return EVENTS.find(e => e.id === id); }
@@ -493,6 +509,48 @@ function deptById(id){
     deep: `color-mix(in srgb, ${d.colour} 70%, black)` }; // Myne card background
 }
 function deptOf(e){ return deptById(e.department); }
+
+/* ---------------------------------------------------------------------------
+   AUDIENCE ("Wie mag kom?")
+   event.audience = { grades: ["Graad 11", ...]  (empty = every grade),
+                      gender: "all" | "Seun" | "Meisie",
+                      learnersOnly: true|false }   (picking grades implies learners)
+   Missing audience = everyone. A person fits when their profile matches all
+   the rules; an unknown grade or gender does NOT fit a rule that needs it.
+   TODO: filter server-side too, or the hidden events are still in the API.
+--------------------------------------------------------------------------- */
+const LEARNER_GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12"];
+const GENDERS = ["Seun","Meisie"];
+
+function hasAudience(e){
+  const a = e.audience;
+  return !!a && (a.learnersOnly || (a.grades || []).length > 0 || (a.gender && a.gender !== "all"));
+}
+function fitsAudience(e, person){
+  const a = e.audience;
+  if (!hasAudience(e)) return true;
+  if (!person) return false;
+  const grades = a.grades || [];
+  if ((a.learnersOnly || grades.length) && !LEARNER_GRADES.includes(person.grade)) return false;
+  if (grades.length && !grades.includes(person.grade)) return false;
+  if (a.gender && a.gender !== "all" && person.gender !== a.gender) return false;
+  return true;
+}
+// What the signed-in user may see: events they manage, plus events they fit.
+function isForUser(e){ return canAdmin(e) || fitsAudience(e, state.user); }
+function visibleEvents(){ return EVENTS.filter(isForUser); }
+
+// "Graad 11 & 12 · Meisies" — or "" when the event is for everyone.
+function audienceLabel(e){
+  if (!hasAudience(e)) return "";
+  const a = e.audience, parts = [];
+  const grades = (a.grades || []).map(g => g.replace("Graad ", ""));
+  if (grades.length) parts.push(`Graad ${grades.length > 1 ? grades.slice(0, -1).join(", ") + " & " + grades[grades.length - 1] : grades[0]}`);
+  else if (a.learnersOnly) parts.push("Net leerders");
+  if (a.gender === "Seun") parts.push("Seuns");
+  if (a.gender === "Meisie") parts.push("Meisies");
+  return parts.join(" · ");
+}
 
 // Shared department filter (state.filter is "Alles" or a department id).
 function passesFilter(e){ return state.filter === "Alles" || e.department === state.filter; }
@@ -645,6 +703,12 @@ function screenAuth(){
           <option value="">Kies jou graad</option>
           ${GRADES.map(g => `<option ${draft.grade===g ? "selected" : ""}>${g}</option>`).join("")}
         </select>
+      </label>
+      <label class="field"><span>Geslag</span>
+        <select name="gender">
+          <option value="">Kies</option>
+          ${GENDERS.map(g => `<option ${draft.gender===g ? "selected" : ""}>${g}</option>`).join("")}
+        </select>
       </label>` : ""}
       ${roleFields(draft)}
       <button class="btn-primary" type="submit">Stuur kode</button>
@@ -763,13 +827,13 @@ function screenCalendar(){
    TODO: check-in currently works on any day; in production only allow it
    from shortly before the event starts until it ends.
 ------------------------------------------------------------------------- */
-const geo = { status:"idle", pos:null, watchId:null, simulated:false, framed:false };
+const geo = { status:"idle", pos:null, watchId:null, framed:false };
 //            status: idle | asking | on | denied | unavailable
 
 function startLocation(){
   if (!("geolocation" in navigator)){ geo.status = "unavailable"; onLocationUpdate(); return; }
   if (geo.watchId != null) return;
-  geo.simulated = false; geo.status = "asking"; onLocationUpdate();
+  geo.status = "asking"; onLocationUpdate();
   geo.watchId = navigator.geolocation.watchPosition(p => {
     geo.pos = { lat:p.coords.latitude, lng:p.coords.longitude, accuracy:Math.round(p.coords.accuracy) };
     geo.status = "on";
@@ -786,16 +850,8 @@ function stopWatching(){
 }
 function stopLocation(){
   stopWatching();
-  Object.assign(geo, { status:"idle", pos:null, simulated:false, framed:false });
+  Object.assign(geo, { status:"idle", pos:null, framed:false });
 }
-// PROTOTYPE, admins only: pretend to stand on the pin, to test check-in
-// without driving to the school.
-function simulateLocationAt(loc){
-  stopWatching();
-  Object.assign(geo, { status:"on", pos:{ lat:loc.lat, lng:loc.lng, accuracy:5 }, simulated:true, framed:false });
-  onLocationUpdate();
-}
-
 function distanceM(a, b){                   // great-circle distance in metres
   const R = 6371000, rad = x => x * Math.PI / 180;
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
@@ -808,9 +864,10 @@ function formatDistance(m){ return m < 1000 ? `${Math.round(m)} m` : `${(m / 100
 // else the next one, else the most recent.
 function mapEvent(){
   const picked = state.mapEventId != null && eventById(state.mapEventId);
-  if (picked) return picked;
+  if (picked && !isForUser(picked)) state.mapEventId = null;
+  if (picked && isForUser(picked)) return picked;
   const at = e => new Date(`${e.date}T${e.end}`);
-  const sorted = [...EVENTS].sort((a,b) => at(a) - at(b));
+  const sorted = visibleEvents().sort((a,b) => at(a) - at(b));
   return sorted.find(e => at(e) >= TODAY) || sorted[sorted.length - 1] || null;
 }
 
@@ -855,7 +912,7 @@ function mapCardHtml(){
   if (!e) return `<div style="font-size:14px;color:var(--muted)">Daar is nog geen geleenthede nie.</div>`;
   const loc = locationOf(e);
   const mine = state.user && checkinFor(e, state.user.email);
-  const sorted = [...EVENTS].sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+  const sorted = visibleEvents().sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
   const d = toDate(e.date);
 
   let status = "", button = "";
@@ -868,7 +925,7 @@ function mapCardHtml(){
     status = inside
       ? `<span style="color:#1f8a3b">Jy is ${formatDistance(dist)} weg — binne die area</span>`
       : `Jy is ${formatDistance(dist)} weg — nog ${formatDistance(dist - loc.radius)} tot by die area`;
-    status += ` <span style="color:var(--muted)">(±${geo.pos.accuracy} m${geo.simulated ? ", toets" : ""})</span>`;
+    status += ` <span style="color:var(--muted)">(±${geo.pos.accuracy} m)</span>`;
     button = `<button class="btn-checkin" data-action="checkin" ${inside ? "" : "disabled"}>${inside ? "Meld aan" : "Kom nader om aan te meld"}</button>`;
   } else if (geo.status === "asking"){
     status = "Wag vir jou ligging…";
@@ -884,9 +941,6 @@ function mapCardHtml(){
     button = `<button class="btn-checkin" data-action="start-location">${icon("locate",16,"#fff")} Deel my ligging</button>`;
   }
 
-  const testLink = roleOf() !== "user" && !mine
-    ? `<button class="btn-link" data-action="simulate-location" style="font-size:12px;padding:6px 0 0">Toets (admin): sit my ligging by die pen</button>` : "";
-
   return `
     <div style="display:flex;align-items:center;gap:8px">
       <span class="dot" style="background:${deptOf(e).colour}"></span>
@@ -896,7 +950,7 @@ function mapCardHtml(){
     </div>
     <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${e.start} · ${esc(e.venue || loc.address)}</div>
     <div style="font-size:13px;margin-bottom:10px;line-height:1.4">${status}</div>
-    ${button}${testLink}`;
+    ${button}`;
 }
 
 // Live Leaflet objects for the Kaart tab. Rebuilt on every full render.
@@ -909,7 +963,7 @@ function mountKaartMap(el){
   kaart.map = newMap(el, {}).setView([focus.lat, focus.lng], 16);
 
   // One pin per event; the selected one is bigger, on top, and has its circle.
-  EVENTS.forEach(e => {
+  visibleEvents().forEach(e => {
     const loc = locationOf(e), isSel = selected && e.id === selected.id;
     L.marker([loc.lat, loc.lng], { icon:pinIcon(deptOf(e).colour, isSel), zIndexOffset:isSel ? 1000 : 0, title:e.title })
       .addTo(kaart.map)
@@ -963,12 +1017,12 @@ function onLocationUpdate(){
 
 function checkIn(){
   const e = mapEvent();
-  if (!e || !state.user || !(geo.status === "on" && geo.pos) || checkinFor(e, state.user.email)) return;
+  if (!e || !state.user || !isForUser(e) || !(geo.status === "on" && geo.pos) || checkinFor(e, state.user.email)) return;
   const loc = locationOf(e), dist = distanceM(geo.pos, loc);
   if (dist > loc.radius) return;             // TODO: the server re-checks this
-  const { name = "", surname = "", grade = "", email = "" } = state.user;
+  const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
   CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
-    { name, surname, grade, email, at:new Date().toISOString(), distance:Math.round(dist), simulated:geo.simulated }] };
+    { name, surname, grade, gender, email, at:new Date().toISOString(), distance:Math.round(dist) }] };
   saveJSON("garsie.checkins", CHECKINS);
   toast("Jy is aangemeld");
   onLocationUpdate();
@@ -1062,7 +1116,7 @@ function screenSearch(){
 
 function searchResults(){
   const q = state.query.trim().toLowerCase();
-  const matches = EVENTS
+  const matches = visibleEvents()
     .filter(passesFilter)
     .filter(e => !q || e.title.toLowerCase().includes(q)
                     || deptOf(e).name.toLowerCase().includes(q)
@@ -1096,7 +1150,7 @@ function searchResults(){
    surface counts per event in the admin view.
 ------------------------------------------------------------------------- */
 function screenMine(){
-  const mine = EVENTS
+  const mine = visibleEvents()
     .filter(e => state.supported.has(e.id) && passesFilter(e))
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
@@ -1179,6 +1233,7 @@ function screenEventDetail(){
     <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
     <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${esc(e.title)}</h1>
     <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptOf(e).name)}</span>
+    ${hasAudience(e) ? `<span class="audience-badge">${icon("shield",12)} Net vir: ${esc(audienceLabel(e))}</span>` : ""}
 
     <div style="margin-top:14px;background:var(--surface-2);border-radius:14px;padding:4px 14px">
       ${rows.map(([ic_, label, value], i) => `
@@ -1189,11 +1244,11 @@ function screenEventDetail(){
         </div>`).join("")}
     </div>
 
-    <button data-action="open-map" data-id="${e.id}" class="card" style="margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;border:none;text-align:left;cursor:pointer;color:inherit;padding:12px 14px">
+    ${roleOf() === "user" ? `<button data-action="open-map" data-id="${e.id}" class="card" style="margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;border:none;text-align:left;cursor:pointer;color:inherit;padding:12px 14px">
       ${icon("pin",18,"var(--brand)")}
       <span style="flex:1;font-size:14px">${state.user && checkinFor(e, state.user.email) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
       ${icon("right",16,"var(--muted)")}
-    </button>
+    </button>` : ""}
     ${e.description ? `<div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
     <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
     ${adminCard}
@@ -1225,6 +1280,7 @@ function screenCreate(){
   const editing = state.editingId != null ? eventById(state.editingId) : null;
   const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
   const loc = locationOf(e);
+  const aud = e.audience || {};
 
   const mine = EVENTS.filter(canAdmin)
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
@@ -1266,6 +1322,22 @@ function screenCreate(){
         <input name="radius" type="range" min="${CONFIG.radiusMin}" max="${CONFIG.radiusMax}" step="25" value="${loc.radius}"></label>
       <label class="field"><span>Bykomende inligting</span>
         <textarea name="description" placeholder="Een of twee sinne vir ondersteuners">${esc(e.description)}</textarea></label>
+      <div class="field"><span>Wie mag kom?</span>
+        <div class="card" style="background:var(--surface);padding:12px">
+          <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
+            <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie ouers of personeel nie)</span>
+          </label>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Grade — kies niks vir alle grade</div>
+          <div class="check-row" style="margin-bottom:12px">
+            ${LEARNER_GRADES.map(g => `<label class="check-chip"><input type="checkbox" name="grades" value="${g}" ${(aud.grades || []).includes(g) ? "checked" : ""}> ${g.replace("Graad ", "Gr ")}</label>`).join("")}
+          </div>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Geslag</div>
+          <div class="check-row">
+            ${[["all","Almal"],["Meisie","Net meisies"],["Seun","Net seuns"]].map(([v, label]) =>
+              `<label class="check-chip"><input type="radio" name="gender" value="${v}" ${(aud.gender || "all") === v ? "checked" : ""} style="accent-color:var(--brand)"> ${label}</label>`).join("")}
+          </div>
+        </div>
+      </div>
       <label class="field"><span>Kaartjie-skakel (opsioneel)</span>
         <input name="ticketUrl" inputmode="url" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
       <button class="btn-primary" type="submit">${editing ? "Stoor veranderinge" : "Skep geleentheid"}</button>
@@ -1280,7 +1352,7 @@ function screenCreate(){
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
           <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
             <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
-            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom</div>
+            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
           <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel af">${icon("download",14)} Excel</button>
@@ -1446,12 +1518,12 @@ function attendeeRows(e){
   const checkedIn = people.filter(p => p.checkedInAt).length;
   return [
     [e.title],
-    [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}`],
+    [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}${hasAudience(e) ? `  ·  Net vir: ${audienceLabel(e)}` : ""}`],
     [`Totaal: ${people.length}  ·  Aangemeld: ${checkedIn}`],
     [],
-    ["Naam", "Van", "Graad", "E-pos", "Ondersteun", "Aangemeld"],
-    ...people.map(p => [p.name, p.surname, p.grade, p.email, p.supports ? "Ja" : "Nee",
-                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} (${p.distance} m)${p.simulated ? " — toets" : ""}` : ""])
+    ["Naam", "Van", "Graad", "Geslag", "E-pos", "Ondersteun", "Aangemeld"],
+    ...people.map(p => [p.name, p.surname, p.grade, p.gender || "", p.email, p.supports ? "Ja" : "Nee",
+                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} (${p.distance} m)` : ""])
   ];
 }
 
@@ -1462,7 +1534,7 @@ function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local
 
 function exportAttendees(e){
   if (!canAdmin(e)) return;   // TODO: the server must refuse too
-  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 36, 12, 24]);
+  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 10, 36, 12, 24]);
   const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href:url, download:filename });
@@ -1487,11 +1559,13 @@ const SCREENS = { manage:screenManage, create:screenCreate, calendar:screenCalen
 
 // Tabs per role. Admin tabs go in front: Bestuur (Hoof-admin), then Skep.
 function tabsForRole(){
-  const base = [["calendar","calendar","Kalender"], ["map","pin","Kaart"], ["search","search","Soek"], ["mine","heart","Myne"]];
+  const calendar = ["calendar","calendar","Kalender"], map = ["map","pin","Kaart"],
+        search = ["search","search","Soek"], mine = ["mine","heart","Myne"];
   const role = roleOf();
-  if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], ...base];
-  if (role === "dept") return [["create","plus","Skep"], ...base];
-  return base;
+  // Admins don't check in, so they get no Kaart tab (pins are set in Skep).
+  if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], calendar, search, mine];
+  if (role === "dept") return [["create","plus","Skep"], calendar, search, mine];
+  return [calendar, map, search, mine];
 }
 
 const screenEl = document.getElementById("screen");
@@ -1506,7 +1580,7 @@ function render(){
   // Drop state that points at something that no longer exists or isn't allowed.
   const tabs = tabsForRole();
   if (!tabs.some(([id]) => id === state.tab)) state.tab = "calendar";
-  if (state.openEventId != null && !eventById(state.openEventId)) state.openEventId = null;
+  if (state.openEventId != null && !(eventById(state.openEventId) && isForUser(eventById(state.openEventId)))) state.openEventId = null;
   if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
 
   screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
@@ -1548,6 +1622,7 @@ function handle(target){
       case "back":           state.openEventId = null; break;
       case "toggle-support":
         // TODO: POST /api/events/:id/support  (and DELETE to undo)
+        if (!isForUser(eventById(state.openEventId))) return;
         state.supported.has(state.openEventId)
           ? state.supported.delete(state.openEventId)
           : state.supported.add(state.openEventId);
@@ -1558,11 +1633,6 @@ function handle(target){
       // so the map keeps its position and a half-filled Skep form isn't wiped.
       case "start-location": startLocation(); return;
       case "checkin":        checkIn(); return;
-      case "simulate-location": {
-        const e = mapEvent();
-        if (e && roleOf() !== "user") simulateLocationAt(locationOf(e));
-        return;
-      }
       case "locate-me":
         if (geo.status === "on" && geo.pos && kaart.map) kaart.map.setView([geo.pos.lat, geo.pos.lng], 17);
         else startLocation();
@@ -1680,15 +1750,15 @@ phoneEl.addEventListener("submit", ev => {
     }
     auth.step = "code";
   } else if (form.dataset.form === "auth-code"){
-    const { email = "", name = "", surname = "", grade = "", role = "user" } = auth.draft;
+    const { email = "", name = "", surname = "", grade = "", gender = "", role = "user" } = auth.draft;
     const department = role === "dept" ? (auth.draft.department || (DEPARTMENTS[0] && DEPARTMENTS[0].id)) : null;
-    state.user = { email, name, surname, grade, role, department };
+    state.user = { email, name, surname, grade, gender, role, department };
     saveJSON("garsie.user", state.user);
     saveJSON("garsie.profile", state.user);
     state.auth = { mode: "signin", step: "details", draft: {} };
     state.tab = "calendar"; state.editingId = null;
   } else if (form.dataset.form === "event"){
-    saveEventForm(data);
+    saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
   } else if (form.dataset.form === "dept"){
     if (roleOf() !== "key") return;
     const name = (data.name || "").trim();
@@ -1731,7 +1801,12 @@ function saveEventForm(data){
   const fields = {
     title: (data.title || "").trim() || "Nuwe geleentheid",
     department, date: data.date || toISO(TODAY), start, end,
-    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl, location
+    venue: (data.venue || "").trim(), description: (data.description || "").trim(), ticketUrl, location,
+    audience: {
+      grades: (data.grades || []).filter(g => LEARNER_GRADES.includes(g)),
+      gender: GENDERS.includes(data.gender) ? data.gender : "all",
+      learnersOnly: data.learnersOnly === "on"
+    }
   };
 
   const existing = state.editingId != null ? eventById(state.editingId) : null;
