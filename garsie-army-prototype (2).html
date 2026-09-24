@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<!--
+===============================================================================
+  GARSIE ARMY — supporter app for Hoërskool Garsfontein
+  Clickable prototype / handoff spec  ·  v1.0  ·  2026-09-21
+===============================================================================
+
+  WHAT THIS IS
+  A single-file, dependency-free prototype of the supporter app. It exists to
+  pin down the screens, the flows and the data model. It is NOT production
+  code — there is no backend, no auth and no build step. Open it in a browser
+  (desktop or phone) and click through it.
+
+  THE IDEA
+  Every school event — sport and cultural — in one calendar, with a link out
+  to the ticket page. Ticketing, capacity and gate scanning stay on Quicket;
+  this app is the supporter-facing front end on top of it.
+
+  THE FOUR TABS
+    Kalender  Week view. Days run top to bottom, hours left to right
+              (scroll horizontally). Tap a block to open the event.
+    Kaart     Map of the school + "Meld aan" check-in, and a QR mode for
+              gate check-in at free events.
+    Soek      Search and filter by category.
+    Myne      Events the user has tapped "Ek ondersteun" on.
+
+  WHAT IS REAL vs FAKE IN THIS FILE
+    Real   layout, navigation, week maths, search, filtering, support toggle
+    Fake   EVENTS is hard-coded (see DATA below)
+           the map is a hand-drawn SVG, not a real map SDK
+           "Meld aan" and the QR screen are visual only
+           ticket links point at quicket.co.za, not real event pages
+
+  BUILD NOTES FOR THE DEVELOPER
+  Search this file for "TODO:" — each one marks an integration point.
+  Summary of what has to be built for real:
+    1. Events API (shape documented at the EVENTS array below).
+    2. An admin screen where a coach/organiser submits an event and a staff
+       member approves it. This is the part that decides whether the app
+       lives or dies — a calendar with stale fixtures gets abandoned.
+    3. Auth + per-user "Ek ondersteun" list, persisted server-side.
+    4. Push notifications for changes (a rained-out fixture is the main case).
+    5. POPIA: if learner names/grades are stored, that is personal data of
+       minors. Get the school's sign-off on what is collected and retained
+       BEFORE writing that table.
+
+  SUGGESTED STACK (not prescriptive)
+  React Native or Flutter if it must be in the app stores; a PWA is cheaper
+  and installs to the home screen, which is enough for most school use.
+  Whatever is chosen, keep events in one source of truth so the school's
+  website and this app cannot disagree.
+
+  LANGUAGE
+  All UI copy is Afrikaans. Code comments are English. If the app ships
+  bilingual, pull the strings into a locale file rather than hard-coding —
+  see the STRINGS note further down.
+
+  BRANDING
+  --brand (#C0262D) is a placeholder red. Replace with the school's official
+  colours and add the crest before this is shown to anyone at the school.
+===============================================================================
+-->
+<html lang="af">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Garsie Army — prototipe</title>
+
+<style>
+/* ---------------------------------------------------------------------------
+   THEME TOKENS
+   Only the page chrome adapts to dark mode. The phone screen itself is
+   deliberately locked to light, because it is standing in for an app UI.
+--------------------------------------------------------------------------- */
+:root{
+  --brand:#C0262D;          /* primary — school red (PLACEHOLDER) */
+  --brand-ink:#8e1d24;      /* text on light red */
+  --brand-wash:#fde4e4;     /* light red fill */
+  --culture:#5856d6;        /* second category — culture */
+  --culture-ink:#3a38a0;
+  --culture-wash:#ebeafd;
+  --myne-bg:#1f2a44;        /* "Myne" tab background */
+
+  --page:#ececef; --ink:#1d1d1f; --muted:#6e6e73;
+  --btn:#fff; --btn-border:#d2d2d7;
+
+  /* App content surfaces — now theme-aware (was previously locked to light) */
+  --surface:#fff; --surface-2:#f2f2f4; --hairline:#e5e5ea; --shadow-ink:#111;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
+    --btn:#232326; --btn-border:#3a3a3e;
+    --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
+  }
+}
+:root[data-theme="dark"]{
+  --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
+  --btn:#232326; --btn-border:#3a3a3e;
+  --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--surface); color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  height:100vh; height:100dvh; overflow:hidden;
+}
+button{font-family:inherit;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
+
+/* Prototype-only chrome (jump nav / hint text) has been removed so this
+   renders as a normal full-screen app on any device, not a phone mockup. */
+
+/* App frame — fills the viewport on every screen size, no bezel. */
+.phone{width:100vw;width:100dvw;height:100vh;height:100dvh;border:0;border-radius:0;background:var(--surface);position:relative;overflow:hidden;color:var(--shadow-ink);margin:0}
+.statusbar{height:36px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:13px;font-weight:600}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
+
+/* Bottom tab bar — persistent across all four tabs */
+.tabbar{position:absolute;left:12px;right:12px;bottom:14px;height:60px;border-radius:30px;background:rgba(242,242,244,.96);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:space-around;z-index:5}
+.tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--muted);padding:5px 10px;border-radius:22px;background:none;border:none}
+.tab.is-active{color:var(--brand);background:var(--brand-wash)}
+
+/* Theme toggle — floats top-right, above every screen */
+#theme-toggle{position:absolute;top:14px;right:14px;z-index:10;width:38px;height:38px;border-radius:19px;border:.5px solid var(--hairline);background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+#theme-toggle svg{color:var(--shadow-ink)}
+
+/* Shared list row */
+.row-event{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid var(--hairline);cursor:pointer}
+
+/* Filter chips */
+.chip{font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink)}
+.chip.is-active{background:var(--brand);color:var(--surface);border-color:var(--brand)}
+
+/* Week grid. Horizontal scroll is the whole point of this view. */
+.weekgrid{position:absolute;top:92px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
+.weekrow{display:flex;position:relative}
+.daylabel{position:sticky;left:0;z-index:2;background:var(--surface);width:48px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:.5px solid var(--hairline)}
+.block{position:absolute;top:5px;bottom:5px;border-radius:7px;padding:4px 6px;font-size:10px;line-height:1.2;overflow:hidden;cursor:pointer;border:none;text-align:left}
+
+@media (prefers-reduced-motion:no-preference){
+  .block,.tab{transition:background .15s}
+}
+</style>
+</head>
+
+<body>
+
+<!-- Prototype navigation. Not part of the app — hidden, kept only so the script below doesn't error. -->
+<nav class="jump" id="jump" aria-label="Spring na skerm" style="display:none"></nav>
+
+<div class="phone" id="phone">
+  <button id="theme-toggle" aria-label="Wissel tussen lig en donker modus" title="Wissel tema"></button>
+  <div class="screen" id="screen"></div>
+  <div class="tabbar" role="tablist">
+    <button class="tab" role="tab" data-tab="calendar" id="tab-calendar"></button>
+    <button class="tab" role="tab" data-tab="map"      id="tab-map"></button>
+    <button class="tab" role="tab" data-tab="search"   id="tab-search"></button>
+    <button class="tab" role="tab" data-tab="mine"     id="tab-mine"></button>
+  </div>
+</div>
+
+<p class="hint" style="display:none">Prototipe — klik deur die app soos op 'n foon. Die data is voorbeelddata.</p>
+
+<script>
+"use strict";
+
+/* ===========================================================================
+   1. CONFIG
+   Everything a developer would want to change first lives here.
+=========================================================================== */
+const CONFIG = {
+  school: "Hoërskool Garsfontein",
+
+  // Visible hour range in the week view and the column width per hour.
+  // 06:00–22:00 covers early practices through evening concerts.
+  dayStartHour: 6,
+  dayEndHour:   22,
+  hourWidthPx:  56,
+  rowHeightPx:  54,
+
+  // Where the horizontal scroll lands when the calendar opens.
+  // Most school events are afternoon, so don't start the user at 06:00.
+  initialScrollHour: 13,
+
+  // Categories drive colour and the filter chips.
+  // TODO: move to the API so the school can add e.g. "Skaak" without a release.
+  categories: {
+    Sport:   { colour:"var(--brand)",   wash:"var(--brand-wash)",   ink:"var(--brand-ink)",   icon:"ball"  },
+    Kultuur: { colour:"var(--culture)", wash:"var(--culture-wash)", ink:"var(--culture-ink)", icon:"music" }
+  },
+
+  // The prototype pins "today" so the red now-line and the demo week line up.
+  // TODO: in production this is simply new Date().
+  demoToday: "2026-06-16T16:34:00"
+};
+
+/* ===========================================================================
+   2. DATA
+   ---------------------------------------------------------------------------
+   This array stands in for:  GET /api/events?from=YYYY-MM-DD&to=YYYY-MM-DD
+
+   Event shape (keep these field names — the UI reads them directly):
+     id           number|string   stable unique id
+     title        string          shown on the block and the detail screen
+     category     string          must be a key of CONFIG.categories
+     date         "YYYY-MM-DD"    local date, no timezone games
+     start,end    "HH:MM"         24h local time
+     venue        string          free text, shown as "Plek"
+     description  string          one or two sentences for supporters
+     ticketUrl    string|null     null hides the "Koop kaartjies" button
+
+   Fields the real API will also need, not used by this prototype:
+     status       "scheduled" | "moved" | "cancelled"   (rain is constant)
+     team         e.g. "o/16 A"    so supporters can follow one team
+     updatedAt    timestamp        for sync and "changed" badges
+     isHome       boolean          away fixtures need travel info instead
+=========================================================================== */
+const EVENTS = [
+  { id:1,  title:"Rugby: Garsies teen Menlopark",   category:"Sport",   date:"2026-06-15", start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
+  { id:2,  title:"Debat",                           category:"Kultuur", date:"2026-06-16", start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
+  { id:3,  title:"Netbal: o/16",                    category:"Sport",   date:"2026-06-16", start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
+  { id:4,  title:"Oggend-byeenkoms",                category:"Kultuur", date:"2026-06-17", start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
+  { id:5,  title:"Koor-konsert",                    category:"Kultuur", date:"2026-06-18", start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
+  { id:6,  title:"Atletiek-oefenbyeenkoms",         category:"Sport",   date:"2026-06-19", start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
+  { id:7,  title:"Hokkie: Garsies teen Waterkloof", category:"Sport",   date:"2026-06-20", start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
+  { id:8,  title:"Rugby o/15",                      category:"Sport",   date:"2026-06-20", start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
+  { id:9,  title:"Kultuuraand",                     category:"Kultuur", date:"2026-06-23", start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
+  { id:10, title:"Tennis: eerste span",             category:"Sport",   date:"2026-06-10", start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
+  { id:11, title:"Sokker o/19",                     category:"Sport",   date:"2026-06-25", start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
+];
+
+/* ---------------------------------------------------------------------------
+   STRINGS
+   Afrikaans copy is inline below for readability in a prototype. For the real
+   app, lift every user-facing string into a locale file (af.json / en.json)
+   before the first release — retrofitting i18n later is painful, and this
+   school needs both languages eventually.
+--------------------------------------------------------------------------- */
+const MONTHS = ["Januarie","Februarie","Maart","April","Mei","Junie",
+                "Julie","Augustus","September","Oktober","November","Desember"];
+const DAY_SHORT = ["Ma","Di","Wo","Do","Vr","Sa","So"];   // Monday-first
+
+/* ===========================================================================
+   3. ICONS
+   Inline SVG paths so the file has zero network dependencies. In the real app
+   use the platform icon set instead.
+=========================================================================== */
+const ICON_PATHS = {
+  calendar:'<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M16 3v4M8 3v4M4 11h16"/>',
+  pin:'<circle cx="12" cy="11" r="3"/><path d="M17.66 16.66 13.41 20.9a2 2 0 0 1-2.83 0l-4.24-4.24a8 8 0 1 1 11.31 0z"/>',
+  search:'<circle cx="10" cy="10" r="7"/><path d="m21 21-6-6"/>',
+  heart:'<path d="M19.5 12.57 12 20l-7.5-7.43A5 5 0 1 1 12 6.01a5 5 0 1 1 7.5 6.57"/>',
+  left:'<path d="m15 6-6 6 6 6"/>',
+  right:'<path d="m9 6 6 6-6 6"/>',
+  check:'<path d="m5 12 5 5L20 7"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  ticket:'<path d="M15 5v2M15 11v2M15 17v2M5 5h14a2 2 0 0 1 2 2v3a2 2 0 0 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 0 0 0-4V7a2 2 0 0 1 2-2"/>',
+  external:'<path d="M12 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6M11 13l9-9M15 4h5v5"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>',
+  qr:'<rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 14h3v3h-3zM17 20h3v-3M14 20h.01M20 14h.01"/>',
+  locate:'<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="8"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>',
+  mic:'<rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M8 21h8M12 17v4"/>',
+  ball:'<circle cx="12" cy="12" r="9"/><path d="m12 7 4.76 3.45-1.82 5.6H9.06l-1.82-5.6z"/>',
+  music:'<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+  moon:'<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>'
+};
+function icon(name, size = 20, colour = "currentColor"){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
+    stroke="${colour}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+    aria-hidden="true" style="flex:none;vertical-align:middle">${ICON_PATHS[name]}</svg>`;
+}
+
+/* ===========================================================================
+   4. DATE + TIME HELPERS
+   Deliberately plain: no date library, local time only. If the real app ever
+   handles away fixtures in another timezone, swap these for a library.
+=========================================================================== */
+const TODAY = new Date(CONFIG.demoToday);
+
+function toDate(iso){                       // "2026-06-16" -> Date (local midnight)
+  const [y,m,d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+function toISO(date){                       // Date -> "2026-06-16"
+  const p = n => String(n).padStart(2,"0");
+  return `${date.getFullYear()}-${p(date.getMonth()+1)}-${p(date.getDate())}`;
+}
+function addDays(date, n){
+  const d = new Date(date); d.setDate(d.getDate() + n); return d;
+}
+function mondayOf(date){                    // week starts Monday (SA convention)
+  const d = new Date(date);
+  const shift = (d.getDay() + 6) % 7;       // Sun=0 -> 6, Mon=1 -> 0
+  return addDays(d, -shift);
+}
+function hmToDecimal(hm){                   // "14:30" -> 14.5
+  const [h,m] = hm.split(":").map(Number);
+  return h + m / 60;
+}
+function sameDay(a, b){ return toISO(a) === toISO(b); }
+
+// Events on a given day, earliest first.
+function eventsOn(date){
+  const iso = toISO(date);
+  return EVENTS.filter(e => e.date === iso)
+               .sort((a,b) => hmToDecimal(a.start) - hmToDecimal(b.start));
+}
+function eventById(id){ return EVENTS.find(e => e.id === id); }
+function categoryOf(e){ return CONFIG.categories[e.category]; }
+
+/* ===========================================================================
+   5. STATE
+   One plain object; every change calls render(). Fine for a prototype —
+   replace with the framework's own state layer in the real build.
+=========================================================================== */
+const state = {
+  tab: "calendar",                  // calendar | map | search | mine
+  openEventId: null,                // null = tab view, otherwise detail screen
+  weekStart: mondayOf(TODAY),       // Monday of the visible week
+
+  // TODO: persist per user, server-side. localStorage is not good enough —
+  // supporters change phones and the school wants attendance numbers.
+  supported: new Set([1]),
+
+  query: "",
+  filter: "Alles",
+  mapMode: "map",                   // map | qr
+  checkedIn: false,
+  scrollLeft: null                  // remembers horizontal scroll between renders
+};
+
+/* ===========================================================================
+   6. SCREENS
+   Each returns an HTML string. Kept as strings to stay dependency-free;
+   in the real app these become components.
+=========================================================================== */
+
+/* --- 6a. Kalender -------------------------------------------------------
+   The core screen. Days stack downwards, hours run left to right, so a whole
+   week is one horizontally scrollable grid — a zoomed-in day view turned on
+   its side. Blocks are positioned absolutely from start/end times.
+------------------------------------------------------------------------- */
+function effectiveHourWidth(){
+  const { dayStartHour:H0, dayEndHour:H1, hourWidthPx:PX_BASE } = CONFIG;
+  const hours = H1 - H0;
+  const available = (window.innerWidth || 375) - 48;
+  return Math.max(PX_BASE, Math.floor(available / hours));
+}
+
+function screenCalendar(){
+  const { dayStartHour:H0, dayEndHour:H1, rowHeightPx:RH } = CONFIG;
+  const hours = H1 - H0;
+  // On a wide screen (desktop), stretch each hour column so the week fills
+  // the available width instead of leaving blank space to the right. On a
+  // narrow screen, keep the readable default and let it scroll horizontally.
+  const PX = effectiveHourWidth();
+  const gridWidth = hours * PX;
+  const weekEnd   = addDays(state.weekStart, 6);
+  const monthName = MONTHS[state.weekStart.getMonth()];
+
+  let html = `
+  <div style="padding:6px 16px 0">
+    <div style="display:flex;justify-content:space-between;align-items:center;color:var(--brand);font-size:15px">
+      <span style="display:flex;align-items:center">${icon("left",20,"var(--brand)")}${monthName}</span>
+      <span style="display:flex;gap:14px">${icon("search",20,"var(--brand)")}${icon("plus",20,"var(--brand)")}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 0">
+      <div style="font-size:26px;font-weight:700">${state.weekStart.getDate()} – ${weekEnd.getDate()} ${monthName.slice(0,3)}</div>
+      <div style="display:flex;gap:4px">
+        <button data-action="week-prev" aria-label="Vorige week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("left",16,"var(--brand)")}</button>
+        <button data-action="week-next" aria-label="Volgende week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("right",16,"var(--brand)")}</button>
+      </div>
+    </div>
+  </div>
+  <div class="weekgrid" id="weekgrid"><div style="width:${gridWidth + 48}px;position:relative">`;
+
+  // Hour ruler, pinned to the top while the user scrolls vertically.
+  html += `<div class="weekrow" style="height:24px;position:sticky;top:0;z-index:3;background:var(--surface);border-bottom:.5px solid var(--hairline)">
+             <div class="daylabel" style="z-index:4"></div>`;
+  for (let h = H0; h < H1; h++){
+    html += `<div style="width:${PX}px;flex:none;font-size:10px;color:var(--muted);padding:5px 0 0 3px;border-left:.5px solid var(--hairline)">${String(h).padStart(2,"0")}:00</div>`;
+  }
+  html += `</div>`;
+
+  // One row per day.
+  for (let i = 0; i < 7; i++){
+    const day       = addDays(state.weekStart, i);
+    const isToday   = sameDay(day, TODAY);
+    const isWeekend = i > 4;
+
+    html += `<div class="weekrow" style="height:${RH}px;border-bottom:.5px solid var(--hairline)">
+      <div class="daylabel">
+        <span style="font-size:10px;color:${isToday ? "var(--brand)" : "var(--muted)"}">${DAY_SHORT[i]}</span>
+        <span style="width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:${isToday ? 700 : 500};${
+          isToday ? "background:var(--brand);color:#fff" : isWeekend ? "color:var(--muted)" : ""
+        }">${day.getDate()}</span>
+      </div>
+      <div style="position:relative;width:${gridWidth}px;flex:none;background:repeating-linear-gradient(90deg,transparent 0 ${PX-1}px,var(--hairline) ${PX-1}px ${PX}px)">`;
+
+    eventsOn(day).forEach(e => {
+      const cat   = categoryOf(e);
+      const left  = (hmToDecimal(e.start) - H0) * PX + 1;
+      const width = (hmToDecimal(e.end) - hmToDecimal(e.start)) * PX - 3;
+      const tick  = state.supported.has(e.id) ? " " + icon("check",10,cat.ink) : "";
+      // NOTE: short events give very little room for the title. If the school
+      // finds them unreadable, raise CONFIG.hourWidthPx rather than shrinking type.
+      html += `<button class="block" data-event="${e.id}"
+        style="left:${left}px;width:${width}px;background:${cat.wash};color:${cat.ink};border-left:3px solid ${cat.colour}">
+        <b style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${e.title}</b>${e.start}${tick}</button>`;
+    });
+
+    html += `</div></div>`;
+  }
+
+  // "Now" line — only drawn when today falls inside the visible week.
+  if (TODAY >= state.weekStart && TODAY <= addDays(weekEnd, 1)){
+    const nowHours = TODAY.getHours() + TODAY.getMinutes() / 60;
+    const x = 48 + (nowHours - H0) * PX;
+    const label = `${String(TODAY.getHours()).padStart(2,"0")}:${String(TODAY.getMinutes()).padStart(2,"0")}`;
+    html += `<div style="position:absolute;left:${x}px;top:24px;bottom:0;width:1.5px;background:var(--brand);z-index:1;pointer-events:none"></div>
+             <div style="position:absolute;left:${x-15}px;top:3px;z-index:4;background:var(--brand);color:#fff;font-size:10px;font-weight:600;padding:2px 5px;border-radius:8px">${label}</div>`;
+  }
+
+  return html + `</div></div>`;
+}
+
+/* --- 6b. Kaart ----------------------------------------------------------
+   The map is a hand-drawn SVG placeholder shaped like a road map.
+   TODO: replace with Google Maps / Mapbox. Pin the school, and later pin each
+   venue (Hoofveld, Kunsgrasveld, Saal) so visiting supporters can find them.
+   The blue dot and the 80 m distance are faked — real version needs location
+   permission, and the school should decide whether check-in is GPS or QR only.
+------------------------------------------------------------------------- */
+function mapSegmentedControl(){
+  return `<div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;background:var(--hairline);border-radius:18px;padding:3px;z-index:3">
+    ${["map","qr"].map(mode => `<button data-action="map-${mode}"
+      style="border:none;font-size:13px;padding:6px 24px;border-radius:15px;background:${state.mapMode===mode ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${mode==="map" ? "Kaart" : "QR"}</button>`).join("")}
+  </div>`;
+}
+
+function screenMap(){
+  if (state.mapMode === "qr"){
+    return `<div style="position:absolute;inset:0;background:#1c1c1e;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
+      <div style="width:190px;height:190px;border:3px solid #fff;border-radius:24px;display:flex;align-items:center;justify-content:center">${icon("qr",64,"#8e8e93")}</div>
+      <div style="font-size:14px;margin-top:18px;text-align:center;padding:0 34px">Skandeer die QR-kode by die hek om aan te meld</div>
+    </div>` + mapSegmentedControl();
+  }
+
+  return `<svg viewBox="0 0 300 644" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style="position:absolute;inset:0" role="img" aria-label="Kaart van die skool se omgewing">
+      <rect width="300" height="644" fill="#f1f3f4"/>
+      <rect x="160" y="60" width="120" height="130" rx="6" fill="#c8e6c9"/>
+      <rect x="20" y="410" width="95" height="120" rx="6" fill="#c8e6c9"/>
+      <path d="M0 270 L300 225" stroke="#fff" stroke-width="16"/>
+      <path d="M0 270 L300 225" stroke="#fdd663" stroke-width="10"/>
+      <path d="M125 0 L150 644" stroke="#fff" stroke-width="12"/>
+      <path d="M0 455 L300 410" stroke="#fff" stroke-width="9"/>
+      <path d="M215 0 L245 644" stroke="#fff" stroke-width="7"/>
+      <path d="M40 0 L62 644" stroke="#fff" stroke-width="6"/>
+      <text x="172" y="130" font-size="11" fill="#2e7d32">Park</text>
+      <text x="160" y="220" font-size="10" fill="var(--muted)" transform="rotate(-8 160 220)">Garsfonteinweg</text>
+      <circle cx="143" cy="345" r="75" fill="#C0262D" fill-opacity=".08" stroke="#C0262D" stroke-dasharray="4 3"/>
+      <path d="M143 343c-12-14-16-20-16-28a16 16 0 0 1 32 0c0 8-4 14-16 28z" fill="#ea4335"/>
+      <circle cx="143" cy="315" r="6" fill="#a50e0e"/>
+      <text x="143" y="362" text-anchor="middle" font-size="12" font-weight="600" fill="#C0262D">${CONFIG.school}</text>
+      <circle cx="175" cy="388" r="12" fill="#4285f4" fill-opacity=".2"/>
+      <circle cx="175" cy="388" r="6" fill="#4285f4" stroke="#fff" stroke-width="2"/>
+    </svg>`
+    + mapSegmentedControl()
+    + `<div style="position:absolute;top:60px;right:14px;width:40px;height:40px;border-radius:20px;background:var(--surface);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:center">${icon("locate",20,"#4285f4")}</div>
+    <div style="position:absolute;left:12px;right:12px;bottom:88px;background:var(--surface);border-radius:18px;border:.5px solid var(--hairline);padding:12px 14px">
+      <div style="font-size:15px;font-weight:600">${CONFIG.school}</div>
+      <div style="font-size:12px;color:#5f6368;margin-bottom:10px">Jy is 80 m weg en binne die area</div>
+      <button data-action="checkin" style="width:100%;height:40px;border-radius:20px;background:${state.checkedIn ? "var(--surface)" : "var(--brand)"};color:${state.checkedIn ? "var(--brand)" : "#fff"};border:${state.checkedIn ? "1.5px solid var(--brand)" : "none"};font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
+        ${state.checkedIn ? icon("check",16,"var(--brand)") + "Aangemeld" : "Meld aan"}
+      </button>
+    </div>`;
+}
+
+/* --- 6c. Soek -----------------------------------------------------------
+   Client-side filter over the loaded events. Fine at this scale (a school year
+   is a few hundred events). TODO: server-side search once past ~1 000 events,
+   and add team/grade as filter dimensions.
+------------------------------------------------------------------------- */
+function screenSearch(){
+  const chips = ["Alles", ...Object.keys(CONFIG.categories)];
+  return `<div style="padding:10px 16px">
+    <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
+    <div style="display:flex;align-items:center;gap:8px;background:var(--hairline);border-radius:14px;height:42px;padding:0 12px">
+      ${icon("search",18,"var(--muted)")}
+      <input id="searchbox" value="${state.query}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
+        style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:var(--shadow-ink)">
+      ${icon("mic",18,"var(--muted)")}
+    </div>
+    <div style="display:flex;gap:6px;margin:12px 0">
+      ${chips.map(c => `<button class="chip ${state.filter===c ? "is-active" : ""}" data-filter="${c}">${c}</button>`).join("")}
+    </div>
+    <div id="results">${searchResults()}</div>
+  </div>`;
+}
+
+function searchResults(){
+  const q = state.query.trim().toLowerCase();
+  const matches = EVENTS
+    .filter(e => state.filter === "Alles" || e.category === state.filter)
+    .filter(e => !q || e.title.toLowerCase().includes(q)
+                    || e.category.toLowerCase().includes(q)
+                    || e.venue.toLowerCase().includes(q))
+    .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
+    .slice(0, 7);   // TODO: paginate instead of truncating
+
+  if (!matches.length){
+    return `<p style="font-size:14px;color:var(--muted)">Geen resultate nie. Probeer 'n ander woord.</p>`;
+  }
+
+  return matches.map(e => {
+    const day = toDate(e.date);
+    return `<div class="row-event" data-event="${e.id}" tabindex="0" role="button">
+      <div style="width:40px;height:40px;border-radius:10px;background:${categoryOf(e).wash};display:flex;align-items:center;justify-content:center">
+        ${icon(categoryOf(e).icon, 20, categoryOf(e).colour)}
+      </div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600">${e.title}</div>
+        <div style="font-size:12px;color:var(--muted)">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${e.category}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* --- 6d. Myne -----------------------------------------------------------
+   Events the supporter has committed to. Card styling deliberately echoes the
+   iOS Weather city list, per the client's reference.
+   TODO: this list is the attendance signal the school actually wants —
+   surface counts per event in the admin view.
+------------------------------------------------------------------------- */
+function screenMine(){
+  const mine = EVENTS
+    .filter(e => state.supported.has(e.id))
+    .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+
+  let html = `<div style="position:absolute;top:-36px;left:0;right:0;bottom:0;background:var(--myne-bg);padding:46px 14px 0;overflow-y:auto">
+    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:0 0 10px">My geleenthede</h1>`;
+
+  if (!mine.length){
+    html += `<p style="color:var(--hairline);font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
+  }
+
+  mine.forEach(e => {
+    const day = toDate(e.date);
+    const bg  = e.category === "Sport" ? "#8e1d24" : "#3d4f7a";
+    html += `<div data-event="${e.id}" tabindex="0" role="button"
+      style="cursor:pointer;background:${bg};border-radius:20px;padding:13px 15px;margin-bottom:10px;color:#fff;display:flex;justify-content:space-between;gap:8px">
+      <div style="min-width:0">
+        <div style="font-size:16px;font-weight:600;line-height:1.25">${e.title}</div>
+        <div style="font-size:12px;color:var(--hairline)">${e.venue}</div>
+        <div style="font-size:12px;margin-top:16px;color:var(--hairline)">${e.category}</div>
+      </div>
+      <div style="text-align:right;flex:none">
+        <div style="font-size:36px;font-weight:300;line-height:1">${day.getDate()}</div>
+        <div style="font-size:12px">${MONTHS[day.getMonth()].slice(0,3)}</div>
+        <div style="font-size:12px;margin-top:10px;color:var(--hairline)">${e.start}</div>
+      </div>
+    </div>`;
+  });
+
+  return html + `<div style="height:90px"></div></div>`;
+}
+
+/* --- 6e. Event detail ---------------------------------------------------
+   Reached from any tab. Two actions at the bottom, in this order:
+     "Koop kaartjies" — outbound link to the event's Quicket page.
+                        Hidden when ticketUrl is null (free events).
+     "Ek ondersteun"  — the app's own signal, works with or without tickets.
+   Keep tickets ABOVE support: the ticket is the thing with a deadline.
+------------------------------------------------------------------------- */
+function screenEventDetail(){
+  const e = eventById(state.openEventId);
+  const day = toDate(e.date);
+  const isSupported = state.supported.has(e.id);
+  const weekdayIndex = (day.getDay() + 6) % 7;
+
+  const rows = [
+    ["calendar", "Datum", `${DAY_SHORT[weekdayIndex]} ${day.getDate()} ${MONTHS[day.getMonth()]} ${day.getFullYear()}`],
+    ["clock",    "Tyd",   `${e.start} - ${e.end}`],
+    ["pin",      "Plek",  e.venue]
+  ];
+
+  const ticketButton = e.ticketUrl
+    ? `<a href="${e.ticketUrl}" target="_blank" rel="noopener"
+         style="width:100%;display:flex;align-items:center;justify-content:space-between;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink);border-radius:14px;padding:11px 14px;margin-bottom:10px;text-decoration:none">
+         <span style="font-size:14px;display:flex;align-items:center;gap:8px">${icon("ticket",18,"var(--brand)")}Koop kaartjies</span>
+         <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px">Quicket ${icon("external",14,"var(--muted)")}</span>
+       </a>`
+    : "";
+
+  return `<div style="padding:8px 18px">
+    <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
+    <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${e.title}</h1>
+    <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${categoryOf(e).wash};color:${categoryOf(e).ink}">${e.category}</span>
+
+    <div style="margin-top:14px;background:var(--surface-2);border-radius:14px;padding:4px 14px">
+      ${rows.map(([ic_, label, value], i) => `
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i < rows.length-1 ? "border-bottom:.5px solid var(--hairline)" : ""}">
+          ${icon(ic_,18,"var(--brand)")}
+          <span style="font-size:13px;color:var(--muted);width:46px">${label}</span>
+          <span style="font-size:14px">${value}</span>
+        </div>`).join("")}
+    </div>
+
+    <div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
+    <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px">${e.description}</div>
+  </div>
+
+  <div style="position:absolute;left:18px;right:18px;bottom:90px">
+    ${ticketButton}
+    <button data-action="toggle-support"
+      style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "var(--surface)" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
+      ${isSupported ? icon("check",18,"var(--brand)") + "Jy ondersteun" : "Ek ondersteun"}
+    </button>
+  </div>`;
+}
+
+/* ===========================================================================
+   7. RENDER + EVENT HANDLING
+   One render function, one delegated click handler. Every state change is
+   followed by render() — no partial DOM updates except the search results,
+   which re-render on keystroke so the input does not lose focus.
+=========================================================================== */
+const SCREENS = { calendar:screenCalendar, map:screenMap, search:screenSearch, mine:screenMine };
+const TAB_META = [
+  ["calendar","calendar","Kalender"],
+  ["map","pin","Kaart"],
+  ["search","search","Soek"],
+  ["mine","heart","Myne"]
+];
+
+const screenEl = document.getElementById("screen");
+
+function render(){
+  screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
+
+  document.querySelectorAll(".tab").forEach(btn => {
+    const active = btn.dataset.tab === state.tab && !state.openEventId;
+    btn.classList.toggle("is-active", active);
+    btn.setAttribute("aria-selected", active);
+  });
+
+  // Restore horizontal scroll, or land on the configured hour first time.
+  const grid = document.getElementById("weekgrid");
+  if (grid){
+    const { initialScrollHour:SH, dayStartHour:H0 } = CONFIG;
+    const PX = effectiveHourWidth();
+    grid.scrollLeft = state.scrollLeft == null ? (SH - H0) * PX : state.scrollLeft;
+    grid.addEventListener("scroll", () => { state.scrollLeft = grid.scrollLeft; });
+  }
+
+  const box = document.getElementById("searchbox");
+  if (box){
+    box.addEventListener("input", ev => {
+      state.query = ev.target.value;
+      document.getElementById("results").innerHTML = searchResults();
+    });
+  }
+}
+
+function handle(target){
+  if (target.dataset.tab){
+    state.tab = target.dataset.tab;
+    state.openEventId = null;
+  } else if (target.dataset.event){
+    state.openEventId = Number(target.dataset.event);
+  } else if (target.dataset.filter){
+    state.filter = target.dataset.filter;
+  } else {
+    switch (target.dataset.action){
+      case "back":           state.openEventId = null; break;
+      case "toggle-support":
+        // TODO: POST /api/events/:id/support  (and DELETE to undo)
+        state.supported.has(state.openEventId)
+          ? state.supported.delete(state.openEventId)
+          : state.supported.add(state.openEventId);
+        break;
+      case "map-map":        state.mapMode = "map"; break;
+      case "map-qr":         state.mapMode = "qr";  break;
+      case "checkin":        state.checkedIn = !state.checkedIn; break;  // TODO: real check-in
+      case "week-prev":      state.weekStart = addDays(state.weekStart, -7); state.scrollLeft = null; break;
+      case "week-next":      state.weekStart = addDays(state.weekStart,  7); state.scrollLeft = null; break;
+      default: return;
+    }
+  }
+  render();
+}
+
+const phoneEl = document.getElementById("phone");
+phoneEl.addEventListener("click", ev => {
+  const target = ev.target.closest("[data-tab],[data-event],[data-action],[data-filter]");
+  // Let real links (the Quicket button) behave like links.
+  if (target && !ev.target.closest("a")) handle(target);
+});
+phoneEl.addEventListener("keydown", ev => {
+  if (ev.key !== "Enter" && ev.key !== " ") return;
+  const target = ev.target.closest("[data-event]");
+  if (target && target.tagName !== "BUTTON" && target.tagName !== "A"){
+    ev.preventDefault();
+    handle(target);
+  }
+});
+
+/* --- Prototype-only chrome: jump buttons and the fake status bar --------- */
+TAB_META.forEach(([id, iconName, label]) => {
+  document.getElementById("tab-" + id).innerHTML = icon(iconName, 22) + label;
+});
+
+/* --- Theme toggle: light / dark, remembered between visits ---------------- */
+(function initThemeToggle(){
+  const root = document.documentElement;
+  const btn  = document.getElementById("theme-toggle");
+
+  function systemPrefersDark(){
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function currentIsDark(){
+    const stored = root.getAttribute("data-theme");
+    if (stored === "dark") return true;
+    if (stored === "light") return false;
+    return systemPrefersDark();
+  }
+  function paint(){
+    btn.innerHTML = icon(currentIsDark() ? "sun" : "moon", 18);
+  }
+  paint();
+
+  try {
+    const saved = localStorage.getItem("garsie-theme");
+    if (saved === "dark" || saved === "light"){
+      root.setAttribute("data-theme", saved);
+      paint();
+    }
+  } catch (e) { /* localStorage unavailable — fall back to system preference */ }
+
+  btn.addEventListener("click", () => {
+    const next = currentIsDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("garsie-theme", next); } catch (e) {}
+    paint();
+  });
+})();
+
+let resizeTimer;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(render, 120);
+});
+[["Kalender",  () => { state.tab = "calendar"; state.openEventId = null; }],
+ ["Kaart",     () => { state.tab = "map"; state.openEventId = null; state.mapMode = "map"; }],
+ ["Soek",      () => { state.tab = "search"; state.openEventId = null; }],
+ ["Geleentheid", () => { state.openEventId = 2; }],
+ ["My geleenthede", () => { state.tab = "mine"; state.openEventId = null; }]
+].forEach(([label, fn]) => {
+  const btn = document.createElement("button");
+  btn.textContent = label;
+  btn.addEventListener("click", () => { fn(); render(); });
+  document.getElementById("jump").appendChild(btn);
+});
+
+render();
+</script>
+</body>
+</html>
