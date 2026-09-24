@@ -83,8 +83,11 @@
 <style>
 /* ---------------------------------------------------------------------------
    THEME TOKENS
-   Only the page chrome adapts to dark mode. The phone screen itself is
-   deliberately locked to light, because it is standing in for an app UI.
+   The whole app is light/dark aware: it follows the device setting, and the
+   sun/moon button (top-right) overrides it and is remembered. Use the
+   --surface / --surface-2 / --hairline / --shadow-ink / --muted tokens for
+   any new UI instead of hard-coded greys. Deliberately NOT themed: the map
+   drawing, the QR screen and the Myne cards (they are always dark).
 --------------------------------------------------------------------------- */
 :root{
   --brand:#C0262D;          /* primary — school red (PLACEHOLDER) */
@@ -94,21 +97,31 @@
 
   --page:#ececef; --ink:#1d1d1f; --muted:#6e6e73;
   --btn:#fff; --btn-border:#d2d2d7;
+
+  /* App content surfaces — theme-aware */
+  --surface:#fff; --surface-2:#f2f2f4; --hairline:#e5e5ea; --shadow-ink:#111;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
     --btn:#232326; --btn-border:#3a3a3e;
+    --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
+    --brand-wash:#4a1f23;
   }
 }
 :root[data-theme="dark"]{
   --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
   --btn:#232326; --btn-border:#3a3a3e;
+  --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
+  --brand-wash:#4a1f23;
 }
+:root{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){color-scheme:dark} }
 
 *{box-sizing:border-box}
 body{
-  margin:0; background:#fff; color:var(--ink);
+  margin:0; background:var(--surface); color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
   height:100vh; height:100dvh; overflow:hidden;
 }
@@ -120,7 +133,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 
 /* App frame — stretches to fill the viewport on every screen size, no bezel.
    Wide screens get the full width; readable content is capped by .content. */
-.phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;background:#fff;position:relative;overflow:hidden;color:#111}
+.phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;background:var(--surface);position:relative;overflow:hidden;color:var(--shadow-ink)}
 
 /* Responsive helpers. On a phone these are full width; on a computer they
    centre so text lines and buttons don't stretch across a 1920px screen. */
@@ -132,27 +145,31 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .auth{position:absolute;inset:0;overflow-y:auto;padding:24px 20px 40px}
 .auth-card{max-width:420px;margin:0 auto}
 .field{display:block;margin-bottom:12px}
-.field span{display:block;font-size:13px;color:#6e6e73;margin:0 0 5px 4px}
-.field input,.field select{width:100%;height:46px;border-radius:14px;border:.5px solid #d1d1d6;background:#f2f2f4;padding:0 14px;font-size:16px;color:#111;font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
+.field span{display:block;font-size:13px;color:var(--muted);margin:0 0 5px 4px}
+.field input,.field select{width:100%;height:46px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface-2);padding:0 14px;font-size:16px;color:var(--shadow-ink);font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
 .field select{padding-right:38px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
-.field input:focus,.field select:focus{border-color:var(--brand);background:#fff}
+.field input:focus,.field select:focus{border-color:var(--brand);background:var(--surface)}
 .btn-primary{width:100%;height:48px;border-radius:24px;border:none;background:var(--brand);color:#fff;font-size:16px;font-weight:600;margin-top:6px}
 .btn-link{background:none;border:none;color:var(--brand);font-size:14px;padding:8px}
-.statusbar{height:36px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:13px;font-weight:600}
-.screen{position:absolute;top:36px;left:0;right:0;bottom:0;overflow:hidden}
+.screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
+
+/* Theme toggle — floats top-right, above every screen. Screen headers keep
+   ~48px clear on the right so it never covers their buttons. */
+#theme-toggle{position:absolute;top:10px;right:14px;z-index:10;width:38px;height:38px;border-radius:19px;border:.5px solid var(--hairline);background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
+#theme-toggle svg{color:var(--shadow-ink)}
 
 /* Bottom tab bar — persistent across all four tabs */
-.tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:rgba(242,242,244,.96);border:.5px solid #d8d8dc;display:flex;align-items:center;justify-content:space-around;z-index:5}
-.tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:#6b6b70;padding:5px 8px;border-radius:22px;background:none;border:none;min-width:0}
+.tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:color-mix(in srgb, var(--surface-2) 96%, transparent);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:space-around;z-index:5}
+.tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--muted);padding:5px 8px;border-radius:22px;background:none;border:none;min-width:0}
 .tab.is-active{color:var(--brand);background:var(--brand-wash)}
 
 /* Shared list row */
-.row-event{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid #e5e5ea;cursor:pointer}
+.row-event{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid var(--hairline);cursor:pointer}
 
 /* Filter chips — one per department, shared by Kalender, Soek and Myne */
 .chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px 0}
 .chips::-webkit-scrollbar{display:none}
-.chip{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid #d1d1d6;background:#fff;color:#333}
+.chip{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink)}
 .chip.is-active{color:#fff}
 .chip.on-dark{background:transparent;border-color:#5a6680;color:#e6e6ec}
 .dot{width:8px;height:8px;border-radius:4px;flex:none}
@@ -161,15 +178,15 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .panel{position:absolute;inset:0;overflow-y:auto;padding:10px 16px 110px}
 .panel h1{font-size:30px;font-weight:700;margin:0 0 12px}
 .panel h2{font-size:17px;margin:22px 0 10px}
-.card{background:#f2f2f4;border-radius:16px;padding:14px}
-.field textarea{width:100%;min-height:76px;border-radius:14px;border:.5px solid #d1d1d6;background:#f2f2f4;padding:12px 14px;font-size:16px;color:#111;font-family:inherit;outline:none;resize:vertical}
-.field textarea:focus{border-color:var(--brand);background:#fff}
-.card .field input,.card .field select,.card .field textarea{background:#fff}
+.card{background:var(--surface-2);border-radius:16px;padding:14px}
+.field textarea{width:100%;min-height:76px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface-2);padding:12px 14px;font-size:16px;color:var(--shadow-ink);font-family:inherit;outline:none;resize:vertical}
+.field textarea:focus{border-color:var(--brand);background:var(--surface)}
+.card .field input,.card .field select,.card .field textarea{background:var(--surface)}
 .field input[type=color]{padding:4px 6px;cursor:pointer}
 .field select:disabled{opacity:.7}
-.list-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid #dcdce0}
+.list-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid var(--hairline)}
 .list-row:last-child{border-bottom:none}
-.mini-btn{flex:none;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border-radius:15px;border:.5px solid #d1d1d6;background:#fff;color:#111;font-size:12px}
+.mini-btn{flex:none;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border-radius:15px;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink);font-size:12px}
 .mini-btn.danger{color:#c0262d}
 .mini-btn:disabled{opacity:.4;cursor:default}
 .toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:#1d1d1f;color:#fff;font-size:14px;padding:10px 16px;border-radius:20px;z-index:20;white-space:nowrap;pointer-events:none}
@@ -177,7 +194,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 /* Week grid. Horizontal scroll is the whole point of this view. */
 .weekgrid{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
 .weekrow{display:flex;position:relative}
-.daylabel{position:sticky;left:0;z-index:2;background:#fff;width:48px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:.5px solid #e5e5ea}
+.daylabel{position:sticky;left:0;z-index:2;background:var(--surface);width:48px;flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;border-right:.5px solid var(--hairline)}
 .block{position:absolute;top:5px;bottom:5px;border-radius:7px;padding:4px 6px;font-size:10px;line-height:1.2;overflow:hidden;cursor:pointer;border:none;text-align:left}
 
 @media (prefers-reduced-motion:no-preference){
@@ -192,7 +209,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <nav class="jump" id="jump" aria-label="Spring na skerm" style="display:none"></nav>
 
 <div class="phone" id="phone">
-  <div class="statusbar"><span id="clock">16:34</span><span id="statusicons"></span></div>
+  <button id="theme-toggle" aria-label="Wissel tussen lig en donker modus" title="Wissel tema"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
   <div class="tabbar" role="tablist" id="tabbar"></div>
@@ -370,7 +387,9 @@ const ICON_PATHS = {
   download:'<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
-  wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>'
+  wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+  moon:'<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>'
 };
 function icon(name, size = 20, colour = "currentColor"){
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
@@ -417,7 +436,7 @@ function eventById(id){ return EVENTS.find(e => e.id === id); }
 
 // Department of an event, with the tints the UI needs derived from its one colour.
 function deptById(id){
-  const d = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"#8e8e93" };
+  const d = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"var(--muted)" };
   return { ...d,
     wash: `color-mix(in srgb, ${d.colour} 14%, white)`,   // block / badge fill
     ink:  `color-mix(in srgb, ${d.colour} 72%, black)`,   // text on the wash
@@ -530,14 +549,14 @@ function screenAuth(){
     <div style="text-align:center;margin:18px 0 26px">
       <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
       <h1 style="font-size:28px;font-weight:700;margin:12px 0 4px">Garsie Army</h1>
-      <div style="font-size:14px;color:#6e6e73">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
+      <div style="font-size:14px;color:var(--muted)">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
     </div>`;
 
   if (step === "code"){
     return `<div class="auth"><div class="auth-card">${header}
       <form data-form="auth-code">
         <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
-        <p style="font-size:14px;color:#6e6e73;margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:#111">${esc(draft.email) || "jou e-pos"}</b> gestuur.</p>
+        <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur.</p>
         <label class="field"><span>Kode</span>
           <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" autofocus
             style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
@@ -548,15 +567,15 @@ function screenAuth(){
         <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
         <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
       </div>
-      <p style="font-size:12px;color:#8e8e93;text-align:center;margin-top:18px">Prototipe: enige kode werk.</p>
+      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:18px">Prototipe: enige kode werk.</p>
     </div></div>`;
   }
 
   const isSignup = mode === "signup";
   return `<div class="auth"><div class="auth-card">${header}
-    <div style="display:flex;background:#e9e9eb;border-radius:18px;padding:3px;margin-bottom:18px">
+    <div style="display:flex;background:var(--hairline);border-radius:18px;padding:3px;margin-bottom:18px">
       ${[["signup","Registreer"],["signin","Teken in"]].map(([m, label]) => `<button data-action="auth-mode-${m}"
-        style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "#fff" : "transparent"};color:#111;font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
+        style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink);font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
     </div>
     <form data-form="auth-details">
       <label class="field"><span>E-pos</span>
@@ -580,7 +599,7 @@ function screenAuth(){
       ${roleFields(draft)}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
-    <p style="font-size:13px;color:#8e8e93;text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
   </div></div>`;
 }
 
@@ -617,7 +636,7 @@ function screenCalendar(){
 
   let html = `
   <div style="padding:6px 16px 0">
-    <div style="display:flex;justify-content:space-between;align-items:center;color:var(--brand);font-size:15px">
+    <div style="display:flex;justify-content:space-between;align-items:center;color:var(--brand);font-size:15px;min-height:42px;padding-right:48px">
       <span style="display:flex;align-items:center">${icon("left",20,"var(--brand)")}${monthName}</span>
       <span style="display:flex;gap:6px">
         <button data-tab="search" aria-label="Soek" style="background:none;border:none;padding:4px">${icon("search",20,"var(--brand)")}</button>
@@ -627,8 +646,8 @@ function screenCalendar(){
     <div style="display:flex;justify-content:space-between;align-items:baseline;margin:4px 0 0">
       <div style="font-size:26px;font-weight:700">${state.weekStart.getDate()} – ${weekEnd.getDate()} ${monthName.slice(0,3)}</div>
       <div style="display:flex;gap:4px">
-        <button data-action="week-prev" aria-label="Vorige week" style="width:30px;height:30px;border-radius:15px;border:none;background:#f2f2f4;display:flex;align-items:center;justify-content:center">${icon("left",16,"var(--brand)")}</button>
-        <button data-action="week-next" aria-label="Volgende week" style="width:30px;height:30px;border-radius:15px;border:none;background:#f2f2f4;display:flex;align-items:center;justify-content:center">${icon("right",16,"var(--brand)")}</button>
+        <button data-action="week-prev" aria-label="Vorige week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("left",16,"var(--brand)")}</button>
+        <button data-action="week-next" aria-label="Volgende week" style="width:30px;height:30px;border-radius:15px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon("right",16,"var(--brand)")}</button>
       </div>
     </div>
     <div style="margin-top:8px">${filterChips()}</div>
@@ -636,10 +655,10 @@ function screenCalendar(){
   <div class="weekgrid" id="weekgrid"><div style="width:${gridWidth + 48}px;position:relative">`;
 
   // Hour ruler, pinned to the top while the user scrolls vertically.
-  html += `<div class="weekrow" style="height:24px;position:sticky;top:0;z-index:3;background:#fff;border-bottom:.5px solid #e5e5ea">
+  html += `<div class="weekrow" style="height:24px;position:sticky;top:0;z-index:3;background:var(--surface);border-bottom:.5px solid var(--hairline)">
              <div class="daylabel" style="z-index:4"></div>`;
   for (let h = H0; h < H1; h++){
-    html += `<div style="width:${PX}px;flex:none;font-size:10px;color:#8e8e93;padding:5px 0 0 3px;border-left:.5px solid #eee">${String(h).padStart(2,"0")}:00</div>`;
+    html += `<div style="width:${PX}px;flex:none;font-size:10px;color:var(--muted);padding:5px 0 0 3px;border-left:.5px solid var(--hairline)">${String(h).padStart(2,"0")}:00</div>`;
   }
   html += `</div>`;
 
@@ -649,14 +668,14 @@ function screenCalendar(){
     const isToday   = sameDay(day, TODAY);
     const isWeekend = i > 4;
 
-    html += `<div class="weekrow" style="height:${RH}px;border-bottom:.5px solid #e5e5ea">
+    html += `<div class="weekrow" style="height:${RH}px;border-bottom:.5px solid var(--hairline)">
       <div class="daylabel">
-        <span style="font-size:10px;color:${isToday ? "var(--brand)" : "#8e8e93"}">${DAY_SHORT[i]}</span>
+        <span style="font-size:10px;color:${isToday ? "var(--brand)" : "var(--muted)"}">${DAY_SHORT[i]}</span>
         <span style="width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:${isToday ? 700 : 500};${
-          isToday ? "background:var(--brand);color:#fff" : isWeekend ? "color:#8e8e93" : ""
+          isToday ? "background:var(--brand);color:#fff" : isWeekend ? "color:var(--muted)" : ""
         }">${day.getDate()}</span>
       </div>
-      <div style="position:relative;width:${gridWidth}px;flex:none;background:repeating-linear-gradient(90deg,transparent 0 ${PX-1}px,#f0f0f2 ${PX-1}px ${PX}px)">`;
+      <div style="position:relative;width:${gridWidth}px;flex:none;background:repeating-linear-gradient(90deg,transparent 0 ${PX-1}px,var(--hairline) ${PX-1}px ${PX}px)">`;
 
     eventsOn(day).forEach(e => {
       const cat   = deptOf(e);
@@ -693,9 +712,9 @@ function screenCalendar(){
    permission, and the school should decide whether check-in is GPS or QR only.
 ------------------------------------------------------------------------- */
 function mapSegmentedControl(){
-  return `<div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;background:#e9e9eb;border-radius:18px;padding:3px;z-index:3">
+  return `<div style="position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;background:var(--hairline);border-radius:18px;padding:3px;z-index:3">
     ${["map","qr"].map(mode => `<button data-action="map-${mode}"
-      style="border:none;font-size:13px;padding:6px 24px;border-radius:15px;background:${state.mapMode===mode ? "#fff" : "transparent"};color:#111">${mode==="map" ? "Kaart" : "QR"}</button>`).join("")}
+      style="border:none;font-size:13px;padding:6px 24px;border-radius:15px;background:${state.mapMode===mode ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${mode==="map" ? "Kaart" : "QR"}</button>`).join("")}
   </div>`;
 }
 
@@ -727,11 +746,11 @@ function screenMap(){
       <circle cx="175" cy="388" r="6" fill="#4285f4" stroke="#fff" stroke-width="2"/>
     </svg>`
     + mapSegmentedControl()
-    + `<div style="position:absolute;top:60px;right:14px;width:40px;height:40px;border-radius:20px;background:#fff;border:.5px solid #ddd;display:flex;align-items:center;justify-content:center">${icon("locate",20,"#4285f4")}</div>
-    <div class="bottom-bar" style="position:absolute;left:12px;right:12px;bottom:88px;background:#fff;border-radius:18px;border:.5px solid #ddd;padding:12px 14px">
+    + `<div style="position:absolute;top:60px;right:14px;width:40px;height:40px;border-radius:20px;background:var(--surface);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:center">${icon("locate",20,"#4285f4")}</div>
+    <div class="bottom-bar" style="position:absolute;left:12px;right:12px;bottom:88px;background:var(--surface);border-radius:18px;border:.5px solid var(--hairline);padding:12px 14px">
       <div style="font-size:15px;font-weight:600">${CONFIG.school}</div>
-      <div style="font-size:12px;color:#5f6368;margin-bottom:10px">Jy is 80 m weg en binne die area</div>
-      <button data-action="checkin" style="width:100%;height:40px;border-radius:20px;background:${state.checkedIn ? "#fff" : "var(--brand)"};color:${state.checkedIn ? "var(--brand)" : "#fff"};border:${state.checkedIn ? "1.5px solid var(--brand)" : "none"};font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:10px">Jy is 80 m weg en binne die area</div>
+      <button data-action="checkin" style="width:100%;height:40px;border-radius:20px;background:${state.checkedIn ? "var(--surface)" : "var(--brand)"};color:${state.checkedIn ? "var(--brand)" : "#fff"};border:${state.checkedIn ? "1.5px solid var(--brand)" : "none"};font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
         ${state.checkedIn ? icon("check",16,"var(--brand)") + "Aangemeld" : "Meld aan"}
       </button>
     </div>`;
@@ -745,11 +764,11 @@ function screenMap(){
 function screenSearch(){
   return `<div class="content" style="padding:10px 16px">
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
-    <div style="display:flex;align-items:center;gap:8px;background:#eeeef0;border-radius:14px;height:42px;padding:0 12px">
-      ${icon("search",18,"#8e8e93")}
+    <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:14px;height:42px;padding:0 12px">
+      ${icon("search",18,"var(--muted)")}
       <input id="searchbox" value="${esc(state.query)}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
-        style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:#111">
-      ${icon("mic",18,"#8e8e93")}
+        style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:var(--shadow-ink)">
+      ${icon("mic",18,"var(--muted)")}
     </div>
     <div style="margin:12px 0">${filterChips()}</div>
     <div id="results">${searchResults()}</div>
@@ -767,7 +786,7 @@ function searchResults(){
     .slice(0, 7);   // TODO: paginate instead of truncating
 
   if (!matches.length){
-    return `<p style="font-size:14px;color:#8e8e93">Geen resultate nie. Probeer 'n ander woord.</p>`;
+    return `<p style="font-size:14px;color:var(--muted)">Geen resultate nie. Probeer 'n ander woord.</p>`;
   }
 
   return matches.map(e => {
@@ -779,7 +798,7 @@ function searchResults(){
       </div>
       <div style="flex:1;min-width:0">
         <div style="font-size:14px;font-weight:600">${esc(e.title)}</div>
-        <div style="font-size:12px;color:#8e8e93">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${esc(dept.name)}</div>
+        <div style="font-size:12px;color:var(--muted)">${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}, ${e.start} · ${esc(dept.name)}</div>
       </div>
     </div>`;
   }).join("");
@@ -796,8 +815,8 @@ function screenMine(){
     .filter(e => state.supported.has(e.id) && passesFilter(e))
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
-  let html = `<div style="position:absolute;top:-36px;left:0;right:0;bottom:0;background:var(--myne-bg);padding:46px 14px 0;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c7cbd6;font-size:13px">
+  let html = `<div style="position:absolute;inset:0;background:var(--myne-bg);padding:16px 14px 0;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c7cbd6;font-size:13px;min-height:38px;padding-right:52px">
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
       <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
     </div>
@@ -851,16 +870,16 @@ function screenEventDetail(){
 
   const ticketButton = e.ticketUrl
     ? `<a href="${esc(e.ticketUrl)}" target="_blank" rel="noopener"
-         style="width:100%;display:flex;align-items:center;justify-content:space-between;border:.5px solid #d1d1d6;background:#fff;color:#111;border-radius:14px;padding:11px 14px;margin-bottom:10px;text-decoration:none">
+         style="width:100%;display:flex;align-items:center;justify-content:space-between;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink);border-radius:14px;padding:11px 14px;margin-bottom:10px;text-decoration:none">
          <span style="font-size:14px;display:flex;align-items:center;gap:8px">${icon("ticket",18,"var(--brand)")}Koop kaartjies</span>
-         <span style="font-size:12px;color:#8e8e93;display:flex;align-items:center;gap:4px">Quicket ${icon("external",14,"#8e8e93")}</span>
+         <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px">Quicket ${icon("external",14,"var(--muted)")}</span>
        </a>`
     : "";
 
   // Only people with admin rights over this event see who is coming.
   const adminCard = canAdmin(e) ? `
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
-      <div style="font-size:12px;color:#8e8e93;display:flex;align-items:center;gap:6px">${icon("shield",14,"#8e8e93")} Net vir admins</div>
+      <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
         <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom</span>
         <span style="display:flex;gap:6px">
@@ -872,21 +891,21 @@ function screenEventDetail(){
 
   return `<div style="position:absolute;inset:0;overflow-y:auto;padding-bottom:${e.ticketUrl ? 220 : 160}px">
   <div class="content" style="padding:8px 18px">
-    <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:#f2f2f4;border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
+    <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
     <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${esc(e.title)}</h1>
     <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptOf(e).name)}</span>
 
-    <div style="margin-top:14px;background:#f2f2f4;border-radius:14px;padding:4px 14px">
+    <div style="margin-top:14px;background:var(--surface-2);border-radius:14px;padding:4px 14px">
       ${rows.map(([ic_, label, value], i) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i < rows.length-1 ? "border-bottom:.5px solid #dcdce0" : ""}">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i < rows.length-1 ? "border-bottom:.5px solid var(--hairline)" : ""}">
           ${icon(ic_,18,"var(--brand)")}
-          <span style="font-size:13px;color:#8e8e93;width:46px">${label}</span>
+          <span style="font-size:13px;color:var(--muted);width:46px">${label}</span>
           <span style="font-size:14px">${esc(value)}</span>
         </div>`).join("")}
     </div>
 
-    ${e.description ? `<div style="font-size:13px;color:#8e8e93;margin:14px 0 6px">Bykomende inligting</div>
-    <div style="background:#f2f2f4;border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
+    ${e.description ? `<div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
+    <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
     ${adminCard}
   </div>
   </div>
@@ -894,7 +913,7 @@ function screenEventDetail(){
   <div class="bottom-bar" style="position:absolute;left:18px;right:18px;bottom:90px">
     ${ticketButton}
     <button data-action="toggle-support"
-      style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "#fff" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
+      style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "var(--surface)" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
       ${isSupported ? icon("check",18,"var(--brand)") + "Jy ondersteun" : "Ek ondersteun"}
     </button>
   </div>`;
@@ -911,7 +930,7 @@ function screenCreate(){
   const depts = adminDepartments();
   if (!depts.length){
     return `<div class="panel"><div class="content"><h1>Skep</h1>
-      <p style="color:#6e6e73">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n hoof-admin.</p></div></div>`;
+      <p style="color:var(--muted)">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n hoof-admin.</p></div></div>`;
   }
   const editing = state.editingId != null ? eventById(state.editingId) : null;
   const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
@@ -952,13 +971,13 @@ function screenCreate(){
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
           <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
             <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
-            <div style="font-size:12px;color:#8e8e93">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom</div>
+            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
           <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel af">${icon("download",14)} Excel</button>
           <button class="mini-btn danger" data-action="delete-event" data-id="${ev.id}" aria-label="Skrap">${icon("trash",14)}</button>
         </div>`;
-      }).join("") : `<p style="font-size:14px;color:#8e8e93">Nog geen geleenthede nie.</p>`}
+      }).join("") : `<p style="font-size:14px;color:var(--muted)">Nog geen geleenthede nie.</p>`}
     </div>
   </div></div>`;
 }
@@ -991,7 +1010,7 @@ function screenManage(){
             style="width:30px;height:30px;border:none;border-radius:8px;padding:0;background:none;cursor:pointer;flex:none">
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:600">${esc(d.name)}</div>
-            <div style="font-size:12px;color:#8e8e93">${eventCount} geleenthede · ${adminCount} admins</div>
+            <div style="font-size:12px;color:var(--muted)">${eventCount} geleenthede · ${adminCount} admins</div>
           </div>
           <button class="mini-btn danger" data-action="delete-dept" data-id="${esc(d.id)}" ${inUse ? "disabled title='Skuif of skrap eers sy geleenthede en admins'" : ""}>${icon("trash",14)}</button>
         </div>`;
@@ -1006,12 +1025,12 @@ function screenManage(){
     </form>
 
     <h2>Admins</h2>
-    <p style="font-size:13px;color:#6e6e73;margin:-4px 0 10px">Hoof-admins kan alles wysig. Departement-admins net hul eie departement.</p>
+    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px">Hoof-admins kan alles wysig. Departement-admins net hul eie departement.</p>
     <div class="card" style="padding:4px 14px">
       ${ADMINS.map(a => `<div class="list-row" style="flex-wrap:wrap">
           <div style="flex:1;min-width:160px">
             <div style="font-size:14px;font-weight:600;word-break:break-all">${esc(a.email)}</div>
-            <div style="font-size:12px;color:#8e8e93">${ROLE_LABELS[a.role]}</div>
+            <div style="font-size:12px;color:var(--muted)">${ROLE_LABELS[a.role]}</div>
           </div>
           ${a.role === "dept" ? `<label class="field" style="margin:0;width:150px"><select data-admin-dept="${esc(a.email)}" aria-label="Departement vir ${esc(a.email)}" style="height:34px;font-size:14px">${deptOptions(a.department)}</select></label>` : ""}
           <button class="mini-btn danger" data-action="delete-admin" data-email="${esc(a.email)}" aria-label="Verwyder"
@@ -1031,7 +1050,7 @@ function screenManage(){
     </form>
 
     <h2>Voorbeelddata</h2>
-    <p style="font-size:13px;color:#6e6e73;margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is.</p>
+    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is.</p>
     <button class="mini-btn danger" data-action="reset-data" style="height:40px;padding:0 16px">Herstel voorbeelddata</button>
   </div></div>`;
 }
@@ -1332,7 +1351,7 @@ phoneEl.addEventListener("submit", ev => {
     const name = (data.name || "").trim();
     if (!name){ toast("Gee die departement 'n naam"); return; }
     if (DEPARTMENTS.some(d => d.name.toLowerCase() === name.toLowerCase())){ toast("Daardie departement bestaan reeds"); return; }
-    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour || "#8e8e93" }];
+    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour || "var(--muted)" }];
     persistData(); toast(`${name} bygevoeg`);
   } else if (form.dataset.form === "admin"){
     if (roleOf() !== "key") return;
@@ -1404,11 +1423,42 @@ phoneEl.addEventListener("keydown", ev => {
   }
 });
 
-/* --- Prototype-only chrome: jump buttons and the fake status bar --------- */
-document.getElementById("statusicons").innerHTML = icon("wifi", 15);
-document.getElementById("clock").textContent =
-  `${String(TODAY.getHours()).padStart(2,"0")}:${String(TODAY.getMinutes()).padStart(2,"0")}`;
+/* --- Theme toggle: light / dark, remembered between visits ---------------- */
+(function initThemeToggle(){
+  const root = document.documentElement;
+  const btn  = document.getElementById("theme-toggle");
 
+  function systemPrefersDark(){
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  function currentIsDark(){
+    const stored = root.getAttribute("data-theme");
+    if (stored === "dark") return true;
+    if (stored === "light") return false;
+    return systemPrefersDark();
+  }
+  function paint(){
+    btn.innerHTML = icon(currentIsDark() ? "sun" : "moon", 18);
+  }
+  paint();
+
+  try {
+    const saved = localStorage.getItem("garsie-theme");
+    if (saved === "dark" || saved === "light"){
+      root.setAttribute("data-theme", saved);
+      paint();
+    }
+  } catch (e) { /* localStorage unavailable — fall back to system preference */ }
+
+  btn.addEventListener("click", () => {
+    const next = currentIsDark() ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("garsie-theme", next); } catch (e) {}
+    paint();
+  });
+})();
+
+/* --- Prototype-only jump buttons (hidden) --------------------------------- */
 [["Kalender",  () => { state.tab = "calendar"; state.openEventId = null; }],
  ["Kaart",     () => { state.tab = "map"; state.openEventId = null; state.mapMode = "map"; }],
  ["Soek",      () => { state.tab = "search"; state.openEventId = null; }],
