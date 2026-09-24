@@ -55,7 +55,7 @@
   WHAT IS REAL vs FAKE IN THIS FILE
     Real   layout, navigation, week maths, search, filtering, support toggle,
            map, live location, address search, location check-in
-    Fake   the sample EVENTS (placed around the current week, see DATA)
+    Fake   the sample EVENTS (September 2026, see DATA)
            the "server" (QR checks, sync) runs in this browser — see QR check-in
            ticket links point at quicket.co.za, not real event pages
 
@@ -366,24 +366,29 @@ const CONFIG = {
      updatedAt    timestamp        for sync and "changed" badges
      isHome       boolean          away fixtures need travel info instead
 =========================================================================== */
-// Sample events, placed relative to the Monday of the CURRENT week (day 0) so
-// the calendar always has something to show. "Herstel voorbeelddata" in
-// Bestuur re-anchors them to the week you're in.
-const SAMPLE_EVENTS = [
-  { id:1,  title:"Rugby: Garsies teen Menlopark",   department:"sport",   day:0,             start:"15:00", end:"16:30", venue:"Hoofveld",        description:"Eerste span se groot derby. Trek jou Garsie-rooi aan.", ticketUrl:"https://www.quicket.co.za/" },
-  { id:2,  title:"Debat",                           department:"kultuur", day:1,             start:"14:00", end:"16:00", venue:"Kultuursentrum",  description:"Kom kyk die beste in die land.",                        ticketUrl:"https://www.quicket.co.za/" },
-  { id:3,  title:"Netbal: o/16",                    department:"sport",   day:1,             start:"16:30", end:"17:30", venue:"Netbalbane",      description:"Kom ondersteun ons o/16-meisies.",                      ticketUrl:null },
-  { id:4,  title:"Oggend-byeenkoms",                department:"kultuur", day:2,             start:"07:30", end:"08:30", venue:"Saal",            description:"Spesiale byeenkoms vir die wintertoer.",                ticketUrl:null },
-  { id:5,  title:"Koor-konsert",                    department:"kultuur", day:3,             start:"18:30", end:"20:00", venue:"Saal",            description:"Die koor se wintertoer-voorskou.",                      ticketUrl:"https://www.quicket.co.za/" },
-  { id:6,  title:"Atletiek-oefenbyeenkoms",         department:"sport",   day:4,             start:"15:00", end:"17:00", venue:"Atletiekbaan",    description:"Kom moedig die atlete aan.",                            ticketUrl:null },
-  { id:7,  title:"Hokkie: Garsies teen Waterkloof", department:"sport",   day:5,             start:"09:00", end:"12:00", venue:"Kunsgrasveld",    description:"Toernooidag met drie wedstryde.",                       ticketUrl:"https://www.quicket.co.za/" },
-  { id:8,  title:"Rugby o/15",                      department:"sport",   day:5,             start:"13:00", end:"14:30", venue:"Hoofveld",        description:"Die o/15's speel tuis.",                                ticketUrl:null },
-  { id:9,  title:"Kultuuraand",                     department:"kultuur", day:8,             start:"19:00", end:"21:00", venue:"Kultuursentrum",  description:"Drama, musiek en redenaars op een verhoog.",            ticketUrl:"https://www.quicket.co.za/" },
-  { id:10, title:"Tennis: eerste span",             department:"sport",   day:-5,            start:"14:00", end:"15:30", venue:"Tennisbane",      description:"Liga-wedstryd teen Menlopark.",                         ticketUrl:null },
-  { id:11, title:"Sokker o/19",                     department:"sport",   day:10,            start:"15:00", end:"17:00", venue:"B-veld",          description:"Halfeindronde van die liga.",                           ticketUrl:"https://www.quicket.co.za/" }
+// Sample events for September 2026 (Q = a Quicket link). Nothing on 24 Sep: Erfenisdag.
+// 110 is for girls only and 111 for Graad 12 only, to show "Wie mag kom?".
+const Q = "https://www.quicket.co.za/";
+const GIRLS_ONLY = { grades:[], gender:"Meisie", learnersOnly:true };
+const MATRICS_ONLY = { grades:["Graad 12"], gender:"all", learnersOnly:true };
+const SEED_EVENTS = [
+  { id:101, title:"Landloop: interhuis",                department:"sport",   date:"2026-09-02", start:"14:30", end:"16:30", venue:"Atletiekbaan",   description:"Al vier huise hardloop vir punte. Kom moedig jou huis aan.",        ticketUrl:null },
+  { id:102, title:"Krieket: Garsies teen Menlopark",    department:"sport",   date:"2026-09-05", start:"09:00", end:"15:00", venue:"Hoofveld",       description:"Die eerste span se eerste wedstryd van die seisoen.",               ticketUrl:null },
+  { id:103, title:"Redenaarskompetisie",                department:"kultuur", date:"2026-09-08", start:"18:00", end:"20:00", venue:"Kultuursentrum", description:"Junior en senior redenaars in die finale ronde.",                  ticketUrl:null },
+  { id:104, title:"Tennis: eerste span teen Waterkloof",department:"sport",   date:"2026-09-11", start:"14:00", end:"17:00", venue:"Tennisbane",     description:"Liga-wedstryd. Stoele is beperk — bring 'n kombers.",             ticketUrl:null },
+  { id:105, title:"Swemgala",                           department:"sport",   date:"2026-09-12", start:"08:00", end:"13:00", venue:"Swembad",        description:"Interhuis-swemgala. Kos en koeldrank te koop.",                    ticketUrl:Q },
+  { id:106, title:"Kunsuitstalling",                    department:"kultuur", date:"2026-09-15", start:"17:30", end:"20:00", venue:"Saal",           description:"Werk van die Graad 10–12-kunsleerders.",                          ticketUrl:null },
+  { id:107, title:"Koor: lentekonsert",                 department:"kultuur", date:"2026-09-17", start:"19:00", end:"21:00", venue:"Saal",           description:"Die koor sing die lente in.",                                      ticketUrl:Q },
+  { id:108, title:"Atletiek: Noord-Gauteng-byeenkoms",  department:"sport",   date:"2026-09-19", start:"08:00", end:"16:00", venue:"Atletiekbaan",   description:"Ons bied die streeksbyeenkoms aan. Parkering by die B-veld.",     ticketUrl:null },
+  { id:109, title:"Debat: halfeindronde",               department:"kultuur", date:"2026-09-22", start:"15:00", end:"17:00", venue:"Kultuursentrum", description:"Ons senior span teen Menlopark.",                                  ticketUrl:null },
+  { id:110, title:"Netbal: prysuitdeling",              department:"sport",   date:"2026-09-23", start:"18:00", end:"20:00", venue:"Saal",           description:"Seisoen-afsluiting vir al die netbalspelers.",                     ticketUrl:null, audience:GIRLS_ONLY },
+  { id:111, title:"Matriekafskeid",                     department:"kultuur", date:"2026-09-25", start:"18:30", end:"23:00", venue:"Saal",           description:"Net vir die matrieks van 2026. Aantrek: formeel.",                 ticketUrl:Q,    audience:MATRICS_ONLY },
+  { id:112, title:"Krieket: o/15 teen Affies",          department:"sport",   date:"2026-09-26", start:"08:30", end:"13:00", venue:"B-veld",         description:"Tuiswedstryd vir die o/15-span.",                                  ticketUrl:null },
+  { id:113, title:"Toneelopvoering",                    department:"kultuur", date:"2026-09-26", start:"19:00", end:"21:00", venue:"Kultuursentrum", description:"Die dramaklub se eenbedrywe. Kaartjies is beperk.",                ticketUrl:Q },
+  { id:114, title:"Oggendbyeenkoms: Erfenisweek",       department:"kultuur", date:"2026-09-28", start:"07:30", end:"08:15", venue:"Saal",           description:"Kom in klere wat jou erfenis wys.",                                ticketUrl:null },
+  { id:115, title:"Hokkie: somerliga",                  department:"sport",   date:"2026-09-29", start:"16:00", end:"17:30", venue:"Kunsgrasveld",   description:"Eerste ronde van die somerliga.",                                  ticketUrl:null },
+  { id:116, title:"Musiekaand",                         department:"kultuur", date:"2026-09-30", start:"18:30", end:"20:30", venue:"Saal",           description:"Solo's, ensembles en die orkes.",                                  ticketUrl:Q }
 ];
-const SEED_WEEK = mondayOf(new Date());
-const SEED_EVENTS = SAMPLE_EVENTS.map(({ day, ...e }) => ({ ...e, date: toISO(addDays(SEED_WEEK, day)) }));
 
 /* ---------------------------------------------------------------------------
    DEPARTMENTS
@@ -421,6 +426,24 @@ function loadList(key, fallback, ok){
   const v = loadJSON(key);
   return Array.isArray(v) && v.every(x => x && typeof x === "object" && ok(x)) ? v : fallback;
 }
+const SAMPLE_VERSION = 2;           // bump when the sample events change
+(function replaceOldSamples(){
+  if (loadJSON("garsie.sampleVersion") === SAMPLE_VERSION) return;
+  const OLD_SAMPLE_IDS = new Set([1,2,3,4,5,6,7,8,9,10,11]);
+  const newIds = new Set(SEED_EVENTS.map(e => e.id));
+  const stored = loadJSON("garsie.events");
+  if (Array.isArray(stored)){
+    const own = stored.filter(e => e && !OLD_SAMPLE_IDS.has(e.id) && !newIds.has(e.id));
+    saveJSON("garsie.events", [...SEED_EVENTS, ...own]);
+  }
+  const checkins = loadJSON("garsie.checkins");
+  if (checkins && typeof checkins === "object"){
+    OLD_SAMPLE_IDS.forEach(id => delete checkins[id]);
+    saveJSON("garsie.checkins", checkins);
+  }
+  saveJSON("garsie.sampleVersion", SAMPLE_VERSION);
+})();
+
 let DEPARTMENTS = loadList("garsie.departments", SEED_DEPARTMENTS, d => typeof d.id === "string" && typeof d.name === "string");
 let EVENTS      = loadList("garsie.events", SEED_EVENTS, e => e.id != null && typeof e.title === "string"
                     && isValidISODate(e.date) && isValidTime(e.start) && isValidTime(e.end) && e.start < e.end);
@@ -676,7 +699,7 @@ const state = {
 
   // TODO: persist per user, server-side. localStorage is not good enough —
   // supporters change phones and the school wants attendance numbers.
-  supported: new Set([1]),
+  supported: new Set([113]),
 
   query: "",
   filter: "Alles",
@@ -2030,7 +2053,7 @@ function screenManage(){
     </form>
 
     <h2>Voorbeelddata</h2>
-    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is.</p>
+    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is. "Herstel" sit die September-voorbeelde terug en vee alles uit wat jy geskep het.</p>
     <button class="mini-btn danger" data-action="reset-data" style="height:40px;padding:0 16px">Herstel voorbeelddata</button>
   </div></div>`;
 }
