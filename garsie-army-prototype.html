@@ -2,104 +2,69 @@
 <!--
 ===============================================================================
   GARSIE ARMY — supporter app for Hoërskool Garsfontein
-  Clickable prototype / handoff spec  ·  v1.0  ·  2026-09-21
 ===============================================================================
 
   WHAT THIS IS
-  A single-file, dependency-free prototype of the supporter app. It exists to
-  pin down the screens, the flows and the data model. It is NOT production
-  code — there is no backend, no auth and no build step. Open it in a browser
-  (desktop or phone) and click through it.
-
-  THE IDEA
   Every school event — sport and cultural — in one calendar, with a link out
-  to the ticket page. Ticketing, capacity and gate scanning stay on Quicket;
-  this app is the supporter-facing front end on top of it.
+  to the ticket page (tickets stay on Quicket). Supporters say "Ek ondersteun"
+  and check in at the event (location or QR code). One HTML file plus sw.js,
+  no build step; installable on the home screen (manifest.json).
 
   SIGN IN
-  Before the tabs, an Aanmeld screen: Registreer (e-pos, naam, van, graad)
-  or Teken in (e-pos), then a one-time code. Built for Supabase magic OTP
-  but not connected yet — it accepts anything. Search "screenAuth".
+  E-mailed 6-digit code (Supabase OTP) or "Gaan voort met Google". Sign-up
+  asks name, surname, grade (+ gender for learners) and POPIA consent.
+  Search "screenAuth".
 
-  ROLES (picked on the sign-in screen in this prototype)
-    Gebruiker          supporter: the four tabs below
-    Departement-admin  "Skep" tab: create / edit / export events of ONE department
-    Hoof-admin         + "Bestuur" tab: departments and who is admin of what,
+  ROLES (from the admins table, managed in Bestuur — never picked by the user)
+    Gebruiker          supporter: Kalender, Kaart, Soek, Myne
+    Departement-admin  + "Skep": create / edit / export events of ONE department
+    Hoof-admin         + "Bestuur": departments and who is admin of what,
                        and can create / edit / export events of ANY department
-  Admin tabs sit in front of Kalender, Soek and Myne. Admins don't get Kaart:
-  checking in is for supporters. Search "ROLES & PERMISSIONS".
+  Admins don't get Kaart: checking in is for supporters.
 
   QR CHECK-IN
   Admins show a live QR (changes every 30 s) or print a fixed one. Scans are
-  saved on the phone and sent when online. Forwarded codes and wrong
-  locations land in "Verdagte aanmeldings" in the export. Search "6b2".
+  saved on the phone and sent when online. Forwarded codes and wrong or
+  missing locations land in "Verdagte aanmeldings" in the export. Search "6b2".
 
   AUDIENCE ("Wie mag kom?")
   An event can be limited to some grades, to boys or girls, and/or to
   learners only. Supporters outside the audience don't see the event at all;
   admins always see the events they manage. Search "AUDIENCE".
-  TODO: in production the role comes from the admins table (managed in
-  Bestuur), never from a picker the user controls.
 
   THE FOUR TABS
-    Kalender  Real calendar on today's date. Week view (days top to bottom,
-              hours left to right) or Maand view (grid; tap a day for its
-              events). "Vandag" button; tap the title to jump to a date.
-    Kaart     Real map (OpenStreetMap) with each event's pin and check-in
-              circle. "Meld aan" unlocks when your live location is inside
-              the circle; check-ins go into the Excel export. The QR
-              button scans an event's QR code to check in — works offline.
+    Kalender  Week view (days top to bottom, hours left to right) or Maand.
+    Kaart     OpenFreeMap map with each event's pin and check-in circle.
+              "Meld aan" unlocks inside the circle. QR scans work offline.
     Soek      Search and filter by department.
-    Myne      Events the user has tapped "Ek ondersteun" on.
+    Myne      Events you support, notifications, "Skrap my rekening".
 
   BACKEND
-  Supabase (project "garsie-army"). Schema, security rules and the server-side
-  functions are in supabase/migrations/ in this repo. The app talks to it only
-  through section 8 ("SUPABASE") at the bottom of this script.
+  Supabase (project "garsie-army"). Schema, security rules, push
+  notifications and scheduled jobs are in supabase/migrations/; the push
+  sender is supabase/functions/send-push. The app talks to it only through
+  section 8 ("SUPABASE") at the bottom of this script.
 
-  WHAT IS REAL vs FAKE IN THIS FILE
-    Real   layout, navigation, week maths, search, filtering, support toggle,
-           map, live location, address search, location check-in
-    Real   sign-in with an e-mailed code, events, roles, "Ek ondersteun",
-           check-ins, QR codes and the Excel export — all through Supabase
-    Fake   nothing left; the September 2026 events are sample data in the database
-           the "server" (QR checks, sync) runs in this browser — see QR check-in
-           ticket links point at quicket.co.za, not real event pages
-
-  BUILD NOTES FOR THE DEVELOPER
-  Search this file for "TODO:" — each one marks an integration point.
-  Summary of what has to be built for real:
-    1. Events API (shape documented at the EVENTS array below).
-    2. An admin screen where a coach/organiser submits an event and a staff
-       member approves it. This is the part that decides whether the app
-       lives or dies — a calendar with stale fixtures gets abandoned.
-    3. Auth + per-user "Ek ondersteun" list, persisted server-side.
-    4. Push notifications for changes (a rained-out fixture is the main case).
-    5. POPIA: if learner names/grades are stored, that is personal data of
-       minors. Get the school's sign-off on what is collected and retained
-       BEFORE writing that table.
-
-  SUGGESTED STACK (not prescriptive)
-  React Native or Flutter if it must be in the app stores; a PWA is cheaper
-  and installs to the home screen, which is enough for most school use.
-  Whatever is chosen, keep events in one source of truth so the school's
-  website and this app cannot disagree.
+  DATA KEPT
+  At most 5 years: events (with their supports and check-ins) are deleted
+  5 years after the event, accounts 5 years after their last sign-in.
+  People can delete their own account on Myne. The privacy notice is in the
+  app (PRIVACY_NOTICE) and at privacy.html — keep the two in step.
 
   LANGUAGE
-  All UI copy is Afrikaans. Code comments are English. If the app ships
-  bilingual, pull the strings into a locale file rather than hard-coding —
-  see the STRINGS note further down.
+  All UI copy is Afrikaans; home-screen steps use the phones' English button
+  names. Code comments are English.
 
   BRANDING
-  --brand (#C0262D) is a placeholder red. Replace with the school's official
-  colours and add the crest before this is shown to anyone at the school.
+  --brand (#C0262D) and the "GA" icon are placeholders. Replace with the
+  school's official colours and crest (also icons/ and manifest.json).
 ===============================================================================
 -->
 <html lang="af">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Garsie Army — prototipe</title>
+<title>Garsie Army</title>
 <!-- Home-screen install. On iPhone notifications only work from the home screen. -->
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -170,9 +135,6 @@ body{
 }
 button{font-family:inherit;cursor:pointer}
 button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
-
-/* Prototype-only chrome (jump nav / hint text) has been removed so this
-   renders as a normal full-screen app on any device, not a phone mockup. */
 
 /* App frame — stretches to fill the viewport on every screen size, no bezel.
    Wide screens get the full width; readable content is capped by .content. */
@@ -316,17 +278,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 
 <body>
 
-<!-- Prototype navigation. Not part of the app — hidden, kept only so the script below doesn't error. -->
-<nav class="jump" id="jump" aria-label="Spring na skerm" style="display:none"></nav>
-
 <div class="phone" id="phone">
   <button id="theme-toggle" aria-label="Wissel tussen lig en donker modus" title="Wissel tema"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
   <div class="tabbar" role="tablist" id="tabbar"></div>
 </div>
-
-<p class="hint" style="display:none">Prototipe — klik deur die app soos op 'n foon. Die data is voorbeelddata.</p>
 
 <script>
 "use strict";
@@ -387,10 +344,8 @@ function locationOf(e){ return e.location || CONFIG.schoolLocation; }
 
 /* ---------------------------------------------------------------------------
    STRINGS
-   Afrikaans copy is inline below for readability in a prototype. For the real
-   app, lift every user-facing string into a locale file (af.json / en.json)
-   before the first release — retrofitting i18n later is painful, and this
-   school needs both languages eventually.
+   Afrikaans copy is inline below. If the app ever needs English too, lift
+   every user-facing string into a locale file (af.json / en.json).
 --------------------------------------------------------------------------- */
 const MONTHS = ["Januarie","Februarie","Maart","April","Mei","Junie",
                 "Julie","Augustus","September","Oktober","November","Desember"];
@@ -546,11 +501,9 @@ function adminDepartments(){
 
 /* ===========================================================================
    5. STATE
-   One plain object; every change calls render(). Fine for a prototype —
-   replace with the framework's own state layer in the real build.
+   One plain object; every change calls render().
 =========================================================================== */
-// Prototype-only persistence so a refresh doesn't sign you out.
-// TODO: Supabase keeps the session itself — drop these helpers then.
+// localStorage helpers (per-phone settings, offline cache, outbox).
 function loadJSON(key){
   try { return JSON.parse(localStorage.getItem(key)); } catch { return null; }
 }
@@ -741,9 +694,9 @@ const PRIVACY_NOTICE = `
   <h3>Wie dit sien</h3>
   <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van wie ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
-  <p>Op 'n beveiligde bediener (Supabase, in Ierland). Solank jy 'n rekening het.</p>
+  <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge wat 5 jaar lank nie gebruik is nie.</p>
   <h3>Jou regte</h3>
-  <p>Jy mag jou inligting sien, dit laat regstel, of jou rekening laat skrap. Vra die skool se inligtingsbeampte.</p>
+  <p>Jy kan jou rekening self skrap: onderaan <b>Myne</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
   <p>Dan moet jou ouer of voog ook instem voordat jy die app gebruik.</p>`;
 function openPrivacy(){
@@ -1821,7 +1774,11 @@ function screenMine(){
     </div>`;
   });
 
-  return html + `</div><div style="height:90px"></div></div>`;
+  return html + `</div>
+    <div style="max-width:1100px;margin:28px auto 0;text-align:center">
+      <button data-action="delete-account" style="background:none;border:none;color:#8e95a8;font-size:13px;text-decoration:underline;padding:8px">Skrap my rekening</button>
+    </div>
+    <div style="height:90px"></div></div>`;
 }
 
 /* --- 6e. Event detail ---------------------------------------------------
@@ -2380,6 +2337,7 @@ function handle(target){
         return;
       }
       case "signout":        signOut(); return;
+      case "delete-account": openDeleteAccount(); return;
       case "push-on":        enablePush(); return;
       case "install-help":   openInstallHelp(); return;
       case "push-off":       disablePush(); return;
@@ -2747,19 +2705,6 @@ phoneEl.addEventListener("keydown", ev => {
     paint();
   });
 })();
-
-/* --- Prototype-only jump buttons (hidden) --------------------------------- */
-[["Kalender",  () => { state.tab = "calendar"; state.openEventId = null; }],
- ["Kaart",     () => { state.tab = "map"; state.openEventId = null; state.mapMode = "map"; }],
- ["Soek",      () => { state.tab = "search"; state.openEventId = null; }],
- ["Geleentheid", () => { state.openEventId = 2; }],
- ["My geleenthede", () => { state.tab = "mine"; state.openEventId = null; }]
-].forEach(([label, fn]) => {
-  const btn = document.createElement("button");
-  btn.textContent = label;
-  btn.addEventListener("click", () => { fn(); render(); });
-  document.getElementById("jump").appendChild(btn);
-});
 
 // Keep "today" and the red now-line current. Only the calendar redraws, and
 // only when something visible changed (a new minute on this week's now-line,
@@ -3337,6 +3282,51 @@ if ("serviceWorker" in navigator){
   navigator.serviceWorker.addEventListener("message", ev => {
     if (ev.data && ev.data.type === "open" && ev.data.hash) location.hash = ev.data.hash;
   });
+}
+
+/* "Skrap my rekening" (Myne). Deletes the account and everything linked to
+   it on the server (delete_my_account), then signs out on this phone. */
+function openDeleteAccount(){
+  if (document.getElementById("delete-account")) return;
+  const el = document.createElement("div");
+  el.id = "delete-account";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.setAttribute("aria-label", "Skrap my rekening");
+  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;padding:20px;font-size:14px;line-height:1.5">
+      <h2 style="font-size:20px;margin:0 0 8px">Skrap jou rekening?</h2>
+      <p style="margin:0 0 8px">Dit vee <b>alles</b> van jou uit: jou profiel, watter geleenthede jy ondersteun, jou aanmeldings en jou kennisgewings.</p>
+      <p style="margin:0 0 14px;color:var(--muted)">Dit kan nie ongedaan gemaak word nie. Jy kan later weer registreer, maar as 'n nuwe gebruiker.</p>
+      <button class="btn-primary" data-yes>Ja, skrap my rekening</button>
+      <button class="btn-link" data-close style="width:100%;margin-top:6px">Kanselleer</button>
+    </div>`;
+  el.addEventListener("click", async ev => {
+    const yes = ev.target.closest("[data-yes]");
+    if (yes){
+      if (yes.disabled) return;
+      yes.disabled = true; yes.textContent = "Besig…";
+      const err = await deleteAccount();
+      if (err){ yes.disabled = false; yes.textContent = "Ja, skrap my rekening"; toast(err); return; }
+      el.remove();
+      toast("Jou rekening is geskrap.");
+      return;
+    }
+    if (ev.target === el || ev.target.closest("[data-close]")) el.remove();
+  });
+  document.body.appendChild(el);
+  el.querySelector("[data-close]").focus({ preventScroll:true });
+}
+// Returns an error message, or "" when the account is gone.
+async function deleteAccount(){
+  if (!navigator.onLine) return "Jy het internet nodig om jou rekening te skrap.";
+  const uid = state.user && state.user.id;
+  try { await forgetThisDevice(); } catch {}
+  const { error } = await sb.rpc("delete_my_account");
+  if (error) return dbMessage(error);
+  OUTBOX = OUTBOX.filter(o => o.uid !== uid); saveOutbox();     // nothing left to send for them
+  await signOut();
+  return "";
 }
 
 async function signOut(){
