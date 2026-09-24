@@ -29,6 +29,11 @@
   Admin tabs sit in front of Kalender, Soek and Myne. Admins don't get Kaart:
   checking in is for supporters. Search "ROLES & PERMISSIONS".
 
+  QR CHECK-IN
+  Admins show a live QR (changes every 30 s) or print a fixed one. Scans are
+  saved on the phone and sent when online. Forwarded codes and wrong
+  locations land in "Verdagte aanmeldings" in the export. Search "6b2".
+
   AUDIENCE ("Wie mag kom?")
   An event can be limited to some grades, to boys or girls, and/or to
   learners only. Supporters outside the audience don't see the event at all;
@@ -41,8 +46,8 @@
               (scroll horizontally). Tap a block to open the event.
     Kaart     Real map (OpenStreetMap) with each event's pin and check-in
               circle. "Meld aan" unlocks when your live location is inside
-              the circle; check-ins go into the Excel export. QR mode for
-              gate check-in is still visual only.
+              the circle; check-ins go into the Excel export. The QR
+              button scans an event's QR code to check in — works offline.
     Soek      Search and filter by department.
     Myne      Events the user has tapped "Ek ondersteun" on.
 
@@ -50,7 +55,7 @@
     Real   layout, navigation, week maths, search, filtering, support toggle,
            map, live location, address search, location check-in
     Fake   EVENTS is hard-coded (see DATA below)
-           the QR screen is visual only
+           the "server" (QR checks, sync) runs in this browser — see QR check-in
            ticket links point at quicket.co.za, not real event pages
 
   BUILD NOTES FOR THE DEVELOPER
@@ -94,6 +99,12 @@
       integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
       integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous"></script>
+<!-- QR: qrcode-generator draws the admin's code, jsQR reads it from the camera
+     where the browser has no built-in BarcodeDetector (e.g. iPhone). -->
+<script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"
+      integrity="sha384-lQXOAyZwHXE55JFyrOMB7nY2Wv+m5ZWNtJcHrd1rceRQXAYNLak8ukN5TjBTcIwz" crossorigin="anonymous"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
+      integrity="sha384-hStSInNIZ8ljtOVrmrgf7zdHMapaLBWoSnPTtF0nzsybp4+LuhDz6sHuEVpWIX8o" crossorigin="anonymous"></script>
 
 <style>
 /* ---------------------------------------------------------------------------
@@ -224,6 +235,23 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .check-chip:has(input:checked){border-color:var(--brand);background:var(--brand-wash)}
 .audience-badge{font-size:12px;padding:3px 10px;border-radius:10px;background:var(--surface-2);color:var(--shadow-ink);display:inline-flex;align-items:center;gap:4px}
 .geo-results button{display:block;width:100%;text-align:left;background:var(--surface);border:.5px solid var(--hairline);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px;color:var(--shadow-ink)}
+
+/* QR: admin display + supporter scanner */
+.qr-box{background:#fff;border-radius:18px;padding:10px;margin:16px auto 0;width:min(78vw,340px);aspect-ratio:1;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 12px rgba(0,0,0,.1)}
+.qr-box svg{width:100%;height:100%;display:block}
+.qr-timer{height:4px;border-radius:2px;background:var(--hairline);width:min(78vw,340px);margin:10px auto 0;overflow:hidden}
+.qr-timer div{height:100%;background:var(--brand);width:100%}
+.qr-print-hint{display:none}
+.scanner{position:absolute;inset:0;background:#000;overflow:hidden}
+.scanner video{width:100%;height:100%;object-fit:cover;display:block}
+.scan-frame{position:absolute;left:50%;top:42%;width:min(62vw,260px);aspect-ratio:1;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.9);border-radius:24px;box-shadow:0 0 0 100vmax rgba(0,0,0,.35);pointer-events:none}
+@media print{
+  body *{visibility:hidden !important}
+  .qr-printable,.qr-printable *{visibility:visible !important}
+  .qr-printable{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff;color:#000}
+  .qr-printable .qr-box{width:14cm;box-shadow:none}
+  .qr-print-hint{display:block;font-size:18pt;margin-top:1cm}
+}
 
 /* Week grid. Horizontal scroll is the whole point of this view. */
 .weekgrid{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;-webkit-overflow-scrolling:touch}
@@ -406,11 +434,13 @@ function attendeesOf(e){
     people.push({ name, surname, grade, gender, email, supports:true });
   }
   // Everyone who checked in is on the list too — marked with the time, and
-  // added even if they never tapped "Ek ondersteun" (walk-ins).
-  for (const c of CHECKINS[e.id] || []){
+  // added even if they never tapped "Ek ondersteun" (walk-ins). Suspicious
+  // check-ins stay off this list; they go to "Verdagte aanmeldings".
+  for (const c of checkinsOf(e).filter(c => !c.flags.length)){
     const match = people.find(p => p.email && p.email === c.email);
-    if (match) Object.assign(match, { checkedInAt:c.at, distance:c.distance });
-    else people.push({ name:c.name, surname:c.surname, grade:c.grade, gender:c.gender || "", email:c.email, supports:false, checkedInAt:c.at, distance:c.distance });
+    const fields = { checkedInAt:c.at, distance:c.distance, method:c.method || "gps" };
+    if (match) Object.assign(match, fields);
+    else people.push({ name:c.name, surname:c.surname, grade:c.grade, gender:c.gender || "", email:c.email, supports:false, ...fields });
   }
   // If an admin narrows the audience later, people outside it drop off the list.
   return people.filter(p => fitsAudience(e, p));
@@ -605,6 +635,9 @@ const state = {
   filter: "Alles",
   mapMode: "map",                   // map | qr
   mapEventId: null,                 // Kaart: event picked in the card (null = the next one)
+  qrEventId: null,                  // admin: event whose QR is showing
+  qrMode: "live",                   // live | print
+  scan: { status:"idle", message:"" },   // Kaart ▸ QR scanner state
   editingId: null,                  // Skep tab: id of the event being edited, null = new
   scrollLeft: null                  // remembers horizontal scroll between renders
 };
@@ -658,6 +691,7 @@ function screenAuth(){
       <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
       <h1 style="font-size:28px;font-weight:700;margin:12px 0 4px">Garsie Army</h1>
       <div style="font-size:14px;color:var(--muted)">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
+      ${pendingScan() ? `<div class="card" style="margin-top:14px;font-size:14px;color:var(--shadow-ink)">${icon("qr",16,"var(--brand)")} Teken in om by die geleentheid aan te meld.</div>` : ""}
     </div>`;
 
   if (step === "code"){
@@ -894,10 +928,14 @@ function mapSegmentedControl(){
 
 function screenMap(){
   if (state.mapMode === "qr"){
-    return `<div style="position:absolute;inset:0;background:#1c1c1e;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff">
-      <div style="width:190px;height:190px;border:3px solid #fff;border-radius:24px;display:flex;align-items:center;justify-content:center">${icon("qr",64,"#8e8e93")}</div>
-      <div style="font-size:14px;margin-top:18px;text-align:center;padding:0 34px">Skandeer die QR-kode by die hek om aan te meld</div>
-    </div>` + mapSegmentedControl();
+    // A fresh render has no camera running, so don't claim we're scanning.
+    if (["starting","scanning"].includes(state.scan.status)) state.scan = { status:"idle", message:"" };
+    return `<div class="scanner">
+      <video id="scan-video" playsinline muted></video>
+      <div class="scan-frame"></div>
+    </div>
+    ${mapSegmentedControl()}
+    <div class="bottom-bar map-card" id="scan-card">${scanCardHtml()}</div>`;
   }
   return `<div id="kaart-map" class="map" role="region" aria-label="Kaart met geleenthede"></div>
     ${mapSegmentedControl()}
@@ -1022,7 +1060,7 @@ function checkIn(){
   if (dist > loc.radius) return;             // TODO: the server re-checks this
   const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
   CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
-    { name, surname, grade, gender, email, at:new Date().toISOString(), distance:Math.round(dist) }] };
+    { name, surname, grade, gender, email, at:new Date().toISOString(), distance:Math.round(dist), method:"gps", device:deviceId(), flags:[] }] };
   saveJSON("garsie.checkins", CHECKINS);
   toast("Jy is aangemeld");
   onLocationUpdate();
@@ -1094,6 +1132,331 @@ function useMyLocationForPin(){
     () => toast("Kon nie jou ligging kry nie"),
     { enableHighAccuracy:true, timeout:15000 });
 }
+
+/* --- 6b2. QR check-in -------------------------------------------------------
+   HOW IT WORKS
+   An admin shows a QR code for their event (Skep list, or the event screen):
+     • Lewendig (recommended): on a phone/tablet at the entrance. It changes
+       every 30 s, so a photo forwarded to a friend goes stale within a minute.
+     • Om te druk: a fixed code for a poster. It never changes, so only the
+       location check protects it.
+   The QR is a link:  <app url>#aanmeld=<eventId>.<window | p>.<signature>
+   Scanning it (phone camera app, or Kaart ▸ QR in the app) saves the scan in
+   an OUTBOX on the phone with the time, the GPS position (GPS works without
+   internet) and a device id. The outbox is sent as soon as the phone is
+   online — immediately if it already is. The app itself opens offline
+   thanks to sw.js.
+   The server then checks each scan and files it in the normal list, or in
+   "Verdagte aanmeldings" in the Excel export with the reason:
+     • the live code was more than a minute old  (forwarded)
+     • no location, or the location is outside the event's circle
+     • the same phone checked in someone else for this event
+   Nothing is rejected automatically (GPS can be poor indoors) — an admin decides.
+
+   PROTOTYPE vs PRODUCTION
+   Here the "server" is serverVerifyScan() in the same browser, and the
+   event's secret sits in the event data. In production the secret must live
+   ONLY on the server (a Supabase edge function) which signs the admin's live
+   codes and verifies scans — otherwise a clever learner can make codes.
+------------------------------------------------------------------------- */
+const QR_WINDOW_MS = 30000;        // the live code changes every 30 s
+const QR_MAX_AGE_WINDOWS = 2;      // accept up to ~1 minute old (slow scan, clock drift)
+const METHOD_LABELS = { gps:"GPS", "qr-live":"QR", "qr-print":"QR (plakkaat)" };
+
+function b64url(bytes){
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function eventSecret(e){           // TODO: server-side only in production
+  if (e.qrSecret) return e.qrSecret;
+  const secret = b64url(crypto.getRandomValues(new Uint8Array(16)));
+  EVENTS = EVENTS.map(x => x.id === e.id ? { ...x, qrSecret:secret } : x);
+  persistData();
+  return secret;
+}
+async function qrSignature(secret, message){
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
+  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(message))).slice(0, 12));
+}
+function currentWindow(t = Date.now()){ return Math.floor(t / QR_WINDOW_MS); }
+async function makeQrToken(e, mode){            // mode: "live" | "print"
+  const w = mode === "print" ? "p" : String(currentWindow());
+  return `${e.id}.${w}.${await qrSignature(eventSecret(e), `${e.id}.${w}`)}`;
+}
+function qrLink(token){ return `${location.origin}${location.pathname}#aanmeld=${token}`; }
+function parseQrText(text){
+  const m = String(text).trim().match(/(?:aanmeld=)?(\d+)\.(p|\d+)\.([A-Za-z0-9_-]{8,})$/);
+  return m ? { eventId:Number(m[1]), token:`${m[1]}.${m[2]}.${m[3]}` } : null;
+}
+function deviceId(){               // random, per browser; used to spot one phone checking in several people
+  let id = null;
+  try { id = localStorage.getItem("garsie.device"); } catch {}
+  if (!id){
+    id = crypto.randomUUID ? crypto.randomUUID() : b64url(crypto.getRandomValues(new Uint8Array(16)));
+    try { localStorage.setItem("garsie.device", id); } catch {}
+  }
+  return id;
+}
+
+/* --- Admin: show the QR ------------------------------------------------- */
+let qrTimer = null, qrDrawn = null, wakeLock = null;
+
+function screenQr(){
+  const e = eventById(state.qrEventId);
+  const d = toDate(e.date);
+  const live = state.qrMode === "live";
+  return `<div class="panel"><div class="content" style="text-align:center">
+    <div class="no-print" style="text-align:left">
+      <button data-action="close-qr" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
+    </div>
+    <div class="qr-printable">
+      <h1 style="font-size:24px;margin:10px 0 4px">${esc(e.title)}</h1>
+      <div style="color:var(--muted);font-size:14px">${d.getDate()} ${MONTHS[d.getMonth()]} · ${e.start} · ${esc(e.venue || locationOf(e).address)}</div>
+      <div id="qr-box" class="qr-box"></div>
+      <div class="qr-print-hint">Skandeer met jou foon se kamera om aan te meld</div>
+    </div>
+    <div class="no-print">
+      ${live ? `<div class="qr-timer" aria-hidden="true"><div id="qr-bar"></div></div>` : ""}
+      <div style="display:inline-flex;background:var(--hairline);border-radius:18px;padding:3px;margin:14px 0 10px">
+        ${[["live","Lewendig"],["print","Om te druk"]].map(([m, label]) => `<button data-action="qr-mode-${m}"
+          style="border:none;font-size:13px;padding:6px 18px;border-radius:15px;background:${state.qrMode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${label}</button>`).join("")}
+      </div>
+      <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 12px;line-height:1.45">${live
+        ? "Die kode verander elke 30 sekondes. Wys dit by die ingang: 'n foto wat vir 'n vriend aangestuur word, werk binne 'n minuut nie meer nie."
+        : "Hierdie kode verander nooit nie, so net die ligging-toets beskerm dit. Gebruik liewer die lewendige kode as daar 'n foon of tablet by die ingang kan staan."}</p>
+      ${live ? "" : `<button class="btn-primary" data-action="print-qr" style="max-width:320px">Druk plakkaat</button>`}
+    </div>
+  </div></div>`;
+}
+
+async function drawQr(){
+  const box = document.getElementById("qr-box");
+  const e = state.qrEventId != null && eventById(state.qrEventId);
+  if (!box || !e) return;
+  if (!window.qrcode){ box.innerHTML = `<p style="color:var(--brand)">Die QR-kode kon nie laai nie. Kyk jou internet.</p>`; return; }
+  const q = qrcode(0, "M");
+  q.addData(qrLink(await makeQrToken(e, state.qrMode)));
+  q.make();
+  if (document.getElementById("qr-box") === box) box.innerHTML = q.createSvgTag({ cellSize:6, margin:3, scalable:true });
+}
+function startQrTicker(){
+  stopQrTicker();
+  const tick = () => {
+    const w = state.qrMode === "print" ? "p" : currentWindow();
+    if (w !== qrDrawn){ qrDrawn = w; drawQr(); }
+    const bar = document.getElementById("qr-bar");
+    if (bar) bar.style.width = `${100 - (Date.now() % QR_WINDOW_MS) / QR_WINDOW_MS * 100}%`;
+  };
+  tick();
+  qrTimer = setInterval(tick, 250);
+  // Keep the entrance screen from going to sleep while the live code shows.
+  if (state.qrMode === "live" && navigator.wakeLock) navigator.wakeLock.request("screen").then(l => { wakeLock = l; }).catch(() => {});
+}
+function stopQrTicker(){
+  clearInterval(qrTimer); qrTimer = null; qrDrawn = null;
+  if (wakeLock){ wakeLock.release().catch(() => {}); wakeLock = null; }
+}
+
+/* --- Supporter: scan ------------------------------------------------------- */
+let OUTBOX = loadJSON("garsie.outbox") || [];   // scans waiting to be sent
+function saveOutbox(){ saveJSON("garsie.outbox", OUTBOX); }
+
+function setScan(status, message){
+  state.scan = { status, message };
+  const card = document.getElementById("scan-card");
+  if (card) card.innerHTML = scanCardHtml();
+  else if (message && !["starting","scanning","busy"].includes(status)) toast(message);
+}
+
+function scanCardHtml(){
+  const { status, message } = state.scan;
+  const waiting = OUTBOX.filter(o => state.user && o.email === state.user.email).length;
+  const colours = { ok:"#1f8a3b", flagged:"#b26a00", error:"var(--brand)", queued:"var(--shadow-ink)" };
+  let body, button;
+  if (status === "scanning" || status === "starting"){
+    body = message || "Rig die kamera op die QR-kode";
+    button = `<button class="btn-checkin done" data-action="stop-scan">Stop</button>`;
+  } else if (status === "busy"){
+    body = message; button = `<button class="btn-checkin" disabled>Besig…</button>`;
+  } else if (status === "idle"){
+    body = "Skandeer die QR-kode by die ingang om aan te meld.";
+    button = `<button class="btn-checkin" data-action="start-scan">${icon("qr",16,"#fff")} Begin skandeer</button>`;
+  } else {
+    body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"#1f8a3b") + " " : ""}${message}</span>`;
+    button = `<button class="btn-checkin" data-action="start-scan">Skandeer nog een</button>`;
+  }
+  return `<div style="font-size:14px;margin-bottom:10px;line-height:1.4">${body}</div>
+    ${!navigator.onLine ? `<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">Geen internet nie — skanderings word op jou foon gestoor en later gestuur.</div>` : ""}
+    ${waiting ? `<div style="font-size:12px;color:#b26a00;margin:-4px 0 10px">${waiting} aanmelding${waiting > 1 ? "s" : ""} wag om gestuur te word.</div>` : ""}
+    ${button}`;
+}
+
+const scanner = { stream:null, timer:null, detector:null, canvas:null };
+
+async function startScanner(){
+  if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
+    setScan("error", "Hierdie blaaier kan nie die kamera gebruik nie. Skandeer die kode met jou foon se kamera-app."); return;
+  }
+  setScan("starting", "Maak die kamera oop…");
+  try {
+    scanner.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
+  } catch {
+    setScan("error", "Kon nie die kamera oopmaak nie. Laat kamera-toegang toe, of skandeer met jou foon se kamera-app."); return;
+  }
+  const video = document.getElementById("scan-video");
+  if (!video){ stopScanner(); return; }
+  video.srcObject = scanner.stream;
+  await video.play().catch(() => {});
+  if (!scanner.detector && "BarcodeDetector" in window){
+    try { scanner.detector = new BarcodeDetector({ formats:["qr_code"] }); } catch {}
+  }
+  setScan("scanning", "Rig die kamera op die QR-kode");
+  scanTick();
+}
+async function scanTick(){
+  const video = document.getElementById("scan-video");
+  if (!scanner.stream || !video) return;
+  let text = null;
+  try {
+    if (video.readyState >= 2){
+      if (scanner.detector){                         // built into Android Chrome
+        const codes = await scanner.detector.detect(video);
+        if (codes[0]) text = codes[0].rawValue;
+      } else if (window.jsQR){                       // fallback, e.g. iPhone Safari
+        const c = scanner.canvas || (scanner.canvas = document.createElement("canvas"));
+        const scale = Math.min(1, 640 / Math.max(video.videoWidth, video.videoHeight));
+        c.width = Math.round(video.videoWidth * scale); c.height = Math.round(video.videoHeight * scale);
+        const ctx = c.getContext("2d", { willReadFrequently:true });
+        ctx.drawImage(video, 0, 0, c.width, c.height);
+        const hit = jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts:"dontInvert" });
+        if (hit) text = hit.data;
+      }
+    }
+  } catch {}
+  if (text){ stopScanner(); handleScan(text); return; }
+  scanner.timer = setTimeout(scanTick, 150);
+}
+function stopScanner(){
+  clearTimeout(scanner.timer); scanner.timer = null;
+  if (scanner.stream) scanner.stream.getTracks().forEach(t => t.stop());
+  scanner.stream = null;
+}
+
+function currentPosition(){                     // GPS works offline; null if refused or no fix
+  return new Promise(resolve => {
+    if (!("geolocation" in navigator)) return resolve(null);
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat:p.coords.latitude, lng:p.coords.longitude, accuracy:Math.round(p.coords.accuracy) }),
+      () => resolve(null),
+      { enableHighAccuracy:true, timeout:15000, maximumAge:30000 });
+  });
+}
+
+async function handleScan(text){
+  const scan = parseQrText(text);
+  if (!scan){ setScan("error", "Dit is nie 'n Garsie Army-aanmeldkode nie."); return; }
+  if (!state.user){
+    try { sessionStorage.setItem("garsie.pendingScan", scan.token); } catch {}
+    toast("Teken eers in — dan meld ons jou aan"); return;
+  }
+  const e = eventById(scan.eventId);
+  if (e && !isForUser(e)){ setScan("error", "Hierdie geleentheid is nie vir jou nie."); return; }
+  if (e && checkinFor(e, state.user.email)){ setScan("ok", "Jy is reeds aangemeld."); return; }
+  if (OUTBOX.some(o => o.eventId === scan.eventId && o.email === state.user.email)){
+    setScan("queued", "Reeds gestoor — dit word gestuur sodra jy internet het."); return;
+  }
+
+  setScan("busy", "Kry jou ligging…");
+  const pos = await currentPosition();
+  const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
+  OUTBOX = [...OUTBOX, { token:scan.token, eventId:scan.eventId, scannedAt:new Date().toISOString(),
+                         pos, name, surname, grade, gender, email, device:deviceId() }];
+  saveOutbox();
+
+  const { sent } = await syncOutbox();
+  const mine = sent.find(s => s.item.token === scan.token && s.item.email === email);
+  if (mine) setScan(mine.outcome.status, mine.outcome.message);
+  else setScan("queued", "Gestoor! Jy word aangemeld sodra jy weer internet het.");
+}
+
+// Send waiting scans. TODO: POST each to the server (Supabase edge function
+// running serverVerifyScan); here the "server" is in this browser.
+let syncing = false;
+async function syncOutbox(){
+  if (syncing || !OUTBOX.length || !navigator.onLine) return { sent:[] };
+  syncing = true;
+  const sent = [];
+  try {
+    for (const item of [...OUTBOX]){
+      const outcome = await serverVerifyScan(item);
+      OUTBOX = OUTBOX.filter(o => o !== item);
+      saveOutbox();
+      sent.push({ item, outcome });
+    }
+  } finally { syncing = false; }
+  return { sent };
+}
+
+// SERVER-SIDE in production. Checks the signature and files the scan.
+async function serverVerifyScan(item){
+  const e = eventById(item.eventId);
+  if (!e) return { status:"error", message:"Hierdie geleentheid bestaan nie meer nie." };
+  const [id, w, sig] = item.token.split(".");
+  if (sig !== await qrSignature(eventSecret(e), `${id}.${w}`)) return { status:"error", message:"Hierdie QR-kode is ongeldig." };
+  if (!fitsAudience(e, item) && !ADMINS.some(a => a.email === item.email)) return { status:"error", message:"Hierdie geleentheid is nie vir jou nie." };
+  if (checkinFor(e, item.email)) return { status:"ok", message:"Jy is reeds aangemeld." };
+
+  const flags = [];
+  if (w !== "p"){
+    const age = currentWindow(new Date(item.scannedAt).getTime()) - Number(w);
+    if (age > QR_MAX_AGE_WINDOWS || age < -1) flags.push("QR-kode was ouer as 'n minuut (moontlik aangestuur)");
+  }
+  const loc = locationOf(e);
+  let distance = null;
+  if (!item.pos) flags.push("Geen ligging nie");
+  else {
+    distance = Math.round(distanceM(item.pos, loc));
+    // Allow for GPS error (up to 100 m) before calling it suspicious.
+    if (distance > loc.radius + Math.min(item.pos.accuracy || 0, 100)) flags.push(`Ligging ${formatDistance(distance)} van die geleentheid af`);
+  }
+  const { name, surname, grade, gender, email, device } = item;
+  CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
+    { name, surname, grade, gender, email, at:item.scannedAt, receivedAt:new Date().toISOString(),
+      distance, method: w === "p" ? "qr-print" : "qr-live", device, flags }] };
+  saveJSON("garsie.checkins", CHECKINS);
+  return flags.length
+    ? { status:"flagged", message:"Ontvang. Ons kon nie bevestig dat jy by die geleentheid is nie — 'n admin sal dit nagaan." }
+    : { status:"ok", message:`Jy is aangemeld by ${e.title}!` };
+}
+
+// A QR opened with the phone's camera app arrives as #aanmeld=... in the URL.
+function takeScanFromUrl(){
+  const m = location.hash.match(/aanmeld=([^&]+)/);
+  if (!m) return;
+  try { sessionStorage.setItem("garsie.pendingScan", decodeURIComponent(m[1])); } catch {}
+  history.replaceState(null, "", location.pathname + location.search);
+}
+function pendingScan(){ try { return sessionStorage.getItem("garsie.pendingScan"); } catch { return null; } }
+function processPendingScan(){
+  const token = pendingScan();
+  if (!token || !state.user) return;
+  try { sessionStorage.removeItem("garsie.pendingScan"); } catch {}
+  if (roleOf() === "user"){ state.tab = "map"; state.mapMode = "qr"; state.openEventId = null; state.qrEventId = null; render(); }
+  handleScan(token);
+}
+
+// Check-ins of an event with any "Verdag" reasons, including one phone used
+// for more than one person.
+function checkinsOf(e){
+  const list = CHECKINS[e.id] || [];
+  return list.map(c => {
+    const flags = [...(c.flags || [])];
+    const other = c.device && list.find(o => o !== c && o.device === c.device);
+    if (other) flags.push(`Dieselfde foon as ${`${other.name} ${other.surname}`.trim() || other.email}`);
+    return { ...c, flags };
+  });
+}
+function suspiciousOf(e){ return checkinsOf(e).filter(c => c.flags.length && fitsAudience(e, c)); }
 
 /* --- 6c. Soek -----------------------------------------------------------
    Client-side filter over the loaded events. Fine at this scale (a school year
@@ -1220,9 +1583,10 @@ function screenEventDetail(){
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
       <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom · <b>${(CHECKINS[e.id] || []).length}</b> aangemeld</span>
+        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom · <b>${attendeesOf(e).filter(p => p.checkedInAt).length}</b> aangemeld${suspiciousOf(e).length ? ` · <b style="color:#b26a00">${suspiciousOf(e).length}</b> verdag` : ""}</span>
         <span style="display:flex;gap:6px">
           <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
+          <button class="mini-btn" data-action="show-qr" data-id="${e.id}">${icon("qr",14)} QR</button>
           <button class="mini-btn" data-action="export" data-id="${e.id}">${icon("download",14)} Excel</button>
         </span>
       </div>
@@ -1355,6 +1719,7 @@ function screenCreate(){
             <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
+          <button class="mini-btn" data-action="show-qr" data-id="${ev.id}" aria-label="Wys QR-kode">${icon("qr",14)}</button>
           <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel af">${icon("download",14)} Excel</button>
           <button class="mini-btn danger" data-action="delete-event" data-id="${ev.id}" aria-label="Skrap">${icon("trash",14)}</button>
         </div>`;
@@ -1515,16 +1880,30 @@ function buildXlsx(sheetName, rows, boldRows, colWidths){
 // Rows for one event's attendance sheet. Kept separate so it can be tested.
 function attendeeRows(e){
   const people = attendeesOf(e);
+  const suspicious = suspiciousOf(e);
   const checkedIn = people.filter(p => p.checkedInAt).length;
-  return [
+  const rows = [
     [e.title],
     [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}${hasAudience(e) ? `  ·  Net vir: ${audienceLabel(e)}` : ""}`],
-    [`Totaal: ${people.length}  ·  Aangemeld: ${checkedIn}`],
+    [`Totaal: ${people.length}  ·  Aangemeld: ${checkedIn}  ·  Verdag: ${suspicious.length}`],
     [],
     ["Naam", "Van", "Graad", "Geslag", "E-pos", "Ondersteun", "Aangemeld"],
     ...people.map(p => [p.name, p.surname, p.grade, p.gender || "", p.email, p.supports ? "Ja" : "Nee",
-                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} (${p.distance} m)` : ""])
+                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} · ${METHOD_LABELS[p.method] || "GPS"}${p.distance != null ? ` (${p.distance} m)` : ""}` : ""]),
+    []
   ];
+  const bold = [0, 4, rows.length];
+  // Separate section so an admin can check these before counting them.
+  rows.push(["Verdagte aanmeldings — gaan asseblief na"]);
+  if (suspicious.length){
+    bold.push(rows.length);
+    rows.push(["Naam", "Van", "Graad", "Geslag", "E-pos", "Tyd", "Metode", "Rede"]);
+    suspicious.forEach(c => rows.push([c.name, c.surname, c.grade, c.gender || "", c.email,
+      formatDateTime(c.at), METHOD_LABELS[c.method] || "GPS", c.flags.join("; ")]));
+  } else {
+    rows.push(["Geen nie."]);
+  }
+  return { rows, bold };
 }
 
 function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local time
@@ -1534,7 +1913,8 @@ function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local
 
 function exportAttendees(e){
   if (!canAdmin(e)) return;   // TODO: the server must refuse too
-  const blob = buildXlsx("Bywoning", attendeeRows(e), [0, 4], [18, 20, 20, 10, 36, 12, 24]);
+  const { rows, bold } = attendeeRows(e);
+  const blob = buildXlsx("Bywoning", rows, bold, [18, 20, 20, 10, 36, 22, 30, 50]);
   const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href:url, download:filename });
@@ -1574,7 +1954,7 @@ const tabbarEl = document.getElementById("tabbar");
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
   tabbarEl.style.display = state.user ? "" : "none";
-  unmountMaps();
+  unmountMaps(); stopScanner(); stopQrTicker();
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
 
   // Drop state that points at something that no longer exists or isn't allowed.
@@ -1582,12 +1962,15 @@ function render(){
   if (!tabs.some(([id]) => id === state.tab)) state.tab = "calendar";
   if (state.openEventId != null && !(eventById(state.openEventId) && isForUser(eventById(state.openEventId)))) state.openEventId = null;
   if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
+  if (state.qrEventId != null && !(eventById(state.qrEventId) && canAdmin(eventById(state.qrEventId)))) state.qrEventId = null;
 
-  screenEl.innerHTML = state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
+  screenEl.innerHTML = state.qrEventId != null ? screenQr()
+                     : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
+  if (state.qrEventId != null) startQrTicker();
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
-    const active = id === state.tab && !state.openEventId;
+    const active = id === state.tab && !state.openEventId && state.qrEventId == null;
     return `<button class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-tab="${id}">${icon(iconName, 22)}${label}</button>`;
   }).join("");
 
@@ -1612,6 +1995,7 @@ function render(){
 function handle(target){
   if (target.dataset.tab){
     state.tab = target.dataset.tab;
+    state.qrEventId = null;
     state.openEventId = null;
   } else if (target.dataset.event){
     state.openEventId = Number(target.dataset.event);
@@ -1646,6 +2030,20 @@ function handle(target){
         document.getElementById("geo-results").innerHTML = "";
         return;
       case "pick-my-location": useMyLocationForPin(); return;
+
+      // --- QR
+      case "show-qr": {
+        const e = eventById(Number(target.dataset.id));
+        if (!e || !canAdmin(e)) return;
+        state.qrEventId = e.id; state.qrMode = "live";
+        break;
+      }
+      case "close-qr":       state.qrEventId = null; break;
+      case "qr-mode-live":   state.qrMode = "live"; break;
+      case "qr-mode-print":  state.qrMode = "print"; break;
+      case "print-qr":       window.print(); return;
+      case "start-scan":     startScanner(); return;
+      case "stop-scan":      stopScanner(); setScan("idle", ""); return;
       case "week-prev":      state.weekStart = addDays(state.weekStart, -7); state.scrollLeft = null; break;
       case "week-next":      state.weekStart = addDays(state.weekStart,  7); state.scrollLeft = null; break;
       case "auth-mode-signup":
@@ -1757,6 +2155,9 @@ phoneEl.addEventListener("submit", ev => {
     saveJSON("garsie.profile", state.user);
     state.auth = { mode: "signin", step: "details", draft: {} };
     state.tab = "calendar"; state.editingId = null;
+    render();
+    processPendingScan();      // a QR opened before signing in
+    return;
   } else if (form.dataset.form === "event"){
     saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
   } else if (form.dataset.form === "dept"){
@@ -1902,7 +2303,35 @@ phoneEl.addEventListener("keydown", ev => {
   document.getElementById("jump").appendChild(btn);
 });
 
+takeScanFromUrl();
 render();
+processPendingScan();
+syncOutbox();
+
+// A QR link opened while the app is already open.
+window.addEventListener("hashchange", () => {
+  takeScanFromUrl();
+  if (state.user) processPendingScan();
+  else render();               // shows "Teken in om aan te meld" on the sign-in screen
+});
+
+// Back online: send waiting scans, then refresh the cards that show them.
+async function onConnectionChange(){
+  const { sent } = await syncOutbox();
+  if (sent.length) toast(`${sent.length} aanmelding${sent.length > 1 ? "s" : ""} gestuur`);
+  // Show how this user's latest waiting scan turned out; otherwise just refresh.
+  const mine = state.user && [...sent].reverse().find(s => s.item.email === state.user.email);
+  if (mine) state.scan = { status:mine.outcome.status, message:mine.outcome.message };
+  const card = document.getElementById("scan-card");
+  if (card) card.innerHTML = scanCardHtml();
+}
+window.addEventListener("online", onConnectionChange);
+window.addEventListener("offline", onConnectionChange);
+
+// Offline support: sw.js keeps a copy of the app on the phone.
+if ("serviceWorker" in navigator && window.isSecureContext){
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
 </script>
 </body>
 </html>
