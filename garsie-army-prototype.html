@@ -2248,7 +2248,7 @@ function render(){
   screenEl.innerHTML = state.qrEventId != null ? screenQr()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
-  maybeOfferInstall();
+  if (!maybeOfferInstall()) maybeOfferPush();
   if (state.qrEventId != null) startQrTicker();
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
@@ -2969,43 +2969,114 @@ function isPhone(){ return isIos() || isAndroid() || matchMedia("(pointer:coarse
 
 /* ---- "Sit die app op jou tuisskerm" ----------------------------------------
    The first time someone reaches the real app on a phone (not already
-   installed), ask which phone they have and show the steps. Why it matters:
-   on iPhone notifications only work from the home screen, and Safari forgets
-   a website's sign-in after 7 days without use. Asked once; after that the
-   "Sit op tuisskerm" button on Myne opens it again. */
-const INSTALL_KEY = "garsie.installAsked";
-let installEvent = null;          // Android/Chrome: lets us show the real "Installeer" prompt
+   installed), ask which phone they have and show the steps, with drawings of
+   what they'll see. Why it matters: on iPhone notifications only work from the
+   home screen, and Safari forgets a website's sign-in after 7 days without
+   use. Asked once (bump the key to ask everyone again); the "Sit op
+   tuisskerm" button on Myne opens it any time.
+   The steps use the English button names: that's what most phones show. */
+const INSTALL_KEY = "garsie.installAsked.v2";
+let installEvent = null;          // Android/Chrome: lets us show the real "Install" prompt
 window.addEventListener("beforeinstallprompt", ev => { ev.preventDefault(); installEvent = ev; });
 window.addEventListener("appinstalled", () => { installEvent = null; closeInstallHelp(); toast("Die app is op jou tuisskerm."); });
 
+// Returns true when the sheet is about to open (so nothing else pops up over it).
 function maybeOfferInstall(){
-  if (!state.user || state.needsConsent || isStandalone() || !isPhone() || state.installOffered) return;
+  if (!state.user || state.needsConsent || isStandalone() || !isPhone() || state.installOffered) return false;
   state.installOffered = true;
-  if (loadJSON(INSTALL_KEY)) return;
+  if (loadJSON(INSTALL_KEY)) return false;
   setTimeout(() => openInstallHelp(), 600);
+  return true;
 }
 function closeInstallHelp(){
   const el = document.getElementById("install-help");
-  if (el) el.remove();
+  if (!el) return;
+  el.remove();
+  maybeOfferPush();              // next: ask for notifications
 }
+
+// Drawings of the phone screens (not photos: the same on every phone and theme).
+const ART = {
+  frame: (h, inner) => `<svg viewBox="0 0 280 ${h}" width="100%" style="display:block;max-width:300px;margin:8px auto 4px;border-radius:14px;
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-hidden="true">
+      <rect width="280" height="${h}" rx="14" fill="#f2f2f7"/>${inner}</svg>`,
+  ring: (x, y, rx, ry) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry || rx}" fill="none" stroke="#C0262D" stroke-width="3"/>`,
+  row: (y, text, hi, last) => `<rect x="16" y="${y}" width="248" height="34" fill="#fff" ${hi ? 'stroke="#C0262D" stroke-width="3"' : ""}/>
+      <text x="30" y="${y + 22}" font-size="14" fill="#111">${text}</text>
+      ${last ? "" : `<line x1="30" y1="${y + 34}" x2="264" y2="${y + 34}" stroke="#e5e5ea"/>`}`,
+  icon: (x, y, size) => `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * .23}" fill="#C0262D"/>
+      <text x="${x + size / 2}" y="${y + size * .64}" font-size="${size * .4}" font-weight="700" fill="#fff" text-anchor="middle">GA</text>`
+};
+const IPHONE_ART = {
+  more: ART.frame(96, `
+      <text x="140" y="34" font-size="12" fill="#8e8e93" text-anchor="middle">(Garsie Army in Safari)</text>
+      <rect x="10" y="50" width="260" height="36" rx="18" fill="#fff"/>
+      <text x="30" y="73" font-size="16" fill="#007aff">‹</text>
+      <rect x="52" y="56" width="168" height="24" rx="12" fill="#f2f2f7"/>
+      <text x="136" y="72" font-size="11" fill="#111" text-anchor="middle">aetherpk.github.io</text>
+      <text x="246" y="72" font-size="18" font-weight="700" fill="#111" text-anchor="middle">···</text>
+      ${ART.ring(246, 68, 18)}`),
+  share: ART.frame(160, `
+      ${ART.row(14, "Share", true)}${ART.row(48, "Add to Bookmarks")}${ART.row(82, "Add to Favorites")}${ART.row(116, "Find on Page", false, true)}
+      <text x="250" y="36" font-size="15" fill="#007aff" text-anchor="end">⇪</text>`),
+  add: ART.frame(160, `
+      <text x="30" y="30" font-size="12" fill="#8e8e93">… scroll down …</text>
+      ${ART.row(40, "Copy")}${ART.row(74, "Add to Reading List")}${ART.row(108, "Add to Home Screen", true, true)}
+      <text x="250" y="130" font-size="15" fill="#111" text-anchor="end">⊞</text>`),
+  confirm: ART.frame(150, `
+      <text x="22" y="30" font-size="14" fill="#007aff">Cancel</text>
+      <text x="140" y="30" font-size="13" font-weight="600" fill="#111" text-anchor="middle">Add to Home Screen</text>
+      <text x="252" y="30" font-size="14" font-weight="700" fill="#007aff" text-anchor="end">Add</text>
+      ${ART.ring(238, 25, 26, 15)}
+      <rect x="16" y="46" width="248" height="56" rx="10" fill="#fff"/>${ART.icon(28, 54, 40)}
+      <text x="80" y="79" font-size="14" fill="#111">Garsie Army</text>
+      <rect x="16" y="108" width="248" height="32" rx="10" fill="#fff"/>
+      <text x="30" y="129" font-size="13" fill="#111">Open as Web App</text>
+      <rect x="220" y="114" width="34" height="20" rx="10" fill="#34c759"/><circle cx="244" cy="124" r="8" fill="#fff"/>`),
+  home: ART.frame(120, `
+      <rect width="280" height="120" rx="14" fill="#5b7fa6"/>
+      ${[30, 90, 150].map(x => `<rect x="${x}" y="18" width="44" height="44" rx="10" fill="rgba(255,255,255,.35)"/>`).join("")}
+      ${ART.icon(210, 18, 44)}${ART.ring(232, 40, 30)}
+      <text x="232" y="80" font-size="10" fill="#fff" text-anchor="middle">Garsie Army</text>`)
+};
+const ANDROID_ART = {
+  dots: ART.frame(80, `
+      <rect x="10" y="20" width="260" height="40" rx="8" fill="#fff"/>
+      <rect x="22" y="28" width="196" height="24" rx="12" fill="#f2f2f7"/>
+      <text x="120" y="44" font-size="11" fill="#111" text-anchor="middle">aetherpk.github.io</text>
+      <text x="250" y="47" font-size="20" font-weight="700" fill="#111" text-anchor="middle">⋮</text>
+      ${ART.ring(250, 40, 16)}`),
+  menu: ART.frame(160, `
+      ${ART.row(14, "New tab")}${ART.row(48, "History")}${ART.row(82, "Share…")}${ART.row(116, "Add to Home screen", true, true)}`),
+  install: ART.frame(130, `
+      <rect x="16" y="14" width="248" height="102" rx="14" fill="#fff"/>
+      <text x="32" y="40" font-size="15" font-weight="600" fill="#111">Install app?</text>
+      ${ART.icon(32, 52, 30)}<text x="72" y="72" font-size="13" fill="#111">Garsie Army</text>
+      <text x="170" y="104" font-size="13" fill="#1a73e8" text-anchor="middle">Cancel</text>
+      <text x="232" y="104" font-size="13" font-weight="700" fill="#1a73e8" text-anchor="middle">Install</text>
+      ${ART.ring(232, 99, 26, 14)}`)
+};
+
+const step = (n, text, art) => `<div style="margin:14px 0 4px"><b>${n}.</b> ${text}</div>${art || ""}`;
 const INSTALL_STEPS = {
   iphone: () => `
-    <ol>
-      <li>Maak hierdie blad in <b>Safari</b> oop (nie in Instagram, WhatsApp of 'n ander app nie).</li>
-      <li>Druk die <b>Deel</b>-knoppie: die vierkant met die pyltjie op, onderaan die skerm (of bo, op 'n iPad).</li>
-      <li>Rol af en druk <b>Voeg by tuisskerm</b> (Add to Home Screen).</li>
-      <li>Druk <b>Voeg by</b> (Add), regs bo.</li>
-    </ol>`,
-  android: () => installEvent ? `
-    <p>Druk net die knoppie:</p>
-    <button class="btn-primary" data-install style="margin:4px 0 10px">Installeer Garsie Army</button>
-    <p style="font-size:13px;color:var(--muted)">Werk dit nie? Druk die drie kolletjies <b>⋮</b> regs bo in Chrome, dan <b>Voeg by tuisskerm</b> of <b>Installeer app</b>.</p>` : `
-    <ol>
-      <li>Maak hierdie blad in <b>Chrome</b> oop.</li>
-      <li>Druk die drie kolletjies <b>⋮</b> regs bo.</li>
-      <li>Druk <b>Voeg by tuisskerm</b> of <b>Installeer app</b> (Add to Home screen / Install app).</li>
-      <li>Druk <b>Installeer</b> (Install).</li>
-    </ol>`
+    <p style="margin:0 0 4px;color:var(--muted)">Use <b>Safari</b> (the blue compass). If you opened this from WhatsApp or Instagram, first tap <b>Open in Safari</b>.</p>
+    ${step(1, "Tap the <b>···</b> (three dots) at the <b>bottom right</b> of Safari.", IPHONE_ART.more)}
+    <p style="margin:0;font-size:12px;color:var(--muted)">Older iPhone? Tap the <b>Share</b> button (square with an arrow ⇪) at the bottom and skip to step 3.</p>
+    ${step(2, "Tap <b>Share</b>.", IPHONE_ART.share)}
+    ${step(3, "Scroll down and tap <b>Add to Home Screen</b>.", IPHONE_ART.add)}
+    <p style="margin:0;font-size:12px;color:var(--muted)">Don't see it? Tap <b>Edit Actions…</b> at the very bottom and add it.</p>
+    ${step(4, "Leave <b>Open as Web App</b> on, then tap <b>Add</b> at the top right.", IPHONE_ART.confirm)}
+    ${step(5, "Open <b>Garsie Army</b> from your <b>Home Screen</b> and sign in once more (the Home Screen app is separate from Safari).", IPHONE_ART.home)}`,
+  android: () => `
+    ${installEvent ? `<p style="margin:0 0 6px">Quickest way: tap the button, then <b>Install</b>.</p>
+      <button class="btn-primary" data-install style="margin:0 0 6px">Install Garsie Army</button>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Or do it yourself:</p>` : ""}
+    <p style="margin:0 0 4px;color:var(--muted)">Use <b>Chrome</b>. If you opened this from WhatsApp or Instagram, first tap <b>⋮</b> → <b>Open in Chrome</b>.</p>
+    ${step(1, "Tap the <b>⋮</b> (three dots) at the <b>top right</b> of Chrome.", ANDROID_ART.dots)}
+    ${step(2, "Tap <b>Add to Home screen</b> (on some phones: <b>Install app</b>).", ANDROID_ART.menu)}
+    ${step(3, "Tap <b>Install</b> (or <b>Add</b>).", ANDROID_ART.install)}
+    ${step(4, "Open <b>Garsie Army</b> from your <b>Home screen</b>.")}`
 };
 function openInstallHelp(){
   if (document.getElementById("install-help")) return;
@@ -3021,22 +3092,20 @@ function openInstallHelp(){
       border:1.5px solid ${guess === id ? "var(--brand)" : "var(--hairline)"};background:var(--surface-2);color:var(--shadow-ink)">${label}</button>`;
   const ask = () => `
       <h2 style="font-size:20px;margin:0 0 6px">Sit die app op jou tuisskerm</h2>
-      <p style="margin:0 0 14px;color:var(--muted)">Dan maak jy dit met een druk oop, bly jy ingeteken, en kan jy kennisgewings kry. Watter foon het jy?</p>
+      <p style="margin:0 0 14px;color:var(--muted)">Dan maak jy dit met een druk oop, bly jy ingeteken, en kry jy kennisgewings. Watter foon het jy?</p>
       <div style="display:flex;gap:10px">${choice("iphone", "iPhone")}${choice("android", "Android")}</div>
       <button class="btn-link" data-close style="width:100%;margin-top:8px">Nie nou nie</button>`;
   const steps = id => `
-      <h2 style="font-size:20px;margin:0 0 6px">${id === "iphone" ? "iPhone" : "Android"}</h2>
+      <h2 style="font-size:20px;margin:0 0 2px">${id === "iphone" ? "iPhone" : "Android"}: Add to Home Screen</h2>
       ${INSTALL_STEPS[id]()}
-      <p style="margin:6px 0 0">Maak die app daarna van jou <b>tuisskerm</b> af oop, en skakel onder <b>Myne</b> die kennisgewings aan.</p>
-      <button class="btn-primary" data-close style="margin-top:14px">Reg so</button>
+      <button class="btn-primary" data-close style="margin-top:16px">Klaar</button>
       <button class="btn-link" data-back style="width:100%;margin-top:4px">Ander foon</button>`;
-  el.innerHTML = `<div data-body style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;font-size:14px;line-height:1.5">
-      <style>#install-help ol{padding-left:20px;margin:8px 0}#install-help li{margin-bottom:6px}</style>${ask()}</div>`;
+  el.innerHTML = `<div data-body style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;font-size:14px;line-height:1.5">${ask()}</div>`;
   const body = el.querySelector("[data-body]");
   el.addEventListener("click", async ev => {
     const phone = ev.target.closest("[data-phone]");
-    if (phone){ body.innerHTML = body.querySelector("style").outerHTML + steps(phone.dataset.phone); return; }
-    if (ev.target.closest("[data-back]")){ body.innerHTML = body.querySelector("style").outerHTML + ask(); return; }
+    if (phone){ body.innerHTML = steps(phone.dataset.phone); body.scrollTop = 0; return; }
+    if (ev.target.closest("[data-back]")){ body.innerHTML = ask(); return; }
     if (ev.target.closest("[data-install]") && installEvent){
       installEvent.prompt();
       const { outcome } = await installEvent.userChoice;
@@ -3045,6 +3114,64 @@ function openInstallHelp(){
       return;
     }
     if (ev.target === el || ev.target.closest("[data-close]")) closeInstallHelp();
+  });
+  document.body.appendChild(el);
+}
+
+/* ---- "Skakel kennisgewings aan" --------------------------------------------
+   Straight after signing in (and after the home-screen sheet), ask for
+   notifications and say why. The phone's own "Allow" question may only come
+   from a tap, so our sheet asks first and its button triggers it.
+   "Nie nou nie" asks again after 3 days. iPhone in Safari (not on the home
+   screen) can't get notifications at all: the home-screen sheet covers that. */
+const PUSH_ASKED_KEY = "garsie.pushAsked";
+const PUSH_OFF_KEY = "garsie.pushOff";          // the uid that switched them off on purpose
+const PUSH_ASK_AGAIN_MS = 3 * 24 * 60 * 60 * 1000;
+
+function maybeOfferPush(){
+  if (!state.user || state.needsConsent || state.pushOffered) return;
+  if (document.getElementById("install-help") || document.getElementById("push-ask")) return;
+  const supported = "Notification" in window && "PushManager" in window && "serviceWorker" in navigator && window.isSecureContext;
+  if (!supported) return;
+  // Already allowed (e.g. someone else signed out on this phone): switch on quietly.
+  if (Notification.permission === "granted"){ state.pushOffered = true; checkPush(); return; }
+  if (Notification.permission !== "default" || loadJSON(PUSH_OFF_KEY) === state.user.id) return;
+  const asked = loadJSON(PUSH_ASKED_KEY);
+  if (asked && Date.now() - asked < PUSH_ASK_AGAIN_MS) return;
+  state.pushOffered = true;
+  setTimeout(openPushAsk, 700);
+}
+function openPushAsk(){
+  if (document.getElementById("push-ask") || document.getElementById("install-help")) return;
+  const el = document.createElement("div");
+  el.id = "push-ask";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.setAttribute("aria-label", "Skakel kennisgewings aan");
+  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  const why = (emoji, text) => `<li style="display:flex;gap:10px;margin:0 0 10px"><span style="font-size:20px;line-height:1.2">${emoji}</span><span>${text}</span></li>`;
+  el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 20px 16px;font-size:14px;line-height:1.45">
+      <div style="font-size:40px;text-align:center;line-height:1">🔔</div>
+      <h2 style="font-size:21px;margin:10px 0 6px;text-align:center">Moenie iets mis nie</h2>
+      <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Kennisgewings is dié manier om op hoogte te bly van alles by die skool.</p>
+      <ul style="list-style:none;padding:0;margin:0 0 6px">
+        ${why("⚠️", "Hoor <b>dadelik</b> as 'n wedstryd of geleentheid <b>verskuif of gekanselleer</b> word, voor jy verniet ry.")}
+        ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy ondersteun.")}
+        ${why("🆕", "Wees die <b>eerste om te weet</b> van nuwe geleenthede vir jou graad.")}
+      </ul>
+      <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of dit mag: druk <b>Allow</b>.</p>
+      <button class="btn-primary" data-yes>Skakel kennisgewings aan</button>
+      <button class="btn-link" data-close style="width:100%;margin-top:6px;color:var(--muted)">Nie nou nie</button>
+    </div>`;
+  const close = () => el.remove();
+  el.addEventListener("click", async ev => {
+    if (ev.target.closest("[data-yes]")){
+      await enablePush();
+      if (state.push.status === "on") close();
+      else if (state.push.status === "blocked"){ close(); toast("Kennisgewings is geblokkeer. Skakel dit aan in jou foon se instellings."); }
+      return;
+    }
+    if (ev.target === el || ev.target.closest("[data-close]")){ saveJSON(PUSH_ASKED_KEY, Date.now()); close(); }
   });
   document.body.appendChild(el);
 }
@@ -3067,6 +3194,14 @@ function saveSubscription(sub){
   return sb.rpc("save_push_subscription", { p_endpoint:j.endpoint, p_p256dh:j.keys.p256dh, p_auth:j.keys.auth });
 }
 
+// This phone's push subscription, made if there is none yet.
+async function subscribeThisDevice(){
+  const reg = await swReady();
+  if (!reg) throw new Error("no service worker");
+  return (await reg.pushManager.getSubscription()) ||
+    reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:base64UrlBytes(VAPID_PUBLIC_KEY) });
+}
+
 async function checkPush(){
   const p = state.push;
   p.status = "checking";
@@ -3076,7 +3211,12 @@ async function checkPush(){
     } else if (Notification.permission === "denied"){
       p.status = "blocked";
     } else {
-      const sub = await currentSubscription();
+      let sub = await currentSubscription();
+      // Allowed before but not subscribed (e.g. after a sign-out): subscribe again,
+      // unless this person switched notifications off themselves.
+      if (!sub && Notification.permission === "granted" && loadJSON(PUSH_OFF_KEY) !== (state.user && state.user.id)){
+        sub = await subscribeThisDevice().catch(() => null);
+      }
       p.status = sub && Notification.permission === "granted" ? "on" : "off";
       // Re-save every time: keeps this phone linked to whoever is signed in now.
       if (p.status === "on") saveSubscription(sub).then(() => {}, () => {});
@@ -3135,13 +3275,11 @@ async function enablePush(){
     // Must be the first thing after the tap, or iPhone ignores it.
     const perm = await Notification.requestPermission();
     if (perm !== "granted"){ p.status = perm === "denied" ? "blocked" : "off"; return; }
-    const reg = await swReady();
-    if (!reg) throw new Error("no service worker");
-    const sub = (await reg.pushManager.getSubscription()) ||
-      await reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey:base64UrlBytes(VAPID_PUBLIC_KEY) });
+    const sub = await subscribeThisDevice();
     const { error } = await saveSubscription(sub);
     if (error) throw error;
     p.status = "on";
+    saveJSON(PUSH_OFF_KEY, null);
     toast("Kennisgewings is aan.");
   } catch (err){
     toast(isNetworkError(err) ? dbMessage(err) : "Kon nie kennisgewings aanskakel nie. Probeer weer.");
@@ -3159,7 +3297,7 @@ async function disablePush(){
   const p = state.push;
   if (p.busy) return;
   p.busy = true; renderPushCard();
-  try { await forgetThisDevice(); p.status = "off"; toast("Kennisgewings is af."); }
+  try { await forgetThisDevice(); p.status = "off"; saveJSON(PUSH_OFF_KEY, state.user && state.user.id); toast("Kennisgewings is af."); }
   catch { toast("Kon nie afskakel nie. Probeer weer."); }
   finally { p.busy = false; renderPushCard(); }
 }
@@ -3206,6 +3344,7 @@ async function signOut(){
   // Don't let the next person on this phone get this person's notifications.
   try { await forgetThisDevice(); } catch {}
   state.push = { status:"unknown", busy:false };
+  state.pushOffered = false; state.installOffered = false;
   try { if (sb) await sb.auth.signOut({ scope:"local" }); } catch {}
   saveJSON(CACHE_KEY, null);                    // don't leave data behind on a shared phone
   Object.assign(state, { session:null, user:null, needsProfile:false, offline:false, mapEventId:null,
