@@ -733,6 +733,7 @@ const PRIVACY_NOTICE = `
     <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
     <li>As jy kennisgewings aanskakel: jou toestel se push-adres.</li>
   </ul>
+  <p>As jy met Google inteken, kry ons net jou naam en e-posadres van Google.</p>
   <h3>Hoekom</h3>
   <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings uit te wys, en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
@@ -2743,6 +2744,7 @@ async function signInWithGoogle(){
   });
   if (error) toast(dbMessage(error));
 }
+// Public copy of the notice: privacy.html (Google links to it).
 // Show the Google button only once Google is switched on in Supabase.
 async function checkGoogle(){
   try {
