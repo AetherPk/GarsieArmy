@@ -1712,7 +1712,10 @@ function screenMine(){
   let html = `<div style="position:absolute;inset:0;background:var(--myne-bg);padding:16px 14px 0;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c7cbd6;font-size:13px;min-height:38px;padding-right:52px">
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
-      <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
+      <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
+        ${isPhone() && !isStandalone() ? `<button data-action="install-help" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Sit op tuisskerm</button>` : ""}
+        <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
+      </span>
     </div>
     <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
     <div id="push-card" style="max-width:1100px;margin:0 auto">${pushCardHtml()}</div>
@@ -2168,6 +2171,7 @@ function render(){
   screenEl.innerHTML = state.qrEventId != null ? screenQr()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
+  maybeOfferInstall();
   if (state.qrEventId != null) startQrTicker();
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
@@ -2300,6 +2304,7 @@ function handle(target){
       }
       case "signout":        signOut(); return;
       case "push-on":        enablePush(); return;
+      case "install-help":   openInstallHelp(); return;
       case "push-off":       disablePush(); return;
       case "push-test":      testPush(); return;
       case "push-new":       toggleNotifyNew(); return;
@@ -2882,6 +2887,91 @@ state.push = { status:"unknown", busy:false };
 
 function isStandalone(){ return matchMedia("(display-mode: standalone)").matches || navigator.standalone === true; }
 function isIos(){ return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); }
+function isAndroid(){ return /Android/i.test(navigator.userAgent); }
+function isPhone(){ return isIos() || isAndroid() || matchMedia("(pointer:coarse)").matches; }
+
+/* ---- "Sit die app op jou tuisskerm" ----------------------------------------
+   The first time someone reaches the real app on a phone (not already
+   installed), ask which phone they have and show the steps. Why it matters:
+   on iPhone notifications only work from the home screen, and Safari forgets
+   a website's sign-in after 7 days without use. Asked once; after that the
+   "Sit op tuisskerm" button on Myne opens it again. */
+const INSTALL_KEY = "garsie.installAsked";
+let installEvent = null;          // Android/Chrome: lets us show the real "Installeer" prompt
+window.addEventListener("beforeinstallprompt", ev => { ev.preventDefault(); installEvent = ev; });
+window.addEventListener("appinstalled", () => { installEvent = null; closeInstallHelp(); toast("Die app is op jou tuisskerm."); });
+
+function maybeOfferInstall(){
+  if (!state.user || state.needsConsent || isStandalone() || !isPhone() || state.installOffered) return;
+  state.installOffered = true;
+  if (loadJSON(INSTALL_KEY)) return;
+  setTimeout(() => openInstallHelp(), 600);
+}
+function closeInstallHelp(){
+  const el = document.getElementById("install-help");
+  if (el) el.remove();
+}
+const INSTALL_STEPS = {
+  iphone: () => `
+    <ol>
+      <li>Maak hierdie blad in <b>Safari</b> oop (nie in Instagram, WhatsApp of 'n ander app nie).</li>
+      <li>Druk die <b>Deel</b>-knoppie: die vierkant met die pyltjie op, onderaan die skerm (of bo, op 'n iPad).</li>
+      <li>Rol af en druk <b>Voeg by tuisskerm</b> (Add to Home Screen).</li>
+      <li>Druk <b>Voeg by</b> (Add), regs bo.</li>
+    </ol>`,
+  android: () => installEvent ? `
+    <p>Druk net die knoppie:</p>
+    <button class="btn-primary" data-install style="margin:4px 0 10px">Installeer Garsie Army</button>
+    <p style="font-size:13px;color:var(--muted)">Werk dit nie? Druk die drie kolletjies <b>⋮</b> regs bo in Chrome, dan <b>Voeg by tuisskerm</b> of <b>Installeer app</b>.</p>` : `
+    <ol>
+      <li>Maak hierdie blad in <b>Chrome</b> oop.</li>
+      <li>Druk die drie kolletjies <b>⋮</b> regs bo.</li>
+      <li>Druk <b>Voeg by tuisskerm</b> of <b>Installeer app</b> (Add to Home screen / Install app).</li>
+      <li>Druk <b>Installeer</b> (Install).</li>
+    </ol>`
+};
+function openInstallHelp(){
+  if (document.getElementById("install-help")) return;
+  saveJSON(INSTALL_KEY, true);
+  const guess = isIos() ? "iphone" : isAndroid() ? "android" : null;
+  const el = document.createElement("div");
+  el.id = "install-help";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.setAttribute("aria-label", "Sit die app op jou tuisskerm");
+  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px";
+  const choice = (id, label) => `<button data-phone="${id}" style="flex:1;height:48px;border-radius:14px;font-size:15px;font-weight:600;cursor:pointer;
+      border:1.5px solid ${guess === id ? "var(--brand)" : "var(--hairline)"};background:var(--surface-2);color:var(--shadow-ink)">${label}</button>`;
+  const ask = () => `
+      <h2 style="font-size:20px;margin:0 0 6px">Sit die app op jou tuisskerm</h2>
+      <p style="margin:0 0 14px;color:var(--muted)">Dan maak jy dit met een druk oop, bly jy ingeteken, en kan jy kennisgewings kry. Watter foon het jy?</p>
+      <div style="display:flex;gap:10px">${choice("iphone", "iPhone")}${choice("android", "Android")}</div>
+      <button class="btn-link" data-close style="width:100%;margin-top:8px">Nie nou nie</button>`;
+  const steps = id => `
+      <h2 style="font-size:20px;margin:0 0 6px">${id === "iphone" ? "iPhone" : "Android"}</h2>
+      ${INSTALL_STEPS[id]()}
+      <p style="margin:6px 0 0">Maak die app daarna van jou <b>tuisskerm</b> af oop, en skakel onder <b>Myne</b> die kennisgewings aan.</p>
+      <button class="btn-primary" data-close style="margin-top:14px">Reg so</button>
+      <button class="btn-link" data-back style="width:100%;margin-top:4px">Ander foon</button>`;
+  el.innerHTML = `<div data-body style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:20px;font-size:14px;line-height:1.5">
+      <style>#install-help ol{padding-left:20px;margin:8px 0}#install-help li{margin-bottom:6px}</style>${ask()}</div>`;
+  const body = el.querySelector("[data-body]");
+  el.addEventListener("click", async ev => {
+    const phone = ev.target.closest("[data-phone]");
+    if (phone){ body.innerHTML = body.querySelector("style").outerHTML + steps(phone.dataset.phone); return; }
+    if (ev.target.closest("[data-back]")){ body.innerHTML = body.querySelector("style").outerHTML + ask(); return; }
+    if (ev.target.closest("[data-install]") && installEvent){
+      installEvent.prompt();
+      const { outcome } = await installEvent.userChoice;
+      installEvent = null;
+      if (outcome === "accepted") closeInstallHelp();
+      return;
+    }
+    if (ev.target === el || ev.target.closest("[data-close]")) closeInstallHelp();
+  });
+  document.body.appendChild(el);
+}
+
 function base64UrlBytes(s){
   const b = atob((s + "=".repeat((4 - s.length % 4) % 4)).replace(/-/g, "+").replace(/_/g, "/"));
   return Uint8Array.from(b, c => c.charCodeAt(0));
@@ -2932,7 +3022,8 @@ function pushCardHtml(){
     case "install":
       return box(`<b style="color:#fff">Wil jy kennisgewings kry?</b><br>
         Op 'n iPhone moet die app eers op jou tuisskerm wees: druk <b>Deel</b> (die vierkant met die pyltjie),
-        dan <b>Voeg by tuisskerm</b>. Maak die app van daar af oop en kom terug na hierdie blad.`);
+        dan <b>Voeg by tuisskerm</b>. Maak die app van daar af oop en kom terug na hierdie blad.
+        <div style="margin-top:8px">${btn("install-help", "Wys my hoe", true)}</div>`);
     case "blocked":
       return box("Kennisgewings is geblokkeer. Skakel dit aan in jou foon se instellings vir hierdie app, en maak die app weer oop.");
     case "off":
