@@ -6,9 +6,16 @@
    It also receives push notifications (see "Push" at the bottom).
 
    Bump CACHE whenever LIBS change, so phones fetch the new files. */
-const CACHE = "garsie-v3";
+const CACHE = "garsie-v4";
 const APP = "./garsie-army-prototype.html";
 const FILES = ["./manifest.json", "./icons/icon-192.png", "./icons/badge-96.png"];
+// The map library (~1 MB) is saved the first time a map is shown, not at
+// install: keep in step with VECTOR_LIBS in the app.
+const VECTOR_LIBS = [
+  "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css",
+  "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js",
+  "https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js"
+];
 const LIBS = [
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
@@ -65,6 +72,13 @@ self.addEventListener("fetch", ev => {
   // Libraries have version numbers in their URLs, so the saved copy is always right.
   if (LIBS.includes(req.url) || FILES.some(f => new URL(f, self.registration.scope).href === req.url)){
     ev.respondWith(caches.match(req.url).then(hit => hit || fetch(req)));
+  }
+  if (VECTOR_LIBS.includes(req.url)){
+    ev.respondWith(caches.match(req.url).then(hit => hit || fetch(req).then(res => {
+      if (res.ok){ const copy = res.clone(); caches.open(CACHE).then(c => c.put(req.url, copy)); }
+      return res;
+    })));
+    return;
   }
   // Everything else (map tiles, address search) goes to the network as normal.
 });

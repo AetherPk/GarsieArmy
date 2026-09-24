@@ -1137,11 +1137,88 @@ function pinIcon(colour, big){
   return L.divIcon({ className:"", iconSize:[s, s], iconAnchor:[s / 2, s - 2],
     html:`<svg width="${s}" height="${s}" viewBox="0 0 24 24" style="filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z" fill="${colour}" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="10" r="2.6" fill="#fff"/></svg>` });
 }
+/* Map background: OpenFreeMap (openfreemap.org) — free, no key, no usage
+   limit, so it holds up with the whole school on it. Its maps are vector
+   tiles drawn by MapLibre GL, bridged into Leaflet, so the pins and circles
+   below stay plain Leaflet. MapLibre is ~1 MB: it only loads the first time
+   a map is shown, and sw.js keeps a copy on the phone after that.
+   Fallback: OpenStreetMap's own picture tiles, when the phone can't draw
+   (no WebGL) or OpenFreeMap doesn't answer. Fine now and then, but not for
+   the whole school every day (their usage policy). */
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 const OSM_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
-function newMap(el, opts){
-  const map = L.map(el, { zoomControl:false, ...opts });
+// Keep these URLs in step with VECTOR_LIBS in sw.js.
+const VECTOR_LIBS = [
+  { css:"https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css",
+    integrity:"sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK" },
+  { js:"https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.js",
+    integrity:"sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp" },
+  { js:"https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js",
+    integrity:"sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS" }
+];
+const MAP_FALLBACK_MS = 15000;     // no map after this long: use the fallback
+let vectorLibs = null;
+function loadVectorLibs(){
+  if (!vectorLibs){
+    const add = lib => new Promise((resolve, reject) => {
+      const el = document.createElement(lib.css ? "link" : "script");
+      if (lib.css){ el.rel = "stylesheet"; el.href = lib.css; } else { el.src = lib.js; el.async = false; }
+      el.integrity = lib.integrity;
+      el.crossOrigin = "anonymous";
+      el.onload = resolve;
+      el.onerror = () => { el.remove(); reject(new Error("could not load " + (lib.css || lib.js))); };
+      document.head.appendChild(el);
+    });
+    vectorLibs = Promise.all(VECTOR_LIBS.map(add));        // async=false keeps the scripts in order
+    vectorLibs.catch(() => { vectorLibs = null; });        // try again next time
+  }
+  return vectorLibs;
+}
+// Checked once: every test canvas holds a WebGL context, and phones allow only a few.
+let webGLOk = null;
+function hasWebGL(){
+  if (webGLOk === null){
+    try {
+      const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
+      webGLOk = !!gl;
+      if (gl){ const lose = gl.getExtension("WEBGL_lose_context"); if (lose) lose.loseContext(); }
+    } catch { webGLOk = false; }
+  }
+  return webGLOk;
+}
+function addPictureTiles(map){
   L.tileLayer(OSM_TILES, { maxZoom:19, attribution:OSM_ATTRIBUTION }).addTo(map);
+}
+function newMap(el, opts){
+  const map = L.map(el, { zoomControl:false, maxZoom:19, ...opts });
+  map.on("unload", () => { map._gone = true; });          // re-render removed it
+  if (!hasWebGL()){ addPictureTiles(map); return map; }
+  loadVectorLibs().then(() => new Promise(ready => map.whenReady(ready))).then(() => {
+    // whenReady: Leaflet only builds a layer once the map has a position.
+    if (map._gone) return;
+    const layer = L.maplibreGL({ style:MAP_STYLE }).addTo(map);    // map credits come from the style itself
+    const gl = layer.getMaplibreMap();
+    let settled = false;
+    const fallBack = why => {
+      if (settled || map._gone) return;
+      settled = true;
+      console.warn("Map: using OpenStreetMap tiles instead of OpenFreeMap:", why);
+      map.removeLayer(layer);
+      addPictureTiles(map);
+    };
+    gl.once("load", () => { settled = true; });
+    // The style names a few icons its sprite lacks (atm, gate, ...): draw them blank instead of warning.
+    gl.on("styleimagemissing", ev => { if (!gl.hasImage(ev.id)) gl.addImage(ev.id, { width:1, height:1, data:new Uint8Array(4) }); });
+    gl.on("error", ev => { if (!gl.loaded()) fallBack(ev.error); });   // e.g. the style didn't load
+    // A hidden page doesn't draw, so only count time while it is on screen.
+    const timeout = () => document.hidden ? setTimeout(timeout, MAP_FALLBACK_MS) : fallBack("timeout");
+    setTimeout(timeout, MAP_FALLBACK_MS);
+  }).catch(err => {
+    if (map._gone) return;
+    console.warn("Map: using OpenStreetMap tiles instead of OpenFreeMap:", err);
+    addPictureTiles(map);
+  });
   return map;
 }
 const MAP_UNAVAILABLE = `<div style="padding:40px 20px;text-align:center;color:#555;font-size:14px">Die kaart kon nie laai nie. Kyk of jy aan die internet gekoppel is.</div>`;
