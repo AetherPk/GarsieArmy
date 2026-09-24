@@ -4,13 +4,14 @@
    the phone and sent once it is back online (see "QR check-in" in the app).
 
    Bump CACHE whenever LIBS change, so phones fetch the new files. */
-const CACHE = "garsie-v1";
+const CACHE = "garsie-v2";
 const APP = "./garsie-army-prototype.html";
 const LIBS = [
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css",
   "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js",
   "https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js",
-  "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"
+  "https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js",
+  "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js"
 ];
 
 self.addEventListener("install", ev => {

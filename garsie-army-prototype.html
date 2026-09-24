@@ -52,10 +52,17 @@
     Soek      Search and filter by department.
     Myne      Events the user has tapped "Ek ondersteun" on.
 
+  BACKEND
+  Supabase (project "garsie-army"). Schema, security rules and the server-side
+  functions are in supabase/migrations/ in this repo. The app talks to it only
+  through section 8 ("SUPABASE") at the bottom of this script.
+
   WHAT IS REAL vs FAKE IN THIS FILE
     Real   layout, navigation, week maths, search, filtering, support toggle,
            map, live location, address search, location check-in
-    Fake   the sample EVENTS (September 2026, see DATA)
+    Real   sign-in with an e-mailed code, events, roles, "Ek ondersteun",
+           check-ins, QR codes and the Excel export — all through Supabase
+    Fake   nothing left; the September 2026 events are sample data in the database
            the "server" (QR checks, sync) runs in this browser — see QR check-in
            ticket links point at quicket.co.za, not real event pages
 
@@ -100,6 +107,9 @@
       integrity="sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==" crossorigin="anonymous">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"
       integrity="sha512-puJW3E/qXDqYp9IfhAI54BJEaWIfloJ7JWs7OeD5i6ruC9JZL1gERT1wjtwXFlh7CjE7ZJ+/vcRZRkIYIb6p4g==" crossorigin="anonymous"></script>
+<!-- Supabase client (auth + database). Loaded before the app script: the app needs it at start-up. -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.1/dist/umd/supabase.js"
+      integrity="sha384-K1nraABOP/zFehpLIUksXebbs7jMpB8gYMlb+uhVKZcWT/9Vkq1+qhv6ndC+1Yuz" crossorigin="anonymous"></script>
 <!-- QR: qrcode-generator draws the admin's code, jsQR reads it from the camera
      where the browser has no built-in BarcodeDetector (e.g. iPhone). -->
 <script defer src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"
@@ -344,171 +354,30 @@ const CONFIG = {
 /* ===========================================================================
    2. DATA
    ---------------------------------------------------------------------------
-   This array stands in for:  GET /api/events?from=YYYY-MM-DD&to=YYYY-MM-DD
+   Everything comes from Supabase (section 8 at the bottom) and is kept in
+   these arrays so the screens can render synchronously. A copy is cached on
+   the phone so the app still opens and shows events without internet.
 
-   Event shape (keep these field names — the UI reads them directly):
-     id           number|string   stable unique id
-     title        string          shown on the block and the detail screen
-     department   string          id of an entry in DEPARTMENTS
-     date         "YYYY-MM-DD"    local date, no timezone games
+   Event shape the UI reads (mapped from the events table by rowToEvent()):
+     id           number          events.id
+     title        string
+     department   uuid            events.department_id
+     date         "YYYY-MM-DD"    local date
      start,end    "HH:MM"         24h local time
      venue        string          free text, shown as "Plek"
-     description  string          one or two sentences for supporters
+     description  string
      ticketUrl    string|null     null hides the "Koop kaartjies" button
-     location     {lat,lng,radius,address}|undefined   check-in pin + radius (m);
-                  missing = CONFIG.schoolLocation. Set by admins in Skep.
-     audience     {grades:[], gender, learnersOnly}|undefined   who may come;
-                  missing = everyone. See AUDIENCE.
-
-   Fields the real API will also need, not used by this prototype:
-     status       "scheduled" | "moved" | "cancelled"   (rain is constant)
-     team         e.g. "o/16 A"    so supporters can follow one team
-     updatedAt    timestamp        for sync and "changed" badges
-     isHome       boolean          away fixtures need travel info instead
+     location     {lat,lng,radius,address}   check-in pin + radius (m)
+     audience     {grades:[], gender, learnersOnly}   who may come (see AUDIENCE)
 =========================================================================== */
-// Sample events for September 2026 (Q = a Quicket link). Nothing on 24 Sep: Erfenisdag.
-// 110 is for girls only and 111 for Graad 12 only, to show "Wie mag kom?".
-const Q = "https://www.quicket.co.za/";
-const GIRLS_ONLY = { grades:[], gender:"Meisie", learnersOnly:true };
-const MATRICS_ONLY = { grades:["Graad 12"], gender:"all", learnersOnly:true };
-const SEED_EVENTS = [
-  { id:101, title:"Landloop: interhuis",                department:"sport",   date:"2026-09-02", start:"14:30", end:"16:30", venue:"Atletiekbaan",   description:"Al vier huise hardloop vir punte. Kom moedig jou huis aan.",        ticketUrl:null },
-  { id:102, title:"Krieket: Garsies teen Menlopark",    department:"sport",   date:"2026-09-05", start:"09:00", end:"15:00", venue:"Hoofveld",       description:"Die eerste span se eerste wedstryd van die seisoen.",               ticketUrl:null },
-  { id:103, title:"Redenaarskompetisie",                department:"kultuur", date:"2026-09-08", start:"18:00", end:"20:00", venue:"Kultuursentrum", description:"Junior en senior redenaars in die finale ronde.",                  ticketUrl:null },
-  { id:104, title:"Tennis: eerste span teen Waterkloof",department:"sport",   date:"2026-09-11", start:"14:00", end:"17:00", venue:"Tennisbane",     description:"Liga-wedstryd. Stoele is beperk — bring 'n kombers.",             ticketUrl:null },
-  { id:105, title:"Swemgala",                           department:"sport",   date:"2026-09-12", start:"08:00", end:"13:00", venue:"Swembad",        description:"Interhuis-swemgala. Kos en koeldrank te koop.",                    ticketUrl:Q },
-  { id:106, title:"Kunsuitstalling",                    department:"kultuur", date:"2026-09-15", start:"17:30", end:"20:00", venue:"Saal",           description:"Werk van die Graad 10–12-kunsleerders.",                          ticketUrl:null },
-  { id:107, title:"Koor: lentekonsert",                 department:"kultuur", date:"2026-09-17", start:"19:00", end:"21:00", venue:"Saal",           description:"Die koor sing die lente in.",                                      ticketUrl:Q },
-  { id:108, title:"Atletiek: Noord-Gauteng-byeenkoms",  department:"sport",   date:"2026-09-19", start:"08:00", end:"16:00", venue:"Atletiekbaan",   description:"Ons bied die streeksbyeenkoms aan. Parkering by die B-veld.",     ticketUrl:null },
-  { id:109, title:"Debat: halfeindronde",               department:"kultuur", date:"2026-09-22", start:"15:00", end:"17:00", venue:"Kultuursentrum", description:"Ons senior span teen Menlopark.",                                  ticketUrl:null },
-  { id:110, title:"Netbal: prysuitdeling",              department:"sport",   date:"2026-09-23", start:"18:00", end:"20:00", venue:"Saal",           description:"Seisoen-afsluiting vir al die netbalspelers.",                     ticketUrl:null, audience:GIRLS_ONLY },
-  { id:111, title:"Matriekafskeid",                     department:"kultuur", date:"2026-09-25", start:"18:30", end:"23:00", venue:"Saal",           description:"Net vir die matrieks van 2026. Aantrek: formeel.",                 ticketUrl:Q,    audience:MATRICS_ONLY },
-  { id:112, title:"Krieket: o/15 teen Affies",          department:"sport",   date:"2026-09-26", start:"08:30", end:"13:00", venue:"B-veld",         description:"Tuiswedstryd vir die o/15-span.",                                  ticketUrl:null },
-  { id:113, title:"Toneelopvoering",                    department:"kultuur", date:"2026-09-26", start:"19:00", end:"21:00", venue:"Kultuursentrum", description:"Die dramaklub se eenbedrywe. Kaartjies is beperk.",                ticketUrl:Q },
-  { id:114, title:"Oggendbyeenkoms: Erfenisweek",       department:"kultuur", date:"2026-09-28", start:"07:30", end:"08:15", venue:"Saal",           description:"Kom in klere wat jou erfenis wys.",                                ticketUrl:null },
-  { id:115, title:"Hokkie: somerliga",                  department:"sport",   date:"2026-09-29", start:"16:00", end:"17:30", venue:"Kunsgrasveld",   description:"Eerste ronde van die somerliga.",                                  ticketUrl:null },
-  { id:116, title:"Musiekaand",                         department:"kultuur", date:"2026-09-30", start:"18:30", end:"20:30", venue:"Saal",           description:"Solo's, ensembles en die orkes.",                                  ticketUrl:Q }
-];
+let DEPARTMENTS = [];   // [{ id, name, colour }]
+let EVENTS      = [];   // only what this user may see (the database filters)
+let ADMINS      = [];   // Hoof-admin only: [{ email, role, department }]
+let CHECKINS    = {};   // MY check-ins: { [eventId]: { at, method, distance, flags } }
+let STATS       = {};   // admins: { [eventId]: { supporters, checkedIn, suspicious } }
 
-/* ---------------------------------------------------------------------------
-   DEPARTMENTS
-   Stand-in for GET /api/departments. Each department is just a name and a
-   colour; every event belongs to exactly one. Hoof-admins create them in
-   Bestuur, and every department gets a filter chip in Kalender, Soek and Myne.
-     id       string   stable, never shown
-     name     string   shown on chips, badges and the export
-     colour   "#rrggbb"  the block/badge colour; light + dark tints are derived
---------------------------------------------------------------------------- */
-const SEED_DEPARTMENTS = [
-  { id:"sport",   name:"Sport",   colour:"#C0262D" },
-  { id:"kultuur", name:"Kultuur", colour:"#5856d6" }
-];
-
-/* ---------------------------------------------------------------------------
-   ADMINS
-   Stand-in for the admins table: who may edit what. Managed in Bestuur.
-     email       string
-     role        "key" (Hoof-admin, everything) | "dept" (Departement-admin)
-     department  department id — only for role "dept"
---------------------------------------------------------------------------- */
-const SEED_ADMINS = [
-  { email:"hoof@garsies.co.za",   role:"key",  department:null },
-  { email:"rugby@garsies.co.za",  role:"dept", department:"sport" },
-  { email:"koor@garsies.co.za",   role:"dept", department:"kultuur" }
-];
-
-// PROTOTYPE: departments, events and admins live in this browser so that
-// what you create survives a refresh. Nobody else sees it — that needs the
-// real backend (TODO: Supabase tables departments / events / admins).
-// Anything unreadable or the wrong shape (an old version, a hand-edited value)
-// falls back to the sample data instead of crashing the app.
-function loadList(key, fallback, ok){
-  const v = loadJSON(key);
-  return Array.isArray(v) && v.every(x => x && typeof x === "object" && ok(x)) ? v : fallback;
-}
-const SAMPLE_VERSION = 2;           // bump when the sample events change
-(function replaceOldSamples(){
-  if (loadJSON("garsie.sampleVersion") === SAMPLE_VERSION) return;
-  const OLD_SAMPLE_IDS = new Set([1,2,3,4,5,6,7,8,9,10,11]);
-  const newIds = new Set(SEED_EVENTS.map(e => e.id));
-  const stored = loadJSON("garsie.events");
-  if (Array.isArray(stored)){
-    const own = stored.filter(e => e && !OLD_SAMPLE_IDS.has(e.id) && !newIds.has(e.id));
-    saveJSON("garsie.events", [...SEED_EVENTS, ...own]);
-  }
-  const checkins = loadJSON("garsie.checkins");
-  if (checkins && typeof checkins === "object"){
-    OLD_SAMPLE_IDS.forEach(id => delete checkins[id]);
-    saveJSON("garsie.checkins", checkins);
-  }
-  saveJSON("garsie.sampleVersion", SAMPLE_VERSION);
-})();
-
-let DEPARTMENTS = loadList("garsie.departments", SEED_DEPARTMENTS, d => typeof d.id === "string" && typeof d.name === "string");
-let EVENTS      = loadList("garsie.events", SEED_EVENTS, e => e.id != null && typeof e.title === "string"
-                    && isValidISODate(e.date) && isValidTime(e.start) && isValidTime(e.end) && e.start < e.end);
-let ADMINS      = loadList("garsie.admins", SEED_ADMINS, a => typeof a.email === "string" && (a.role === "key" || a.role === "dept"));
-function persistData(){
-  saveJSON("garsie.departments", DEPARTMENTS);
-  saveJSON("garsie.events", EVENTS);
-  saveJSON("garsie.admins", ADMINS);
-}
-function resetData(){
-  DEPARTMENTS = SEED_DEPARTMENTS; EVENTS = SEED_EVENTS; ADMINS = SEED_ADMINS; CHECKINS = {};
-  ["garsie.departments","garsie.events","garsie.admins","garsie.checkins"].forEach(k => saveJSON(k, null));
-}
-
-/* ---------------------------------------------------------------------------
-   CHECK-INS ("Meld aan")
-   Stand-in for POST /api/events/:id/checkins. One record per person per event.
-     { [eventId]: [{ name, surname, grade, gender, email, at: ISO time, distance: m }] }
-   TODO: the server must re-check the distance — a phone's location can be
-   faked, so for events where it matters, pair this with the gate QR.
---------------------------------------------------------------------------- */
-let CHECKINS = (v => v && typeof v === "object" && !Array.isArray(v) ? v : {})(loadJSON("garsie.checkins"));
-function checkinFor(e, email){ return (CHECKINS[e.id] || []).find(c => c.email === email); }
+function checkinFor(e){ return CHECKINS[e.id] || null; }
 function locationOf(e){ return e.location || CONFIG.schoolLocation; }
-
-/* ---------------------------------------------------------------------------
-   ATTENDEES ("Ek ondersteun")
-   Stand-in for GET /api/events/:id/attendees. The sample events get a
-   deterministic list of FAKE people so the Excel export has something in it;
-   new events start empty. The signed-in user is added when they tap
-   "Ek ondersteun".
---------------------------------------------------------------------------- */
-const SAMPLE_FIRST = ["Anika","Ruan","Liezl","Jaco","Marli","Pieter","Chané","Wian","Elna","Dewald","Carla","Juan","Mia","Stefan","Zelda","Hendrik"];
-const SAMPLE_LAST  = ["van der Merwe","Botha","Pretorius","Nel","du Plessis","Venter","Kruger","Steyn","Coetzee","Smit","Fourie","Joubert"];
-const SEED_EVENT_IDS = new Set(SEED_EVENTS.map(e => e.id));
-
-function attendeesOf(e){
-  const people = [];
-  if (SEED_EVENT_IDS.has(e.id)){
-    const n = 4 + (e.id * 7) % 15;
-    for (let i = 0; i < n; i++){
-      const name    = SAMPLE_FIRST[(i * 3 + e.id) % SAMPLE_FIRST.length];
-      const surname = SAMPLE_LAST[(i * 5 + e.id * 2) % SAMPLE_LAST.length];
-      const slug    = `${name}.${surname}`.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "").toLowerCase();
-      // SAMPLE_FIRST alternates girls' and boys' names.
-      const gender = SAMPLE_FIRST.indexOf(name) % 2 === 0 ? "Meisie" : "Seun";
-      people.push({ name, surname, grade: GRADES[(i + e.id) % GRADES.length], gender, email: `${slug}${i}@voorbeeld.co.za`, supports:true });
-    }
-  }
-  if (state.user && state.supported.has(e.id)){
-    const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
-    people.push({ name, surname, grade, gender, email, supports:true });
-  }
-  // Everyone who checked in is on the list too — marked with the time, and
-  // added even if they never tapped "Ek ondersteun" (walk-ins). Suspicious
-  // check-ins stay off this list; they go to "Verdagte aanmeldings".
-  for (const c of checkinsOf(e).filter(c => !c.flags.length)){
-    const match = people.find(p => p.email && p.email === c.email);
-    const fields = { checkedInAt:c.at, distance:c.distance, method:c.method || "gps" };
-    if (match) Object.assign(match, fields);
-    else people.push({ name:c.name, surname:c.surname, grade:c.grade, gender:c.gender || "", email:c.email, supports:false, ...fields });
-  }
-  // If an admin narrows the audience later, people outside it drop off the list.
-  return people.filter(p => fitsAudience(e, p));
-}
 
 /* ---------------------------------------------------------------------------
    STRINGS
@@ -684,8 +553,12 @@ function saveJSON(key, value){
 }
 
 const state = {
-  // Signed-in profile: { email, name, surname, grade } — null shows the auth screen.
-  user: (u => u && typeof u === "object" && typeof u.email === "string" ? u : null)(loadJSON("garsie.user")),
+  loading: true,                    // true until the session and data are loaded
+  session: null,                    // Supabase session (null = signed out)
+  needsProfile: false,              // signed in, but no profile yet (see screenProfile)
+  offline: false,                   // showing the cached copy because the server can't be reached
+  // Signed-in person: { id, email, name, surname, grade, gender, role, department } — null shows the auth screen.
+  user: null,
   auth: { mode: "signup", step: "details", draft: {} },   // mode: signup | signin, step: details | code
 
   tab: "calendar",                  // calendar | map | search | mine
@@ -697,9 +570,7 @@ const state = {
   monthStart: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1),
   calHours: [CONFIG.dayStartHour, CONFIG.dayEndHour, CONFIG.hourWidthPx],
 
-  // TODO: persist per user, server-side. localStorage is not good enough —
-  // supporters change phones and the school wants attendance numbers.
-  supported: new Set([113]),
+  supported: new Set(),             // event ids this user tapped "Ek ondersteun" on
 
   query: "",
   filter: "Alles",
@@ -785,62 +656,23 @@ function clearFieldError(el){
 }
 
 /* --- 6·. Aanmeld (sign up / sign in) ------------------------------------
-   Passwordless, two steps, shaped like Supabase magic OTP:
-     1. details  Registreer: e-pos, naam, van, graad.   Teken in: e-pos only.
-     2. code     The 6-digit code emailed to the user.
-   Fields are checked (see "Input checks"); the code must be 6 digits.
-   PROTOTYPE: no e-mail is sent and ANY 6 digits work. "Accounts" are the
-   profiles saved on this device (PROFILES) — sign in on another phone and
-   you'll be asked to register again. Supabase fixes both.
-   TODO (Supabase):
-     step 1  supabase.auth.signInWithOtp({ email,
-               options: { shouldCreateUser: mode === "signup",
-                          data: { name, surname, grade } } })
-     step 2  supabase.auth.verifyOtp({ email, token: code, type: "email" })
-   POPIA: name + grade of a learner is personal data of a minor — see the
-   note at the top of this file before creating the profiles table.
+   Passwordless, two steps, with Supabase e-mail OTP:
+     1. details  Registreer: e-pos, naam, van, graad (+ geslag for learners).
+                 Teken in: e-pos only.  -> supabase.auth.signInWithOtp
+     2. code     The 6-digit code from the e-mail. -> supabase.auth.verifyOtp
+   The profile travels with the sign-up request and a database trigger saves
+   it. Your role (Hoof-admin / Departement-admin) comes from the admins table,
+   which a Hoof-admin manages in Bestuur — nobody picks their own role.
+   POPIA: name, grade and gender of a learner are personal data of a minor.
 ------------------------------------------------------------------------- */
 const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Nie 'n leerder nie"];
-const RESEND_WAIT_S = 30;
-
-// PROTOTYPE "accounts": profiles registered on this device, by e-mail.
-// TODO: Supabase auth users + a profiles table.
-let PROFILES = (() => {
-  const stored = loadJSON("garsie.profiles");
-  const map = stored && typeof stored === "object" && !Array.isArray(stored) ? stored : {};
-  const old = loadJSON("garsie.profile");                  // single profile from an older version
-  if (old && typeof old.email === "string" && !map[normEmail(old.email)]) map[normEmail(old.email)] = { ...old, email:normEmail(old.email) };
-  return map;
-})();
-function saveProfile(u){
-  PROFILES = { ...PROFILES, [u.email]: { email:u.email, name:u.name, surname:u.surname, grade:u.grade, gender:u.gender } };
-  saveJSON("garsie.profiles", PROFILES);
-}
+const RESEND_WAIT_S = 60;           // Supabase allows one code per e-mail per minute
 
 function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 
-// PROTOTYPE ONLY: lets you try each role. In production the role is looked
-// up from ADMINS after sign-in and this picker disappears.
-function roleFields(draft){
-  const role = draft.role || "user";
-  return `
-    <label class="field"><span>Ek teken in as</span>
-      <select name="role">
-        ${Object.entries(ROLE_LABELS).map(([v, label]) => `<option value="${v}" ${role===v ? "selected" : ""}>${label}</option>`).join("")}
-      </select>
-    </label>
-    <label class="field" id="auth-dept" style="${role === "dept" ? "" : "display:none"}"><span>Departement</span>
-      <select name="department">
-        ${DEPARTMENTS.map(d => `<option value="${esc(d.id)}" ${draft.department===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
-      </select>
-    </label>`;
-}
-
-function screenAuth(){
-  const { mode, step, draft } = state.auth;
-  const header = `
+const LOGO_HEADER = () => `
     <div style="text-align:center;margin:18px 0 26px">
       <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
       <h1 style="font-size:28px;font-weight:700;margin:12px 0 4px">Garsie Army</h1>
@@ -848,36 +680,9 @@ function screenAuth(){
       ${pendingScan() ? `<div class="card" style="margin-top:14px;font-size:14px;color:var(--shadow-ink)">${icon("qr",16,"var(--brand)")} Teken in om by die geleentheid aan te meld.</div>` : ""}
     </div>`;
 
-  if (step === "code"){
-    return `<div class="auth"><div class="auth-card">${header}
-      <form data-form="auth-code" novalidate>
-        <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
-        <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur.</p>
-        <label class="field"><span>Kode</span>
-          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" autofocus pattern="[0-9]*"
-            style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
-        </label>
-        <button class="btn-primary" type="submit">Bevestig</button>
-      </form>
-      <div style="display:flex;justify-content:space-between;margin-top:10px">
-        <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
-        <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
-      </div>
-      <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:18px">Prototipe: enige 6 syfers werk.</p>
-    </div></div>`;
-  }
-
-  const isSignup = mode === "signup";
-  return `<div class="auth"><div class="auth-card">${header}
-    <div style="display:flex;background:var(--hairline);border-radius:18px;padding:3px;margin-bottom:18px">
-      ${[["signup","Registreer"],["signin","Teken in"]].map(([m, label]) => `<button data-action="auth-mode-${m}"
-        style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink);font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
-    </div>
-    <form data-form="auth-details" novalidate>
-      <label class="field"><span>E-pos</span>
-        <input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
-      </label>
-      ${isSignup ? `
+// Name / surname / grade / gender — shared by sign-up and "complete your profile".
+function profileFields(draft){
+  return `
       <div style="display:flex;gap:10px">
         <label class="field" style="flex:1;min-width:0"><span>Naam</span>
           <input name="name" autocomplete="given-name" autocapitalize="words" maxlength="${LIMITS.name}" placeholder="Naam" value="${esc(draft.name)}">
@@ -897,11 +702,81 @@ function screenAuth(){
           <option value="">Kies</option>
           ${GENDERS.map(g => `<option ${draft.gender===g ? "selected" : ""}>${g}</option>`).join("")}
         </select>
-      </label>` : ""}
-      ${roleFields(draft)}
+      </label>`;
+}
+// Checks the profile fields; returns [clean values, errors].
+function checkProfile(data){
+  const v = {
+    name: cleanText(data.name, LIMITS.name),
+    surname: cleanText(data.surname, LIMITS.name),
+    grade: GRADES.includes(data.grade) ? data.grade : ""
+  };
+  v.gender = LEARNER_GRADES.includes(v.grade) && GENDERS.includes(data.gender) ? data.gender : "";
+  const errors = {};
+  if (!v.name) errors.name = "Tik jou naam in.";
+  else if (!isName(v.name)) errors.name = "Net letters, spasies, - en ' asseblief.";
+  if (!v.surname) errors.surname = "Tik jou van in.";
+  else if (!isName(v.surname)) errors.surname = "Net letters, spasies, - en ' asseblief.";
+  if (!v.grade) errors.grade = "Kies jou graad.";
+  else if (LEARNER_GRADES.includes(v.grade) && !v.gender) errors.gender = "Kies seun of meisie.";
+  return [v, errors];
+}
+
+function screenAuth(){
+  const { mode, step, draft } = state.auth;
+  if (step === "code"){
+    return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
+      <form data-form="auth-code" novalidate>
+        <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
+        <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur. Kyk ook in jou spam-vouer.</p>
+        <label class="field"><span>Kode</span>
+          <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" autofocus pattern="[0-9]*"
+            style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
+        </label>
+        <button class="btn-primary" type="submit">Bevestig</button>
+      </form>
+      <div style="display:flex;justify-content:space-between;margin-top:10px">
+        <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
+        <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
+      </div>
+    </div></div>`;
+  }
+
+  const isSignup = mode === "signup";
+  return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
+    <div style="display:flex;background:var(--hairline);border-radius:18px;padding:3px;margin-bottom:18px">
+      ${[["signup","Registreer"],["signin","Teken in"]].map(([m, label]) => `<button data-action="auth-mode-${m}"
+        style="flex:1;border:none;font-size:14px;padding:8px;border-radius:15px;background:${mode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink);font-weight:${mode===m ? 600 : 400}">${label}</button>`).join("")}
+    </div>
+    <form data-form="auth-details" novalidate>
+      <label class="field"><span>E-pos</span>
+        <input name="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@voorbeeld.co.za" value="${esc(draft.email)}">
+      </label>
+      ${isSignup ? profileFields(draft) : ""}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
     <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
+  </div></div>`;
+}
+
+// Signed in but no profile yet (e.g. an account made in the Supabase dashboard).
+function screenProfile(){
+  return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
+    <form data-form="profile" novalidate>
+      <h2 style="font-size:20px;margin:0 0 6px">Voltooi jou profiel</h2>
+      <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het nog jou naam en graad nodig.</p>
+      ${profileFields(state.auth.draft || {})}
+      <button class="btn-primary" type="submit">Stoor</button>
+    </form>
+    <button class="btn-link" data-action="signout" style="width:100%;margin-top:10px">Teken uit</button>
+  </div></div>`;
+}
+
+function screenLoading(){
+  return `<div class="auth"><div class="auth-card" style="text-align:center;padding-top:80px">
+    <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
+    <p style="color:var(--muted);margin-top:18px">${state.fatal ? esc(state.fatal) : "Laai…"}</p>
+    ${state.fatal ? `<button class="btn-primary" onclick="location.reload()" style="max-width:240px">Probeer weer</button>` : ""}
   </div></div>`;
 }
 
@@ -1212,7 +1087,7 @@ function mapCardHtml(){
   const e = mapEvent();
   if (!e) return `<div style="font-size:14px;color:var(--muted)">Daar is nog geen geleenthede nie.</div>`;
   const loc = locationOf(e);
-  const mine = state.user && checkinFor(e, state.user.email);
+  const mine = checkinFor(e);
   const sorted = visibleEvents().sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
   const d = toDate(e.date);
 
@@ -1316,16 +1191,14 @@ function onLocationUpdate(){
   updateMeOnMap();
 }
 
-function checkIn(){
+// "Meld aan" on the Kaart card. Goes through the same outbox as QR scans, so
+// it also works without internet; the server re-checks the distance.
+async function checkIn(){
   const e = mapEvent();
-  if (!e || !state.user || !isForUser(e) || !(geo.status === "on" && geo.pos) || checkinFor(e, state.user.email)) return;
-  const loc = locationOf(e), dist = distanceM(geo.pos, loc);
-  if (dist > loc.radius) return;             // TODO: the server re-checks this
-  const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
-  CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
-    { name, surname, grade, gender, email, at:new Date().toISOString(), distance:Math.round(dist), method:"gps", device:deviceId(), flags:[] }] };
-  saveJSON("garsie.checkins", CHECKINS);
-  toast("Jy is aangemeld");
+  if (!e || !state.user || !isForUser(e) || !(geo.status === "on" && geo.pos) || checkinFor(e)) return;
+  const loc = locationOf(e);
+  if (distanceM(geo.pos, loc) > loc.radius) return;
+  await queueCheckin({ eventId:e.id, method:"gps", token:null, pos:{ ...geo.pos } });
   onLocationUpdate();
 }
 
@@ -1401,55 +1274,32 @@ function useMyLocationForPin(){
    An admin shows a QR code for their event (Skep list, or the event screen):
      • Lewendig (recommended): on a phone/tablet at the entrance. It changes
        every 30 s, so a photo forwarded to a friend goes stale within a minute.
-     • Om te druk: a fixed code for a poster. It never changes, so only the
-       location check protects it.
+     • Om te druk: a fixed code for a poster. Only the location check protects it.
+   The codes are signed by the SERVER (qr_tokens() in the database) with a
+   secret that never leaves it. The app fetches the next 10 minutes of live
+   codes at a time, so a short network drop doesn't blank the entrance screen.
    The QR is a link:  <app url>#aanmeld=<eventId>.<window | p>.<signature>
-   Scanning it (phone camera app, or Kaart ▸ QR in the app) saves the scan in
-   an OUTBOX on the phone with the time, the GPS position (GPS works without
-   internet) and a device id. The outbox is sent as soon as the phone is
-   online — immediately if it already is. The app itself opens offline
-   thanks to sw.js.
-   The server then checks each scan and files it in the normal list, or in
-   "Verdagte aanmeldings" in the Excel export with the reason:
-     • the live code was more than a minute old  (forwarded)
-     • no location, or the location is outside the event's circle
-     • the same phone checked in someone else for this event
-   Nothing is rejected automatically (GPS can be poor indoors) — an admin decides.
-
-   PROTOTYPE vs PRODUCTION
-   Here the "server" is serverVerifyScan() in the same browser, and the
-   event's secret sits in the event data. In production the secret must live
-   ONLY on the server (a Supabase edge function) which signs the admin's live
-   codes and verifies scans — otherwise a clever learner can make codes.
+   Scanning it (phone camera app, or Kaart ▸ QR) saves the scan in an OUTBOX
+   on the phone with the time, the GPS position (GPS works without internet)
+   and a device id, and sends it as soon as the phone is online.
+   The database function checkin() re-checks everything and files it as a
+   normal check-in or — with the reason — under "Verdagte aanmeldings":
+     • the live code was more than a minute old (forwarded)
+     • no location, or outside the event's circle
+     • the same phone checked in someone else for this event (in the export)
+   Invalid codes are rejected. Nothing else is rejected automatically.
 ------------------------------------------------------------------------- */
 const QR_WINDOW_MS = 30000;        // the live code changes every 30 s
-const QR_MAX_AGE_WINDOWS = 2;      // accept up to ~1 minute old (slow scan, clock drift)
 const METHOD_LABELS = { gps:"GPS", "qr-live":"QR", "qr-print":"QR (plakkaat)" };
 
 function b64url(bytes){
   return btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-function eventSecret(e){           // TODO: server-side only in production
-  if (e.qrSecret) return e.qrSecret;
-  const secret = b64url(crypto.getRandomValues(new Uint8Array(16)));
-  EVENTS = EVENTS.map(x => x.id === e.id ? { ...x, qrSecret:secret } : x);
-  persistData();
-  return secret;
-}
-async function qrSignature(secret, message){
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name:"HMAC", hash:"SHA-256" }, false, ["sign"]);
-  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(message))).slice(0, 12));
-}
 function currentWindow(t = Date.now()){ return Math.floor(t / QR_WINDOW_MS); }
-async function makeQrToken(e, mode){            // mode: "live" | "print"
-  const w = mode === "print" ? "p" : String(currentWindow());
-  return `${e.id}.${w}.${await qrSignature(eventSecret(e), `${e.id}.${w}`)}`;
-}
 function qrLink(token){ return `${location.origin}${location.pathname}#aanmeld=${token}`; }
 function parseQrText(text){
   const m = String(text).trim().match(/(?:aanmeld=)?(\d+)\.(p|\d+)\.([A-Za-z0-9_-]{8,})$/);
-  return m ? { eventId:Number(m[1]), token:`${m[1]}.${m[2]}.${m[3]}` } : null;
+  return m ? { eventId:Number(m[1]), token:`${m[1]}.${m[2]}.${m[3]}`, print: m[2] === "p" } : null;
 }
 function deviceId(){               // random, per browser; used to spot one phone checking in several people
   let id = null;
@@ -1463,6 +1313,7 @@ function deviceId(){               // random, per browser; used to spot one phon
 
 /* --- Admin: show the QR ------------------------------------------------- */
 let qrTimer = null, qrDrawn = null, wakeLock = null;
+const qrCache = { key:null, tokens:new Map(), loading:false, error:null, lastTry:0 };
 
 function screenQr(){
   const e = eventById(state.qrEventId);
@@ -1475,7 +1326,7 @@ function screenQr(){
     <div class="qr-printable">
       <h1 style="font-size:24px;margin:10px 0 4px">${esc(e.title)}</h1>
       <div style="color:var(--muted);font-size:14px">${d.getDate()} ${MONTHS[d.getMonth()]} · ${e.start} · ${esc(e.venue || locationOf(e).address)}</div>
-      <div id="qr-box" class="qr-box"></div>
+      <div id="qr-box" class="qr-box"><p style="color:#666">Laai kode…</p></div>
       <div class="qr-print-hint">Skandeer met jou foon se kamera om aan te meld</div>
     </div>
     <div class="no-print">
@@ -1492,15 +1343,45 @@ function screenQr(){
   </div></div>`;
 }
 
+function cachedQrToken(e, mode){
+  if (qrCache.key !== `${e.id}:${mode}`) return null;
+  return qrCache.tokens.get(mode === "print" ? "p" : String(currentWindow())) || null;
+}
+async function fetchQrTokens(e, mode){
+  qrCache.loading = true; qrCache.lastTry = Date.now();
+  try {
+    const { data, error } = await sb.rpc("qr_tokens", { p_event_id:e.id, p_mode:mode });
+    if (error) throw error;
+    qrCache.key = `${e.id}:${mode}`;
+    qrCache.tokens = new Map(data.map(r => [r.win == null ? "p" : String(r.win), r.token]));
+    qrCache.error = null;
+  } catch (err){
+    qrCache.error = dbMessage(err);
+  } finally { qrCache.loading = false; }
+}
 async function drawQr(){
   const box = document.getElementById("qr-box");
   const e = state.qrEventId != null && eventById(state.qrEventId);
   if (!box || !e) return;
-  if (!window.qrcode){ box.innerHTML = `<p style="color:var(--brand)">Die QR-kode kon nie laai nie. Kyk jou internet.</p>`; return; }
+  if (!window.qrcode){ box.innerHTML = `<p style="color:#c5221f">Die QR-kode kon nie laai nie. Kyk jou internet.</p>`; return; }
+  const mode = state.qrMode;
+  // Top up the live codes when fewer than 2 minutes are left (and not more than every 5 s).
+  const w = currentWindow();
+  const lowOnCodes = mode === "live" && !qrCache.tokens.has(String(w + 4));
+  if ((!cachedQrToken(e, mode) || (qrCache.key === `${e.id}:${mode}` && lowOnCodes)) && !qrCache.loading && Date.now() - qrCache.lastTry > 5000){
+    await fetchQrTokens(e, mode);
+  }
+  const token = cachedQrToken(e, mode);
+  if (document.getElementById("qr-box") !== box) return;
+  if (!token){
+    box.innerHTML = `<p style="color:#c5221f;padding:12px">${esc(qrCache.error || "Laai kode…")}</p>`;
+    qrDrawn = null;                           // try again on the next tick
+    return;
+  }
   const q = qrcode(0, "M");
-  q.addData(qrLink(await makeQrToken(e, state.qrMode)));
+  q.addData(qrLink(token));
   q.make();
-  if (document.getElementById("qr-box") === box) box.innerHTML = q.createSvgTag({ cellSize:6, margin:3, scalable:true });
+  box.innerHTML = q.createSvgTag({ cellSize:6, margin:3, scalable:true });
 }
 function startQrTicker(){
   stopQrTicker();
@@ -1521,8 +1402,10 @@ function stopQrTicker(){
 }
 
 /* --- Supporter: scan ------------------------------------------------------- */
-let OUTBOX = loadList("garsie.outbox", [], o => typeof o.token === "string" && typeof o.email === "string");   // scans waiting to be sent
+// Check-ins waiting to be sent: [{ uid, eventId, method, token, scannedAt, pos, device }]
+let OUTBOX = (v => Array.isArray(v) ? v.filter(o => o && typeof o.eventId === "number" && typeof o.uid === "string") : [])(loadJSON("garsie.outbox"));
 function saveOutbox(){ saveJSON("garsie.outbox", OUTBOX); }
+function myOutbox(){ return OUTBOX.filter(o => state.user && o.uid === state.user.id); }
 
 function setScan(status, message){
   state.scan = { status, message };
@@ -1533,7 +1416,7 @@ function setScan(status, message){
 
 function scanCardHtml(){
   const { status, message } = state.scan;
-  const waiting = OUTBOX.filter(o => state.user && o.email === state.user.email).length;
+  const waiting = myOutbox().length;
   const colours = { ok:"#1f8a3b", flagged:"#b26a00", error:"var(--brand)", queued:"var(--shadow-ink)" };
   let body, button;
   if (status === "scanning" || status === "starting"){
@@ -1545,7 +1428,7 @@ function scanCardHtml(){
     body = "Skandeer die QR-kode by die ingang om aan te meld.";
     button = `<button class="btn-checkin" data-action="start-scan">${icon("qr",16,"#fff")} Begin skandeer</button>`;
   } else {
-    body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"#1f8a3b") + " " : ""}${message}</span>`;
+    body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"#1f8a3b") + " " : ""}${esc(message)}</span>`;
     button = `<button class="btn-checkin" data-action="start-scan">Skandeer nog een</button>`;
   }
   return `<div style="font-size:14px;margin-bottom:10px;line-height:1.4">${body}</div>
@@ -1624,72 +1507,51 @@ async function handleScan(text){
   }
   const e = eventById(scan.eventId);
   if (e && !isForUser(e)){ setScan("error", "Hierdie geleentheid is nie vir jou nie."); return; }
-  if (e && checkinFor(e, state.user.email)){ setScan("ok", "Jy is reeds aangemeld."); return; }
-  if (OUTBOX.some(o => o.eventId === scan.eventId && o.email === state.user.email)){
-    setScan("queued", "Reeds gestoor — dit word gestuur sodra jy internet het."); return;
-  }
-
+  if (e && checkinFor(e)){ setScan("ok", "Jy is reeds aangemeld."); return; }
   setScan("busy", "Kry jou ligging…");
   const pos = await currentPosition();
-  const { name = "", surname = "", grade = "", gender = "", email = "" } = state.user;
-  OUTBOX = [...OUTBOX, { token:scan.token, eventId:scan.eventId, scannedAt:new Date().toISOString(),
-                         pos, name, surname, grade, gender, email, device:deviceId() }];
-  saveOutbox();
+  await queueCheckin({ eventId:scan.eventId, method: scan.print ? "qr-print" : "qr-live", token:scan.token, pos });
+}
 
+// Save a check-in in the outbox, then try to send it straight away.
+async function queueCheckin({ eventId, method, token, pos }){
+  if (myOutbox().some(o => o.eventId === eventId)){
+    setScan("queued", "Reeds gestoor — dit word gestuur sodra jy internet het."); return;
+  }
+  OUTBOX = [...OUTBOX, { uid:state.user.id, eventId, method, token, scannedAt:new Date().toISOString(), pos, device:deviceId() }];
+  saveOutbox();
   const { sent } = await syncOutbox();
-  const mine = sent.find(s => s.item.token === scan.token && s.item.email === email);
+  const mine = sent.find(x => x.item.eventId === eventId && x.item.uid === state.user.id);
   if (mine) setScan(mine.outcome.status, mine.outcome.message);
+  else if (navigator.onLine && lastSyncError) setScan("queued", `Gestoor, maar kon nie nou stuur nie (${lastSyncError}). Ons probeer later weer.`);
   else setScan("queued", "Gestoor! Jy word aangemeld sodra jy weer internet het.");
 }
 
-// Send waiting scans. TODO: POST each to the server (Supabase edge function
-// running serverVerifyScan); here the "server" is in this browser.
-let syncing = false;
+// Send waiting check-ins to the database. Stops at the first network error
+// (still offline) and keeps the rest for later.
+let syncing = false, lastSyncError = "";
 async function syncOutbox(){
-  if (syncing || !OUTBOX.length || !navigator.onLine) return { sent:[] };
-  syncing = true;
+  if (syncing || !sb || !state.user || !navigator.onLine || !myOutbox().length) return { sent:[] };
+  syncing = true; lastSyncError = "";
   const sent = [];
   try {
-    for (const item of [...OUTBOX]){
-      const outcome = await serverVerifyScan(item);
+    for (const item of myOutbox()){
+      const { data, error } = await sb.rpc("checkin", {
+        p_event_id:item.eventId, p_method:item.method, p_token:item.token, p_scanned_at:item.scannedAt,
+        p_lat:item.pos ? item.pos.lat : null, p_lng:item.pos ? item.pos.lng : null,
+        p_accuracy:item.pos ? item.pos.accuracy : null, p_device:item.device });
+      // Any error from the call itself (offline, session expired, server busy)
+      // says nothing about the check-in: keep it and try again later. Only a
+      // real answer from checkin() (ok / flagged / error) takes it off the list.
+      if (error){ lastSyncError = dbMessage(error); break; }
+      const outcome = data;
       OUTBOX = OUTBOX.filter(o => o !== item);
       saveOutbox();
       sent.push({ item, outcome });
     }
   } finally { syncing = false; }
+  if (sent.length) await refreshMyCheckins();
   return { sent };
-}
-
-// SERVER-SIDE in production. Checks the signature and files the scan.
-async function serverVerifyScan(item){
-  const e = eventById(item.eventId);
-  if (!e) return { status:"error", message:"Hierdie geleentheid bestaan nie meer nie." };
-  const [id, w, sig] = item.token.split(".");
-  if (sig !== await qrSignature(eventSecret(e), `${id}.${w}`)) return { status:"error", message:"Hierdie QR-kode is ongeldig." };
-  if (!fitsAudience(e, item) && !ADMINS.some(a => a.email === item.email)) return { status:"error", message:"Hierdie geleentheid is nie vir jou nie." };
-  if (checkinFor(e, item.email)) return { status:"ok", message:"Jy is reeds aangemeld." };
-
-  const flags = [];
-  if (w !== "p"){
-    const age = currentWindow(new Date(item.scannedAt).getTime()) - Number(w);
-    if (age > QR_MAX_AGE_WINDOWS || age < -1) flags.push("QR-kode was ouer as 'n minuut (moontlik aangestuur)");
-  }
-  const loc = locationOf(e);
-  let distance = null;
-  if (!item.pos) flags.push("Geen ligging nie");
-  else {
-    distance = Math.round(distanceM(item.pos, loc));
-    // Allow for GPS error (up to 100 m) before calling it suspicious.
-    if (distance > loc.radius + Math.min(item.pos.accuracy || 0, 100)) flags.push(`Ligging ${formatDistance(distance)} van die geleentheid af`);
-  }
-  const { name, surname, grade, gender, email, device } = item;
-  CHECKINS = { ...CHECKINS, [e.id]: [...(CHECKINS[e.id] || []),
-    { name, surname, grade, gender, email, at:item.scannedAt, receivedAt:new Date().toISOString(),
-      distance, method: w === "p" ? "qr-print" : "qr-live", device, flags }] };
-  saveJSON("garsie.checkins", CHECKINS);
-  return flags.length
-    ? { status:"flagged", message:"Ontvang. Ons kon nie bevestig dat jy by die geleentheid is nie — 'n admin sal dit nagaan." }
-    : { status:"ok", message:`Jy is aangemeld by ${e.title}!` };
 }
 
 // A QR opened with the phone's camera app arrives as #aanmeld=... in the URL.
@@ -1707,19 +1569,6 @@ function processPendingScan(){
   if (roleOf() === "user"){ state.tab = "map"; state.mapMode = "qr"; state.openEventId = null; state.qrEventId = null; render(); }
   handleScan(token);
 }
-
-// Check-ins of an event with any "Verdag" reasons, including one phone used
-// for more than one person.
-function checkinsOf(e){
-  const list = CHECKINS[e.id] || [];
-  return list.map(c => {
-    const flags = [...(c.flags || [])];
-    const other = c.device && list.find(o => o !== c && o.device === c.device);
-    if (other) flags.push(`Dieselfde foon as ${`${other.name} ${other.surname}`.trim() || other.email}`);
-    return { ...c, flags };
-  });
-}
-function suspiciousOf(e){ return checkinsOf(e).filter(c => c.flags.length && fitsAudience(e, c)); }
 
 /* --- 6c. Soek -----------------------------------------------------------
    Client-side filter over the loaded events. Fine at this scale (a school year
@@ -1837,7 +1686,7 @@ function screenEventDetail(){
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
       <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:15px"><b>${attendeesOf(e).length}</b> mense kom · <b>${attendeesOf(e).filter(p => p.checkedInAt).length}</b> aangemeld${suspiciousOf(e).length ? ` · <b style="color:#b26a00">${suspiciousOf(e).length}</b> verdag` : ""}</span>
+        <span style="font-size:15px">${(st => `<b>${st.supporters}</b> ondersteun · <b>${st.checkedIn}</b> aangemeld${st.suspicious ? ` · <b style="color:#b26a00">${st.suspicious}</b> verdag` : ""}`)(statsFor(e))}</span>
         <span style="display:flex;gap:6px">
           <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
           <button class="mini-btn" data-action="show-qr" data-id="${e.id}">${icon("qr",14)} QR</button>
@@ -1864,7 +1713,7 @@ function screenEventDetail(){
 
     ${roleOf() === "user" ? `<button data-action="open-map" data-id="${e.id}" class="card" style="margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;border:none;text-align:left;cursor:pointer;color:inherit;padding:12px 14px">
       ${icon("pin",18,"var(--brand)")}
-      <span style="flex:1;font-size:14px">${state.user && checkinFor(e, state.user.email) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
+      <span style="flex:1;font-size:14px">${checkinFor(e) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
       ${icon("right",16,"var(--muted)")}
     </button>` : ""}
     ${e.description ? `<div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
@@ -1973,7 +1822,7 @@ function screenCreate(){
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
           <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
             <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
-            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${attendeesOf(ev).length} kom${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
+            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${statsFor(ev).supporters} ondersteun${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
           <button class="mini-btn" data-action="show-qr" data-id="${ev.id}" aria-label="Wys QR-kode">${icon("qr",14)}</button>
@@ -2051,10 +1900,6 @@ function screenManage(){
       </div>
       <button class="btn-primary" type="submit">Voeg admin by</button>
     </form>
-
-    <h2>Voorbeelddata</h2>
-    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px">Alles hier word net in hierdie blaaier gestoor totdat Supabase gekoppel is. "Herstel" sit die September-voorbeelde terug en vee alles uit wat jy geskep het.</p>
-    <button class="mini-btn danger" data-action="reset-data" style="height:40px;padding:0 16px">Herstel voorbeelddata</button>
   </div></div>`;
 }
 
@@ -2134,11 +1979,13 @@ function buildXlsx(sheetName, rows, boldRows, colWidths){
   ]);
 }
 
-// Rows for one event's attendance sheet. Kept separate so it can be tested.
-function attendeeRows(e){
-  const people = attendeesOf(e);
-  const suspicious = suspiciousOf(e);
-  const checkedIn = people.filter(p => p.checkedInAt).length;
+// Rows for one event's attendance sheet, from event_attendees() in the database:
+// [{ name, surname, grade, gender, email, supports, checked_in_at, method, distance_m, flags }]
+function attendeeRows(e, list){
+  const all = (list || []).map(p => ({ ...p, flags: p.flags || [] }));
+  const suspicious = all.filter(p => p.checked_in_at && p.flags.length);
+  const people = all.filter(p => p.supports || (p.checked_in_at && !p.flags.length));
+  const checkedIn = people.filter(p => p.checked_in_at && !p.flags.length).length;
   const rows = [
     [e.title],
     [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}${hasAudience(e) ? `  ·  Net vir: ${audienceLabel(e)}` : ""}`],
@@ -2146,7 +1993,7 @@ function attendeeRows(e){
     [],
     ["Naam", "Van", "Graad", "Geslag", "E-pos", "Ondersteun", "Aangemeld"],
     ...people.map(p => [p.name, p.surname, p.grade, p.gender || "", p.email, p.supports ? "Ja" : "Nee",
-                        p.checkedInAt ? `${formatDateTime(p.checkedInAt)} · ${METHOD_LABELS[p.method] || "GPS"}${p.distance != null ? ` (${p.distance} m)` : ""}` : ""]),
+                        p.checked_in_at && !p.flags.length ? `${formatDateTime(p.checked_in_at)} · ${METHOD_LABELS[p.method] || "GPS"}${p.distance_m != null ? ` (${p.distance_m} m)` : ""}` : ""]),
     []
   ];
   const bold = [0, 4, rows.length];
@@ -2155,8 +2002,8 @@ function attendeeRows(e){
   if (suspicious.length){
     bold.push(rows.length);
     rows.push(["Naam", "Van", "Graad", "Geslag", "E-pos", "Tyd", "Metode", "Rede"]);
-    suspicious.forEach(c => rows.push([c.name, c.surname, c.grade, c.gender || "", c.email,
-      formatDateTime(c.at), METHOD_LABELS[c.method] || "GPS", c.flags.join("; ")]));
+    suspicious.forEach(p => rows.push([p.name, p.surname, p.grade, p.gender || "", p.email,
+      formatDateTime(p.checked_in_at), METHOD_LABELS[p.method] || "GPS", p.flags.join("; ")]));
   } else {
     rows.push(["Geen nie."]);
   }
@@ -2168,9 +2015,12 @@ function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local
   return `${toISO(d)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
-function exportAttendees(e){
-  if (!canAdmin(e)) return;   // TODO: the server must refuse too
-  const { rows, bold } = attendeeRows(e);
+async function exportAttendees(e){
+  if (!canAdmin(e)) return;                   // the database refuses non-admins too
+  toast("Berei die Excel-lêer voor…");
+  const { data, error } = await sb.rpc("event_attendees", { p_event_id:e.id });
+  if (error){ toast(dbMessage(error)); return; }
+  const { rows, bold } = attendeeRows(e, data);
   const blob = buildXlsx("Bywoning", rows, bold, [18, 20, 20, 10, 36, 22, 30, 50]);
   const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
   const url = URL.createObjectURL(blob);
@@ -2210,8 +2060,10 @@ const tabbarEl = document.getElementById("tabbar");
 
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
-  tabbarEl.style.display = state.user ? "" : "none";
+  tabbarEl.style.display = state.user && !state.loading ? "" : "none";
   unmountMaps(); stopScanner(); stopQrTicker();
+  if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); return; }
+  if (state.session && state.needsProfile){ screenEl.innerHTML = screenProfile(); return; }
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
 
   // Drop state that points at something that no longer exists or isn't allowed.
@@ -2266,13 +2118,12 @@ function handle(target){
   } else {
     switch (target.dataset.action){
       case "back":           state.openEventId = null; break;
-      case "toggle-support":
-        // TODO: POST /api/events/:id/support  (and DELETE to undo)
-        if (!isForUser(eventById(state.openEventId))) return;
-        state.supported.has(state.openEventId)
-          ? state.supported.delete(state.openEventId)
-          : state.supported.add(state.openEventId);
-        break;
+      case "toggle-support": {
+        const e = eventById(state.openEventId);
+        if (!e || !isForUser(e)) return;
+        toggleSupport(e);
+        return;
+      }
       case "map-map":        state.mapMode = "map"; break;
       case "map-qr":         state.mapMode = "qr";  break;
       // --- Location + check-in. These update in place instead of re-rendering,
@@ -2348,19 +2199,13 @@ function handle(target){
         break;
       }
       case "auth-back":      state.auth.step = "details"; break;
-      case "auth-resend": {  // TODO: call signInWithOtp again
+      case "auth-resend": {
         const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
         if (wait > 0){ toast(`Wag nog ${wait} sekondes voor jy weer 'n kode vra.`); return; }
-        state.auth.sentAt = Date.now();
-        toast("Nuwe kode gestuur (prototipe).");
+        sendCode(state.auth.draft, state.auth.mode === "signup").then(err => toast(err || "Nuwe kode gestuur."));
         return;
       }
-      case "signout":        // TODO: supabase.auth.signOut()
-        stopLocation(); state.mapEventId = null;
-        state.user = null; saveJSON("garsie.user", null);
-        state.auth = { mode: "signin", step: "details", draft: {} };
-        state.tab = "calendar"; state.openEventId = null; state.editingId = null;
-        break;
+      case "signout":        signOut(); return;
 
       // --- Admin actions. Each re-checks permission; the UI hiding a button isn't enough.
       case "new-event":      state.editingId = null; state.tab = "create"; state.openEventId = null; break;
@@ -2378,13 +2223,10 @@ function handle(target){
       }
       case "delete-event": {
         const e = eventById(Number(target.dataset.id));
-        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Dit kan nie ontdoen word nie.`)) return;
-        EVENTS = EVENTS.filter(x => x.id !== e.id);
-        const { [e.id]:_gone, ...keep } = CHECKINS; CHECKINS = keep; saveJSON("garsie.checkins", CHECKINS);
-        state.supported.delete(e.id);
+        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Almal se ondersteuning en aanmeldings daarvoor word ook geskrap. Dit kan nie ontdoen word nie.`)) return;
         if (state.editingId === e.id) state.editingId = null;
-        persistData(); toast("Geleentheid geskrap");
-        break;
+        dbAction(() => sb.from("events").delete().eq("id", e.id), "Geleentheid geskrap");
+        return;
       }
       case "delete-dept": {
         if (roleOf() !== "key") return;
@@ -2395,21 +2237,16 @@ function handle(target){
           toast("Skuif of skrap eers hierdie departement se geleenthede en admins."); return;
         }
         if (!confirm(`Skrap departement "${d.name}"?`)) return;
-        DEPARTMENTS = DEPARTMENTS.filter(x => x.id !== d.id);
-        persistData(); toast("Departement geskrap");
-        break;
+        dbAction(() => sb.from("departments").delete().eq("id", d.id), "Departement geskrap");
+        return;
       }
       case "delete-admin": {
         const admin = ADMINS.find(a => a.email === target.dataset.email);
         if (roleOf() !== "key" || !admin || isLastKeyAdmin(admin)) return;
-        ADMINS = ADMINS.filter(a => a !== admin);
-        persistData(); toast("Admin verwyder");
-        break;
+        if (!confirm(`Verwyder ${admin.email} as admin?`)) return;
+        dbAction(() => sb.from("admins").delete().eq("email", admin.email), "Admin verwyder");
+        return;
       }
-      case "reset-data":
-        if (roleOf() !== "key" || !confirm("Herstel al die voorbeelddata? Alles wat jy geskep het, gaan verlore.")) return;
-        resetData(); state.editingId = null; toast("Voorbeelddata herstel");
-        break;
       default: return;
     }
   }
@@ -2437,64 +2274,83 @@ phoneEl.addEventListener("click", ev => {
   if (target && !ev.target.closest("a")) handle(target);
 });
 // All forms. Each checks its input and shows messages next to the fields;
-// nothing is saved until everything is right.
-phoneEl.addEventListener("submit", ev => {
+// nothing is saved until everything is right. Saving goes to Supabase, which
+// checks the same rules again (the browser can be bypassed).
+phoneEl.addEventListener("submit", async ev => {
   ev.preventDefault();
   const form = ev.target;
+  if (form.dataset.busy) return;                 // no double submits
   const data = Object.fromEntries(new FormData(form));
   const auth = state.auth;
+  const busy = on => {
+    form.dataset.busy = on ? "1" : "";
+    const b = form.querySelector('[type="submit"]');
+    if (b){ if (on){ b.dataset.label = b.textContent; b.textContent = "Besig…"; } else if (b.dataset.label) b.textContent = b.dataset.label; b.disabled = on; }
+  };
 
   if (form.dataset.form === "auth-details"){
     const isSignup = auth.mode === "signup";
-    const errors = {};
     const email = normEmail(data.email);
+    let v = { email }, errors = {};
     if (!email) errors.email = "Tik jou e-posadres in.";
     else if (!isEmail(email)) errors.email = "Dit lyk nie soos 'n e-posadres nie (bv. naam@voorbeeld.co.za).";
-
-    const v = { email, role: ROLE_LABELS[data.role] ? data.role : "user", department: data.department };
-    if (isSignup){
-      v.name = cleanText(data.name, LIMITS.name);
-      v.surname = cleanText(data.surname, LIMITS.name);
-      v.grade = GRADES.includes(data.grade) ? data.grade : "";
-      v.gender = LEARNER_GRADES.includes(v.grade) && GENDERS.includes(data.gender) ? data.gender : "";
-      if (!v.name) errors.name = "Tik jou naam in.";
-      else if (!isName(v.name)) errors.name = "Net letters, spasies, - en ' asseblief.";
-      if (!v.surname) errors.surname = "Tik jou van in.";
-      else if (!isName(v.surname)) errors.surname = "Net letters, spasies, - en ' asseblief.";
-      if (!v.grade) errors.grade = "Kies jou graad.";
-      else if (LEARNER_GRADES.includes(v.grade) && !v.gender) errors.gender = "Kies seun of meisie.";
-      if (!errors.email && PROFILES[email]) errors.email = "Hierdie e-pos is reeds geregistreer. Kies \"Teken in\" hierbo.";
-    } else if (!errors.email && !PROFILES[email]){
-      errors.email = "Ons ken nie hierdie e-pos nie. Kies \"Registreer\" hierbo.";
-    }
-    if (v.role === "dept"){
-      if (!DEPARTMENTS.length) errors.department = "Daar is nog geen departemente nie — vra 'n hoof-admin.";
-      else if (!DEPARTMENTS.some(d => d.id === v.department)) errors.department = "Kies 'n departement.";
-    }
+    if (isSignup){ const [p, pe] = checkProfile(data); v = { ...v, ...p }; errors = { ...errors, ...pe }; }
     if (!showErrors(form, errors)) return;
 
-    auth.draft = isSignup ? v : { ...PROFILES[email], email, role: v.role, department: v.department };
+    busy(true);
+    if (isSignup){
+      const { data:taken, error } = await sb.rpc("email_registered", { p_email: email });
+      if (!error && taken){ busy(false); showErrors(form, { email: "Hierdie e-pos is reeds geregistreer. Kies \"Teken in\" hierbo." }); return; }
+    }
+    const err = await sendCode(v, isSignup);
+    busy(false);
+    if (err){ showErrors(form, { email: err }); return; }
+    auth.draft = v;
     auth.step = "code";
-    auth.sentAt = Date.now();
-  } else if (form.dataset.form === "auth-code"){
+    render();
+    return;
+  }
+
+  if (form.dataset.form === "auth-code"){
     const code = String(data.code || "").replace(/\D/g, "");
     if (!showErrors(form, code.length === 6 ? {} : { code: "Tik die 6 syfers van die kode in." })) return;
-    // PROTOTYPE: any 6 digits. TODO: supabase.auth.verifyOtp({ email, token: code, type: "email" })
-    const { email = "", name = "", surname = "", grade = "", gender = "", role = "user" } = auth.draft;
-    if (!email){ auth.step = "details"; render(); return; }       // lost the draft somehow: start over
-    const department = role === "dept" ? auth.draft.department : null;
-    state.user = { email, name, surname, grade, gender, role, department };
-    saveJSON("garsie.user", state.user);
-    saveProfile(state.user);
+    if (!auth.draft.email){ auth.step = "details"; render(); return; }
+    busy(true);
+    const { data:res, error } = await sb.auth.verifyOtp({ email: auth.draft.email, token: code, type: "email" });
+    if (error){ busy(false); showErrors(form, { code: isNetworkError(error) ? dbMessage(error) : "Die kode is verkeerd of het verval. Probeer weer of vra 'n nuwe kode." }); return; }
+    state.session = res.session;
     state.auth = { mode: "signin", step: "details", draft: {} };
     state.tab = "calendar"; state.editingId = null;
-    render();
+    state.loading = true; render();
+    await loadAll();
+    state.loading = false; render();
     processPendingScan();      // a QR opened before signing in
+    syncOutbox();
     return;
-  } else if (form.dataset.form === "event"){
-    const errors = saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
+  }
+
+  if (form.dataset.form === "profile"){
+    const [p, errors] = checkProfile(data);
     if (!showErrors(form, errors)) return;
-  } else if (form.dataset.form === "dept"){
+    busy(true);
+    const u = state.session.user;
+    const { error } = await sb.from("profiles").insert({ id:u.id, email:(u.email || "").toLowerCase(), name:p.name, surname:p.surname, grade:p.grade, gender:p.gender || null });
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "event"){
+    busy(true);
+    const errors = await saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
+    busy(false);
+    if (!showErrors(form, errors)) return;
+    render();
+    return;
+  }
+
+  if (form.dataset.form === "dept"){
     if (roleOf() !== "key") return;
     const errors = {};
     const name = cleanText(data.name, LIMITS.deptName);
@@ -2505,9 +2361,16 @@ phoneEl.addEventListener("submit", ev => {
     const colourError = colourProblem(data.colour);
     if (colourError) errors.colour = colourError;
     if (!showErrors(form, errors)) return;
-    DEPARTMENTS = [...DEPARTMENTS, { id: "d" + Date.now().toString(36), name, colour: data.colour.toLowerCase() }];
-    persistData(); toast(`${name} bygevoeg`);
-  } else if (form.dataset.form === "admin"){
+    busy(true);
+    const { error } = await sb.from("departments").insert({ name, colour: data.colour.toLowerCase() });
+    busy(false);
+    if (error){ showErrors(form, { name: error.code === "23505" ? "Daardie departement bestaan reeds." : dbMessage(error) }); return; }
+    toast(`${name} bygevoeg`);
+    await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "admin"){
     if (roleOf() !== "key") return;
     const errors = {};
     const email = normEmail(data.email);
@@ -2519,16 +2382,18 @@ phoneEl.addEventListener("submit", ev => {
       errors.department = DEPARTMENTS.length ? "Kies 'n departement." : "Skep eers 'n departement.";
     }
     if (!showErrors(form, errors)) return;
-    // TODO: Supabase — this row is what decides the user's role at sign-in.
-    ADMINS = [...ADMINS, { email, role, department: role === "dept" ? data.department : null }];
-    persistData(); toast("Admin bygevoeg");
+    busy(true);
+    const { error } = await sb.from("admins").insert({ email, role, department_id: role === "dept" ? data.department : null });
+    busy(false);
+    if (error){ showErrors(form, { email: error.code === "23505" ? "Hierdie persoon is reeds 'n admin." : dbMessage(error) }); return; }
+    toast("Admin bygevoeg — hulle kry die regte die volgende keer dat hulle inteken.");
+    await loadAll(); render();
   }
-  render();
 });
 
 // Create / update an event from the Skep form. Returns { field: message } for
 // anything wrong (nothing is saved then), or {} after saving.
-function saveEventForm(data){
+async function saveEventForm(data){
   const errors = {};
   const allowed = adminDepartments();
   if (!allowed.length) return { title: "Jy is aan geen departement gekoppel nie." };
@@ -2580,31 +2445,31 @@ function saveEventForm(data){
   if (ticketUrl && !/^[a-z]+:\/\//i.test(ticketUrl)) ticketUrl = "https://" + ticketUrl;
   if (ticketUrl && !isWebUrl(ticketUrl)) errors.ticketUrl = "Dit lyk nie soos 'n webadres nie (bv. https://www.quicket.co.za/...).";
 
+  const duplicate = "Daar is reeds 'n geleentheid met hierdie naam op dié dag en tyd.";
   if (!errors.title && !errors.date && !errors.start && EVENTS.some(e => (!existing || e.id !== existing.id)
         && e.department === department && e.date === date && e.start === start && e.title.toLowerCase() === title.toLowerCase())){
-    errors.title = "Daar is reeds 'n geleentheid met hierdie naam op dié dag en tyd.";
+    errors.title = duplicate;
   }
   if (Object.keys(errors).length) return errors;
 
-  const fields = {
-    title, department, date, start, end, venue, description, ticketUrl: ticketUrl || null,
-    location: { lat, lng, radius, address },
-    audience: {
-      grades: (data.grades || []).filter(g => LEARNER_GRADES.includes(g)),
-      gender: GENDERS.includes(data.gender) ? data.gender : "all",
-      learnersOnly: data.learnersOnly === "on"
-    }
+  const row = {
+    title, department_id: department, date, start_time: start, end_time: end, venue, description,
+    ticket_url: ticketUrl || null, lat, lng, radius, address,
+    audience_grades: (data.grades || []).filter(g => LEARNER_GRADES.includes(g)),
+    audience_gender: GENDERS.includes(data.gender) ? data.gender : "all",
+    audience_learners_only: data.learnersOnly === "on"
   };
-  if (existing){
-    EVENTS = EVENTS.map(e => e.id === existing.id ? { ...e, ...fields } : e);
-    toast("Veranderinge gestoor");
-  } else {
-    EVENTS = [...EVENTS, { id: Date.now(), ...fields }];
-    toast("Geleentheid geskep");
-    goToDate(toDate(date));       // so the calendar shows it straight away
+  const { error } = existing
+    ? await sb.from("events").update(row).eq("id", existing.id)
+    : await sb.from("events").insert(row);
+  if (error){
+    if (error.code === "23505") return { title: duplicate };
+    return { title: dbMessage(error) };
   }
+  toast(existing ? "Veranderinge gestoor" : "Geleentheid geskep");
+  if (!existing) goToDate(toDate(date));        // so the calendar shows it straight away
   state.editingId = null;
-  persistData();
+  await loadAll();
   return {};
 }
 
@@ -2624,26 +2489,22 @@ phoneEl.addEventListener("input", ev => {
 phoneEl.addEventListener("change", ev => {
   const el = ev.target;
   clearFieldError(el);
-  if (el.name === "grade" && el.closest('[data-form="auth-details"]')){
+  if (el.name === "grade" && el.closest('[data-form="auth-details"], [data-form="profile"]')){
     // Boy/girl only matters for learners (events can be for girls or boys only).
     document.getElementById("auth-gender").style.display = LEARNER_GRADES.includes(el.value) ? "" : "none";
   } else if (el.id === "date-jump"){
     if (isValidISODate(el.value)){ goToDate(toDate(el.value)); render(); }
-  } else if (el.name === "role" && el.closest('[data-form="auth-details"]')){
-    document.getElementById("auth-dept").style.display = el.value === "dept" ? "" : "none";
   } else if (el.name === "role" && el.closest('[data-form="admin"]')){
     document.getElementById("new-admin-dept").style.display = el.value === "dept" ? "" : "none";
   } else if (el.dataset.adminDept && roleOf() === "key"){
     if (!DEPARTMENTS.some(d => d.id === el.value)) return;
-    ADMINS = ADMINS.map(a => a.email === el.dataset.adminDept ? { ...a, department: el.value } : a);
-    persistData(); toast("Departement opgedateer");
+    dbAction(() => sb.from("admins").update({ department_id: el.value }).eq("email", el.dataset.adminDept), "Departement opgedateer");
   } else if (el.id === "map-event-select"){
     state.mapEventId = Number(el.value); geo.framed = false; render();
   } else if (el.dataset.deptColour && roleOf() === "key"){
     const problem = colourProblem(el.value);
     if (problem){ toast(problem); el.value = deptById(el.dataset.deptColour).colour; return; }
-    DEPARTMENTS = DEPARTMENTS.map(d => d.id === el.dataset.deptColour ? { ...d, colour: el.value } : d);
-    persistData(); render();
+    dbAction(() => sb.from("departments").update({ colour: el.value.toLowerCase() }).eq("id", el.dataset.deptColour), "Kleur gestoor");
   }
 });
 
@@ -2715,10 +2576,189 @@ setInterval(() => {
   if (nowLineVisible || toISO(TODAY) !== before) render();
 }, 60000);
 
-takeScanFromUrl();
-render();
-processPendingScan();
-syncOutbox();
+/* ===========================================================================
+   8. SUPABASE — the only part of the app that talks to the server
+   The publishable key below is meant to be public: it only says which
+   project to talk to. What each person may read or change is enforced by the
+   database (Row Level Security + functions in supabase/migrations/).
+=========================================================================== */
+const SUPABASE_URL = "https://ucecetiqnonnoaojlxrh.supabase.co";
+const SUPABASE_KEY = "sb_publishable_aVftMwjub6CwIDZI8xBcLQ_4einLDGd";
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+function isNetworkError(err){
+  const m = String((err && (err.message || err)) || "");
+  return !navigator.onLine || /Failed to fetch|NetworkError|Load failed|network/i.test(m);
+}
+// Turn a Supabase/Postgres error into something a person can act on.
+function dbMessage(err){
+  const m = String((err && (err.message || err.error_description || err)) || "");
+  const code = err && err.code;
+  if (isNetworkError(err)) return "Geen internet nie. Probeer weer sodra jy aanlyn is.";
+  if (/last_key_admin/.test(m)) return "Daar moet altyd minstens een hoof-admin wees.";
+  if (code === "23505") return "Dit bestaan reeds.";
+  if (code === "23503") return "Dit word nog gebruik en kan nie geskrap word nie.";
+  if (code === "23514") return "Een van die waardes word nie toegelaat nie.";
+  if (code === "42501" || /row-level security|not_allowed|permission denied/i.test(m)) return "Jy mag dit nie doen nie.";
+  if (/rate limit|too many/i.test(m)) return "Te veel versoeke. Wag 'n rukkie en probeer weer.";
+  return "Iets het fout gegaan: " + m;
+}
+
+// Send the e-mail code. Returns an error message, or "" when it was sent.
+async function sendCode(draft, isSignup){
+  if (!sb) return "Die app kon nie aan die bediener koppel nie.";
+  const { error } = await sb.auth.signInWithOtp({
+    email: draft.email,
+    options: isSignup
+      ? { shouldCreateUser: true, data: { name: draft.name, surname: draft.surname, grade: draft.grade, gender: draft.gender || "" } }
+      : { shouldCreateUser: false }
+  });
+  if (!error){ state.auth.sentAt = Date.now(); return ""; }
+  if (!isSignup && /signups? not allowed|user not found|otp_disabled/i.test(error.message + " " + (error.code || ""))){
+    return "Ons ken nie hierdie e-pos nie. Kies \"Registreer\" hierbo.";
+  }
+  if (/rate limit|security purposes|seconds/i.test(error.message)) return "Te veel kodes gevra. Wag 'n minuut (of langer) en probeer weer.";
+  return dbMessage(error);
+}
+
+// Database rows -> the shapes the screens use.
+function rowToEvent(r){
+  return {
+    id: r.id, title: r.title, department: r.department_id, date: r.date,
+    start: String(r.start_time).slice(0, 5), end: String(r.end_time).slice(0, 5),
+    venue: r.venue || "", description: r.description || "", ticketUrl: r.ticket_url || null,
+    location: { lat: r.lat, lng: r.lng, radius: r.radius, address: r.address || "" },
+    audience: { grades: r.audience_grades || [], gender: r.audience_gender || "all", learnersOnly: !!r.audience_learners_only }
+  };
+}
+function statsFor(e){ return STATS[e.id] || { supporters:0, checkedIn:0, suspicious:0 }; }
+
+// Load everything this person may see. On failure (offline) fall back to the
+// copy cached on this phone for the same account.
+const CACHE_KEY = "garsie.cache";
+async function loadAll(){
+  const u = state.session && state.session.user;
+  if (!u) return;
+  try {
+    const [prof, role, depts, evs, sup, chk] = await Promise.all([
+      sb.from("profiles").select("name,surname,grade,gender").eq("id", u.id).maybeSingle(),
+      sb.rpc("my_role"),
+      sb.from("departments").select("id,name,colour").order("name"),
+      sb.from("events").select("*").order("date").order("start_time"),
+      sb.from("supports").select("event_id"),
+      sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags")
+    ]);
+    for (const r of [prof, role, depts, evs, sup, chk]) if (r.error) throw r.error;
+    const myRole = (role.data || [])[0] || null;
+    let admins = [], stats = [];
+    if (myRole){
+      const st = await sb.rpc("admin_event_stats");
+      if (st.error) throw st.error;
+      stats = st.data || [];
+      if (myRole.role === "key"){
+        const ad = await sb.from("admins").select("email,role,department_id").order("email");
+        if (ad.error) throw ad.error;
+        admins = ad.data || [];
+      }
+    }
+    applyData({ uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
+                supports:sup.data, checkins:chk.data, admins, stats, savedAt:new Date().toISOString() });
+    saveJSON(CACHE_KEY, { uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
+                          supports:sup.data, checkins:chk.data, admins, stats, savedAt:new Date().toISOString() });
+    state.offline = false;
+  } catch (err){
+    const cache = loadJSON(CACHE_KEY);
+    if (cache && cache.uid === u.id){
+      applyData(cache);
+      if (!state.offline) toast(isNetworkError(err) ? "Geen internet nie — jy sien die laaste gestoorde data." : dbMessage(err));
+      state.offline = true;
+    } else {
+      state.fatal = isNetworkError(err) ? "Geen internet nie. Koppel aan die internet en probeer weer." : dbMessage(err);
+    }
+  }
+  state.lastLoad = Date.now();
+}
+function applyData(d){
+  state.needsProfile = !d.profile;
+  state.user = d.profile ? {
+    id: d.uid, email: (d.email || "").toLowerCase(), name: d.profile.name, surname: d.profile.surname,
+    grade: d.profile.grade, gender: d.profile.gender || "",
+    role: d.role ? d.role.role : "user", department: d.role ? d.role.department_id : null
+  } : null;
+  DEPARTMENTS = d.departments || [];
+  EVENTS = (d.events || []).map(rowToEvent);
+  state.supported = new Set((d.supports || []).map(s => s.event_id));
+  CHECKINS = {};
+  (d.checkins || []).forEach(c => { CHECKINS[c.event_id] = { at:c.scanned_at, method:c.method, distance:c.distance_m, flags:c.flags || [] }; });
+  ADMINS = (d.admins || []).map(a => ({ email:a.email, role:a.role, department:a.department_id }));
+  STATS = {};
+  (d.stats || []).forEach(x => { STATS[x.event_id] = { supporters:x.supporters, checkedIn:x.checked_in, suspicious:x.suspicious }; });
+}
+async function refreshMyCheckins(){
+  const { data, error } = await sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags");
+  if (error) return;
+  CHECKINS = {};
+  data.forEach(c => { CHECKINS[c.event_id] = { at:c.scanned_at, method:c.method, distance:c.distance_m, flags:c.flags || [] }; });
+  const cache = loadJSON(CACHE_KEY);
+  if (cache && state.user && cache.uid === state.user.id) saveJSON(CACHE_KEY, { ...cache, checkins:data });
+}
+
+// Run a change against the database, then reload and redraw.
+async function dbAction(run, successMessage){
+  const { error } = await run();
+  if (error){ toast(dbMessage(error)); return false; }
+  if (successMessage) toast(successMessage);
+  await loadAll(); render();
+  return true;
+}
+
+// "Ek ondersteun": update the screen straight away, undo if the server says no.
+async function toggleSupport(e){
+  const on = !state.supported.has(e.id);
+  on ? state.supported.add(e.id) : state.supported.delete(e.id);
+  render();
+  const { error } = on
+    ? await sb.from("supports").insert({ event_id:e.id })
+    : await sb.from("supports").delete().eq("event_id", e.id).eq("user_id", state.user.id);
+  if (error && error.code !== "23505"){
+    on ? state.supported.delete(e.id) : state.supported.add(e.id);
+    toast(dbMessage(error));
+    render();
+  }
+}
+
+async function signOut(){
+  stopLocation();
+  try { if (sb) await sb.auth.signOut({ scope:"local" }); } catch {}
+  saveJSON(CACHE_KEY, null);                    // don't leave data behind on a shared phone
+  Object.assign(state, { session:null, user:null, needsProfile:false, offline:false, mapEventId:null,
+                         tab:"calendar", openEventId:null, editingId:null, qrEventId:null,
+                         auth:{ mode:"signin", step:"details", draft:{} } });
+  DEPARTMENTS = []; EVENTS = []; ADMINS = []; CHECKINS = {}; STATS = {}; state.supported = new Set();
+  render();
+}
+
+async function init(){
+  takeScanFromUrl();
+  if (!sb){
+    state.fatal = "Die app kon nie laai nie. Kyk jou internet en probeer weer.";
+    render(); return;
+  }
+  const { data } = await sb.auth.getSession();
+  state.session = data.session;
+  if (state.session) await loadAll();
+  state.loading = false;
+  render();
+  if (state.user){ processPendingScan(); syncOutbox(); }
+
+  sb.auth.onAuthStateChange((event, session) => {
+    state.session = session;
+    if (event === "SIGNED_OUT" && state.user) signOut();
+  });
+}
+
+render();          // loading screen while we check the session
+init();
 
 // A QR link opened while the app is already open.
 window.addEventListener("hashchange", () => {
@@ -2727,18 +2767,29 @@ window.addEventListener("hashchange", () => {
   else render();               // shows "Teken in om aan te meld" on the sign-in screen
 });
 
-// Back online: send waiting scans, then refresh the cards that show them.
+// Back online: send waiting check-ins and refresh the data.
 async function onConnectionChange(){
   const { sent } = await syncOutbox();
   if (sent.length) toast(`${sent.length} aanmelding${sent.length > 1 ? "s" : ""} gestuur`);
-  // Show how this user's latest waiting scan turned out; otherwise just refresh.
-  const mine = state.user && [...sent].reverse().find(s => s.item.email === state.user.email);
+  const mine = state.user && [...sent].reverse().find(x => x.item.uid === state.user.id);
   if (mine) state.scan = { status:mine.outcome.status, message:mine.outcome.message };
   const card = document.getElementById("scan-card");
   if (card) card.innerHTML = scanCardHtml();
+  if (navigator.onLine && state.offline && state.user) refreshQuietly();
 }
 window.addEventListener("online", onConnectionChange);
 window.addEventListener("offline", onConnectionChange);
+
+// Coming back to the app after a while: fetch fresh data, but never while
+// someone is typing in a form.
+async function refreshQuietly(){
+  if (!state.user || document.querySelector("form:focus-within") || state.qrEventId != null) return;
+  await loadAll();
+  if (!document.querySelector("form:focus-within")) render();
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - (state.lastLoad || 0) > 60000) refreshQuietly();
+});
 
 // Offline support: sw.js keeps a copy of the app on the phone.
 if ("serviceWorker" in navigator && window.isSecureContext){
