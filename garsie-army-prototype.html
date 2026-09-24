@@ -107,13 +107,20 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 /* Prototype-only chrome (jump nav / hint text) has been removed so this
    renders as a normal full-screen app on any device, not a phone mockup. */
 
-/* App frame — fills the viewport on every screen size, no bezel. */
-.phone{width:100vw;width:100dvw;height:100vh;height:100dvh;border:0;border-radius:0;background:#fff;position:relative;overflow:hidden;color:#111;margin:0 auto;max-width:600px}
+/* App frame — stretches to fill the viewport on every screen size, no bezel.
+   Wide screens get the full width; readable content is capped by .content. */
+.phone{width:100%;height:100vh;height:100dvh;border:0;border-radius:0;background:#fff;position:relative;overflow:hidden;color:#111}
+
+/* Responsive helpers. On a phone these are full width; on a computer they
+   centre so text lines and buttons don't stretch across a 1920px screen. */
+.content{max-width:720px;margin:0 auto}
+.bottom-bar{max-width:560px;margin:0 auto}
+.mine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;max-width:1100px;margin:0 auto}
 .statusbar{height:36px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;font-size:13px;font-weight:600}
 .screen{position:absolute;top:36px;left:0;right:0;bottom:0;overflow:hidden}
 
 /* Bottom tab bar — persistent across all four tabs */
-.tabbar{position:absolute;left:12px;right:12px;bottom:14px;height:60px;border-radius:30px;background:rgba(242,242,244,.96);border:.5px solid #d8d8dc;display:flex;align-items:center;justify-content:space-around;z-index:5}
+.tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:rgba(242,242,244,.96);border:.5px solid #d8d8dc;display:flex;align-items:center;justify-content:space-around;z-index:5}
 .tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:#6b6b70;padding:5px 10px;border-radius:22px;background:none;border:none}
 .tab.is-active{color:var(--brand);background:var(--brand-wash)}
 
@@ -333,8 +340,16 @@ const state = {
    week is one horizontally scrollable grid — a zoomed-in day view turned on
    its side. Blocks are positioned absolutely from start/end times.
 ------------------------------------------------------------------------- */
+// Hour column width. Never narrower than CONFIG.hourWidthPx (phones scroll
+// sideways), but on wide screens it grows so the whole day fits without scrolling.
+function hourWidth(){
+  const { dayStartHour:H0, dayEndHour:H1, hourWidthPx:MIN } = CONFIG;
+  return Math.max(MIN, Math.floor((screenEl.clientWidth - 48) / (H1 - H0)));
+}
+
 function screenCalendar(){
-  const { dayStartHour:H0, dayEndHour:H1, hourWidthPx:PX, rowHeightPx:RH } = CONFIG;
+  const { dayStartHour:H0, dayEndHour:H1, rowHeightPx:RH } = CONFIG;
+  const PX = hourWidth();
   const gridWidth = (H1 - H0) * PX;
   const weekEnd   = addDays(state.weekStart, 6);
   const monthName = MONTHS[state.weekStart.getMonth()];
@@ -448,7 +463,7 @@ function screenMap(){
     </svg>`
     + mapSegmentedControl()
     + `<div style="position:absolute;top:60px;right:14px;width:40px;height:40px;border-radius:20px;background:#fff;border:.5px solid #ddd;display:flex;align-items:center;justify-content:center">${icon("locate",20,"#4285f4")}</div>
-    <div style="position:absolute;left:12px;right:12px;bottom:88px;background:#fff;border-radius:18px;border:.5px solid #ddd;padding:12px 14px">
+    <div class="bottom-bar" style="position:absolute;left:12px;right:12px;bottom:88px;background:#fff;border-radius:18px;border:.5px solid #ddd;padding:12px 14px">
       <div style="font-size:15px;font-weight:600">${CONFIG.school}</div>
       <div style="font-size:12px;color:#5f6368;margin-bottom:10px">Jy is 80 m weg en binne die area</div>
       <button data-action="checkin" style="width:100%;height:40px;border-radius:20px;background:${state.checkedIn ? "#fff" : "var(--brand)"};color:${state.checkedIn ? "var(--brand)" : "#fff"};border:${state.checkedIn ? "1.5px solid var(--brand)" : "none"};font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
@@ -464,7 +479,7 @@ function screenMap(){
 ------------------------------------------------------------------------- */
 function screenSearch(){
   const chips = ["Alles", ...Object.keys(CONFIG.categories)];
-  return `<div style="padding:10px 16px">
+  return `<div class="content" style="padding:10px 16px">
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
     <div style="display:flex;align-items:center;gap:8px;background:#eeeef0;border-radius:14px;height:42px;padding:0 12px">
       ${icon("search",18,"#8e8e93")}
@@ -519,7 +534,8 @@ function screenMine(){
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
   let html = `<div style="position:absolute;top:-36px;left:0;right:0;bottom:0;background:var(--myne-bg);padding:46px 14px 0;overflow-y:auto">
-    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:0 0 10px">My geleenthede</h1>`;
+    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:0 auto 10px;max-width:1100px">My geleenthede</h1>
+    <div class="mine-grid">`;
 
   if (!mine.length){
     html += `<p style="color:#c7cbd6;font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
@@ -529,7 +545,7 @@ function screenMine(){
     const day = toDate(e.date);
     const bg  = e.category === "Sport" ? "#8e1d24" : "#3d4f7a";
     html += `<div data-event="${e.id}" tabindex="0" role="button"
-      style="cursor:pointer;background:${bg};border-radius:20px;padding:13px 15px;margin-bottom:10px;color:#fff;display:flex;justify-content:space-between;gap:8px">
+      style="cursor:pointer;background:${bg};border-radius:20px;padding:13px 15px;color:#fff;display:flex;justify-content:space-between;gap:8px">
       <div style="min-width:0">
         <div style="font-size:16px;font-weight:600;line-height:1.25">${e.title}</div>
         <div style="font-size:12px;color:#e6e6ec">${e.venue}</div>
@@ -543,7 +559,7 @@ function screenMine(){
     </div>`;
   });
 
-  return html + `<div style="height:90px"></div></div>`;
+  return html + `</div><div style="height:90px"></div></div>`;
 }
 
 /* --- 6e. Event detail ---------------------------------------------------
@@ -573,7 +589,7 @@ function screenEventDetail(){
        </a>`
     : "";
 
-  return `<div style="padding:8px 18px">
+  return `<div class="content" style="padding:8px 18px">
     <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:#f2f2f4;border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
     <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${e.title}</h1>
     <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${categoryOf(e).wash};color:${categoryOf(e).ink}">${e.category}</span>
@@ -591,7 +607,7 @@ function screenEventDetail(){
     <div style="background:#f2f2f4;border-radius:14px;padding:12px 14px;font-size:14px">${e.description}</div>
   </div>
 
-  <div style="position:absolute;left:18px;right:18px;bottom:90px">
+  <div class="bottom-bar" style="position:absolute;left:18px;right:18px;bottom:90px">
     ${ticketButton}
     <button data-action="toggle-support"
       style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "#fff" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
@@ -628,7 +644,8 @@ function render(){
   // Restore horizontal scroll, or land on the configured hour first time.
   const grid = document.getElementById("weekgrid");
   if (grid){
-    const { initialScrollHour:SH, dayStartHour:H0, hourWidthPx:PX } = CONFIG;
+    const { initialScrollHour:SH, dayStartHour:H0 } = CONFIG;
+    const PX = hourWidth();
     grid.scrollLeft = state.scrollLeft == null ? (SH - H0) * PX : state.scrollLeft;
     grid.addEventListener("scroll", () => { state.scrollLeft = grid.scrollLeft; });
   }
@@ -669,6 +686,15 @@ function handle(target){
   }
   render();
 }
+
+// Re-layout the calendar when the window is resized or the phone is rotated.
+let resizeFrame = null;
+window.addEventListener("resize", () => {
+  cancelAnimationFrame(resizeFrame);
+  resizeFrame = requestAnimationFrame(() => {
+    if (state.tab === "calendar" && !state.openEventId){ state.scrollLeft = null; render(); }
+  });
+});
 
 const phoneEl = document.getElementById("phone");
 phoneEl.addEventListener("click", ev => {
