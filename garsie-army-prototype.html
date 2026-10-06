@@ -172,6 +172,11 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 2px;border:none;border-bottom:.5px solid var(--hairline);background:none;color:var(--shadow-ink);font-size:15px;text-align:left}
 .settings-row:last-child{border-bottom:none}
 
+/* Learner preview banner (see PREVIEW in the script) */
+#preview-banner{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:12;display:flex;align-items:center;gap:10px;padding:6px 6px 6px 14px;border-radius:20px;background:#b8902f;color:#fff;font-size:13px;font-weight:600;box-shadow:0 4px 14px rgba(0,0,0,.35);white-space:nowrap}
+#preview-banner span{display:flex;align-items:center;gap:6px}
+#preview-banner button{border:none;border-radius:14px;padding:5px 12px;background:#fff;color:#7a5c12;font-size:12.5px;font-weight:700;font-family:inherit}
+
 /* Month sections (see MONTH GROUPS in the script) */
 .mgroup{border-bottom:.5px solid var(--hairline)}
 .mgroup>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 2px;cursor:pointer;font-family:var(--font-display);font-weight:600;letter-spacing:.06em;font-size:15px}
@@ -319,6 +324,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <body>
 
 <div class="phone" id="phone">
+  <div id="preview-banner" style="display:none"></div>
   <button id="settings-btn" data-action="open-settings" aria-label="Instellings" title="Instellings" style="display:none"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
@@ -419,6 +425,7 @@ const ICON_PATHS = {
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>',
+  eye:'<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 };
 function icon(name, size = 20, colour = "currentColor"){
@@ -962,30 +969,168 @@ function note(ctx, x, y, a, double){
   ctx.globalAlpha = 1;
 }
 
-/* --- Sport: rugby pass (the player swings the ball across and lets it go) */
-const RUGBY = [
-  [0,   { head:[90,52], neck:[93,63], hip:[86,104], lElbow:[84,84], lHand:[74,98], rElbow:[90,86], rHand:[78,101],
-          lKnee:[101,130], lFoot:[97,160], rKnee:[74,128], rFoot:[57,141] }],
-  [.42, { head:[110,49], neck:[107,60], hip:[90,101], lElbow:[125,70], lHand:[145,72], rElbow:[123,76], rHand:[143,79],
-          lKnee:[106,128], lFoot:[114,160], rKnee:[72,124], rFoot:[54,108] }],
-  [1,   { head:[115,52], neck:[111,63], hip:[93,102], lElbow:[128,80], lHand:[144,92], rElbow:[126,84], rHand:[140,97],
-          lKnee:[108,129], lFoot:[116,160], rKnee:[74,126], rFoot:[56,112] }]
+/* --- Puppet: a natural-looking figure ---------------------------------------
+   Instead of rounded sticks, the body is built from shaped parts — a chest
+   and back with a curve, a thigh with the quadriceps, a calf, a boot, an
+   upper arm with the biceps, a head with a jaw — each hung on its joint like
+   a cut-out puppet. A pose gives every part's angle (degrees; limbs from
+   straight down, + = forward; torso from straight up, + = leaning forward).
+   Frames run through the key poses on a smooth curve (Catmull-Rom), so the
+   movement doesn't stop and start at every key pose.
+--------------------------------------------------------------------------- */
+const BONE = { torso:47, thigh:38, shin:37, upper:29, fore:26 };
+let puppetOutline = false;     // near arm and leg get a thin navy edge, so they read in front of the body
+function bodyPart(ctx, part){
+  ctx.beginPath();
+  switch (part){
+    case "torso":     // hip at 0,0, shoulders at 0,-47, chest to +x
+      ctx.moveTo(-8, 4);
+      ctx.bezierCurveTo(-11, -10, -13, -28, -11, -41);
+      ctx.bezierCurveTo(-9, -49, 5, -51, 10, -46);
+      ctx.bezierCurveTo(15, -38, 14, -23, 10, -12);
+      ctx.bezierCurveTo(8, -5, 9, 1, 6, 6);
+      ctx.bezierCurveTo(1, 9, -5, 8, -8, 4); break;
+    case "shorts":    // over the top of the thigh
+      ctx.moveTo(-9, -4); ctx.lineTo(9, -4); ctx.lineTo(11, 15); ctx.lineTo(-8, 17); break;
+    case "head":      // neck base at 0,0, head up, face to +x
+      ctx.moveTo(-4, 3); ctx.lineTo(-4, -6);
+      ctx.bezierCurveTo(-10, -9, -11, -22, -3, -26);
+      ctx.bezierCurveTo(5, -29, 11, -23, 11, -16);
+      ctx.lineTo(13, -12); ctx.lineTo(10.5, -10.5);
+      ctx.bezierCurveTo(10.5, -6, 8, -4, 5, -4);
+      ctx.lineTo(5, 3); break;
+    case "thigh":     // hip at 0,0 to knee at 0,38; quadriceps on +x
+      ctx.moveTo(-8, -2);
+      ctx.bezierCurveTo(-11, 9, -9, 26, -5.5, 38.5);
+      ctx.lineTo(5.5, 38.5);
+      ctx.bezierCurveTo(10, 27, 12, 10, 8.5, -2); break;
+    case "shin":      // knee at 0,0 to ankle at 0,37; calf on -x
+      ctx.moveTo(-5.5, 0);
+      ctx.bezierCurveTo(-10.5, 7, -9, 19, -3.6, 35);
+      ctx.lineTo(3, 35);
+      ctx.bezierCurveTo(4.6, 22, 5.6, 9, 5.5, 0); break;
+    case "boot":      // in the shin's frame, at the ankle, toes to +x
+      ctx.moveTo(-4.2, 31); ctx.lineTo(-4.6, 39.5);
+      ctx.bezierCurveTo(2, 41.5, 11, 41.5, 16, 39.5);
+      ctx.bezierCurveTo(16.5, 36, 12, 34, 4.5, 32); break;
+    case "upper":     // shoulder at 0,0 to elbow at 0,29; biceps on +x
+      ctx.moveTo(-5.5, -2);
+      ctx.bezierCurveTo(-7, 9, -5.6, 21, -3.8, 29.5);
+      ctx.lineTo(3.8, 29.5);
+      ctx.bezierCurveTo(7.4, 20, 7.6, 7, 5.5, -2); break;
+    case "fore":      // elbow at 0,0 to wrist at 0,26
+      ctx.moveTo(-3.9, 0);
+      ctx.bezierCurveTo(-5, 9, -3.6, 18, -2.7, 26);
+      ctx.lineTo(2.7, 26);
+      ctx.bezierCurveTo(4.6, 16, 5, 7, 3.9, 0); break;
+    case "hand":
+      ctx.ellipse(.6, 29.5, 3.7, 5, 0, 0, Math.PI * 2); break;
+  }
+  ctx.closePath(); ctx.fill();
+  if (puppetOutline){ ctx.strokeStyle = "#01213a"; ctx.lineWidth = 1.3; ctx.stroke(); ctx.fill(); }
+}
+const RAD = Math.PI / 180;
+// Where a two-part limb ends, for holding things.
+function limbEnd(origin, a1, a2, L1, L2){
+  return [origin[0] + Math.sin(a1 * RAD) * L1 + Math.sin(a2 * RAD) * L2,
+          origin[1] + Math.cos(a1 * RAD) * L1 + Math.cos(a2 * RAD) * L2];
+}
+function drawLimb(ctx, origin, a1, a2, L1, upperPart, lowerPart, endPart, jointR){
+  ctx.save();
+  ctx.translate(origin[0], origin[1]); ctx.rotate(-a1 * RAD);
+  bodyPart(ctx, upperPart);
+  ctx.translate(0, L1); ctx.rotate(-(a2 - a1) * RAD);
+  disc(ctx, [0, 0], jointR);
+  bodyPart(ctx, lowerPart); bodyPart(ctx, endPart);
+  ctx.restore();
+}
+// Draws the figure and returns where its hands are.
+function drawPuppet(ctx, q){
+  const hip = [q.x, q.y];
+  const sh = [hip[0] + Math.sin(q.lean * RAD) * BONE.torso, hip[1] - Math.cos(q.lean * RAD) * BONE.torso];
+  const farSh = [sh[0] - 3, sh[1] + 2], farHip = [hip[0] - 2, hip[1]];
+  ctx.fillStyle = SIL_FAR;                                     // far side, behind the body
+  drawLimb(ctx, farSh, q.farUpper, q.farFore, BONE.upper, "upper", "fore", "hand", 3.9);
+  drawLimb(ctx, farHip, q.farThigh, q.farShin, BONE.thigh, "thigh", "shin", "boot", 5.5);
+  ctx.fillStyle = SIL;
+  puppetOutline = true;
+  drawLimb(ctx, hip, q.nearThigh, q.nearShin, BONE.thigh, "thigh", "shin", "boot", 5.6);
+  puppetOutline = false;
+  ctx.save(); ctx.translate(hip[0], hip[1]); ctx.rotate(q.lean * RAD);
+  bodyPart(ctx, "torso");
+  ctx.save(); ctx.rotate(-q.nearThigh * RAD); bodyPart(ctx, "shorts"); ctx.restore();
+  ctx.translate(0, -BONE.torso); ctx.rotate((q.head || 0) * RAD); bodyPart(ctx, "head");
+  ctx.restore();
+  puppetOutline = true;
+  drawLimb(ctx, sh, q.nearUpper, q.nearFore, BONE.upper, "upper", "fore", "hand", 4);
+  puppetOutline = false;
+  disc(ctx, sh, 5.6);                                          // round shoulder over the joint
+  return { near: limbEnd(sh, q.nearUpper, q.nearFore, BONE.upper, 29.5),
+           far:  limbEnd(farSh, q.farUpper, q.farFore, BONE.upper, 29.5) };
+}
+// Smooth value through key poses: [[time, {prop:value}], ...].
+function splinePose(keys, t){
+  let i = 0;
+  while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+  const [t1, k1] = keys[i], [t2, k2] = keys[i + 1];
+  const k0 = keys[Math.max(0, i - 1)][1], k3 = keys[Math.min(keys.length - 1, i + 2)][1];
+  const u = clamp01((t - t1) / (t2 - t1)), u2 = u * u, u3 = u2 * u;
+  const out = {};
+  for (const p in k1){
+    const p0 = k0[p], p1 = k1[p], p2 = k2[p], p3 = k3[p];
+    out[p] = .5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3);
+  }
+  return out;
+}
+
+/* --- Sport: rugby pass ---------------------------------------------------
+   Start like the green player in the reference (running, ball low at the
+   hip), one more stride while swinging the ball back, then the pass like
+   the black silhouette (leaning hard forward, both arms straight out after
+   the ball, back foot kicked up high) and the follow-through. */
+const RUGBY_PASS = [
+  [0,    { x:50,  y:96, lean:19, head:-4, nearThigh:40,  nearShin:-4,  farThigh:-20, farShin:-80,
+           nearUpper:-6,  nearFore:62,  farUpper:4,   farFore:70 }],
+  [.22,  { x:68,  y:91, lean:18, head:-3, nearThigh:6,   nearShin:-48, farThigh:12,  farShin:-18,
+           nearUpper:-30, nearFore:20,  farUpper:-22, farFore:28 }],
+  [.42,  { x:84,  y:96, lean:22, head:0,  nearThigh:-24, nearShin:-80, farThigh:33,  farShin:6,
+           nearUpper:-52, nearFore:-16, farUpper:-45, farFore:-9 }],
+  [.58,  { x:96,  y:98, lean:35, head:9,  nearThigh:-28, nearShin:-100, farThigh:30, farShin:12,
+           nearUpper:80,  nearFore:93,  farUpper:72,  farFore:87 }],
+  [.78,  { x:104, y:97, lean:33, head:7,  nearThigh:-24, nearShin:-94, farThigh:27,  farShin:10,
+           nearUpper:97,  nearFore:112, farUpper:89,  farFore:104 }],
+  [1,    { x:112, y:93, lean:24, head:2,  nearThigh:10,  nearShin:-50, farThigh:-2,  farShin:-20,
+           nearUpper:52,  nearFore:76,  farUpper:43,  farFore:70 }]
 ];
+const RELEASE = .58;
 function drawRugby(ctx, t){
-  shadow(ctx, 92, 34);
-  silhouette(ctx, poseAt(RUGBY, t), 1);
-  const hold = p => lerpPt(p.lHand, p.rHand, .5);
-  const release = hold(poseAt(RUGBY, .42));
-  const ballAt = s => s < .42 ? hold(poseAt(RUGBY, s)) : bezier(release, [196, 8], [236, 58], (s - .42) / .58);
-  for (let k = 3; k >= 0; k--){                       // a short trail behind the flying ball
-    const s = t - k * .035;
-    if (k && s < .44) continue;
+  const q = splinePose(RUGBY_PASS, t);
+  // the shadow sits under whichever foot is lower
+  shadow(ctx, q.x + 6, 30, .12);
+  const hands = drawPuppet(ctx, q);
+  const holdAt = s => { const h = drawPuppetHands(splinePose(RUGBY_PASS, s)); return [(h.near[0] + h.far[0]) / 2 + 2, (h.near[1] + h.far[1]) / 2 - 2]; };
+  const release = holdAt(RELEASE);
+  const ballAt = s => s < RELEASE ? holdAt(s) : bezier(release, [208, 14], [254, 40], (s - RELEASE) / (1 - RELEASE));
+  const spin = t < RELEASE ? -.4 : -.4 + (t - RELEASE) * 22;
+  for (let k = 4; k >= 0; k--){                       // a short trail behind the flying ball
+    const s = t - k * .03;
+    if (k && s < RELEASE + .02) continue;
     const [x, y] = ballAt(Math.max(0, s));
-    ctx.save(); ctx.globalAlpha = k ? .18 / k : 1; ctx.translate(x, y); ctx.rotate(-.5 + t * 9);
-    ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(0, 0, 9.5, 6, 0, 0, Math.PI * 2); ctx.fill();
-    if (!k){ ctx.strokeStyle = "rgba(1,33,58,.55)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.stroke(); }
+    ctx.save(); ctx.globalAlpha = k ? .16 / k : 1; ctx.translate(x, y); ctx.rotate(spin - k * .5);
+    ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(0, 0, 10.5, 6.6, 0, 0, Math.PI * 2); ctx.fill();
+    if (!k){ ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1.1;
+      ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); for (const x2 of [-3, 0, 3]){ ctx.moveTo(x2, -1.8); ctx.lineTo(x2, 1.8); } ctx.stroke(); }
     ctx.restore();
   }
+  // the near hand goes over the ball while it is held
+  if (t < RELEASE){ ctx.fillStyle = SIL; ctx.beginPath(); ctx.ellipse(hands.near[0], hands.near[1], 3.7, 5, 0, 0, Math.PI * 2); ctx.fill(); }
+}
+// Hand positions of a pose without drawing it.
+function drawPuppetHands(q){
+  const hip = [q.x, q.y];
+  const sh = [hip[0] + Math.sin(q.lean * RAD) * BONE.torso, hip[1] - Math.cos(q.lean * RAD) * BONE.torso];
+  return { near: limbEnd(sh, q.nearUpper, q.nearFore, BONE.upper, 29.5),
+           far:  limbEnd([sh[0] - 3, sh[1] + 2], q.farUpper, q.farFore, BONE.upper, 29.5) };
 }
 
 /* --- Sport: netball shot (bend, rise on the toes, ball through the ring) */
@@ -1358,7 +1503,7 @@ function drawCoder(ctx, t){
 // have played. The last three per field are remembered between visits.
 const LOADER_FIELDS = ["Sport", "Kultuur", "Akademie"];
 const LOADER_SCENES = {
-  Sport:    [{ label:"Rugby", draw:drawRugby }, { label:"Netbal", draw:drawNetball }, { label:"Hekkies", draw:drawHurdles },
+  Sport:    [{ label:"Rugby", draw:drawRugby, ms:1800 }, { label:"Netbal", draw:drawNetball }, { label:"Hekkies", draw:drawHurdles },
              { label:"Krieket", draw:drawCricket }, { label:"Hokkie", draw:drawHockey }],
   Kultuur:  [{ label:"Ballet", draw:drawLeap }, { label:"Viool", draw:drawViolin }, { label:"Sang", draw:drawSinger },
              { label:"Toneel", draw:drawDrama }, { label:"Kuns", draw:drawPainter }],
@@ -1366,11 +1511,17 @@ const LOADER_SCENES = {
              { label:"Wetenskap", draw:drawScience }, { label:"Kodering", draw:drawCoder }]
 };
 const SCENE_MEMORY = 3;
+// While we get one scene right, only that one plays (null = all scenes).
+// Open the app with #animasie at the end of the address to watch it on a loop.
+const LOADER_ONLY = "Rugby";
 const sceneHistory = (() => {
   const saved = loadJSON("garsie.sceneHistory") || {};
   return Object.fromEntries(LOADER_FIELDS.map(f => [f, Array.isArray(saved[f]) ? saved[f].filter(l => LOADER_SCENES[f].some(sc => sc.label === l)).slice(-SCENE_MEMORY) : []]));
 })();
 function pickScene(field){
+  if (LOADER_ONLY){
+    for (const f of LOADER_FIELDS){ const only = LOADER_SCENES[f].find(sc => sc.label === LOADER_ONLY); if (only){ loaderField = LOADER_FIELDS.indexOf(f); return only; } }
+  }
   const recent = sceneHistory[field];
   const free = LOADER_SCENES[field].filter(sc => !recent.includes(sc.label));
   const sc = free[Math.floor(Math.random() * free.length)];
@@ -1404,11 +1555,11 @@ function startLoader(){
     const cv = document.getElementById("loader-canvas");
     if (!cv){ loaderFrame = null; return; }
     if (cv.width !== 240 * dpr){ cv.width = 240 * dpr; cv.height = 180 * dpr; }
-    let t = (now - loaderSceneStart) / SCENE_MS;
+    let t = (now - loaderSceneStart) / (loaderScene.ms || SCENE_MS);
     if (t >= 1){                                       // next field's turn
       loaderField = (loaderField + 1) % LOADER_FIELDS.length;
-      const field = LOADER_FIELDS[loaderField];
-      loaderScene = pickScene(field);
+      loaderScene = pickScene(LOADER_FIELDS[loaderField]);
+      const field = LOADER_FIELDS[loaderField];       // pickScene may move it (LOADER_ONLY)
       loaderSceneStart = now; t = 0;
       cv.setAttribute("aria-label", `${field}: ${loaderScene.label}`);
       document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === field));
@@ -2242,6 +2393,7 @@ async function handleScan(text){
 
 // Save a check-in in the outbox, then try to send it straight away.
 async function queueCheckin({ eventId, method, token, pos }){
+  if (previewBlocks()){ setScan("error", "Leerder-aansig: aanmeldings word nie gestoor nie."); return; }
   if (myOutbox().some(o => o.eventId === eventId)){
     setScan("queued", "Reeds gestoor — dit word gestuur sodra jy internet het."); return;
   }
@@ -2443,7 +2595,10 @@ function screenMine(){
    (home screen, privacy notice) and the account (sign out, delete).
 ------------------------------------------------------------------------- */
 function screenSettings(){
+  if (state.settingsPage === "learner") return screenLearnerEdit();
+  if (state.settingsPage === "preview") return screenPreviewStart();
   const u = state.user;
+  const detail = (label, value) => value ? `<div><div class="eyebrow" style="margin:0 0 3px">${label}</div><div style="font-size:16px">${esc(value)}</div></div>` : "";
   return `<div class="panel"><div class="content" style="max-width:560px">
     <button data-action="close-settings" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
     <h1 style="margin:10px 0 2px">Instellings</h1>
@@ -2451,21 +2606,11 @@ function screenSettings(){
 
     <section class="settings-section">
       <h2>Profiel</h2>
-      <form data-form="settings-profile" novalidate class="card">
-        <div style="display:flex;gap:10px">
-          <label class="field" style="flex:1;min-width:0"><span>Naam</span>
-            <input name="name" autocomplete="given-name" autocapitalize="words" maxlength="${LIMITS.name}" value="${esc(u.name)}"></label>
-          <label class="field" style="flex:1;min-width:0"><span>Van</span>
-            <input name="surname" autocomplete="family-name" autocapitalize="words" maxlength="${LIMITS.name}" value="${esc(u.surname)}"></label>
-        </div>
-        <div style="display:flex;gap:10px;margin:2px 0 12px">
-          <div style="flex:1"><div class="eyebrow" style="margin:0 0 4px 4px">Graad</div><div style="padding:0 4px;font-size:16px">${esc(u.grade)}</div></div>
-          ${u.gender ? `<div style="flex:1"><div class="eyebrow" style="margin:0 0 4px 4px">Geslag</div><div style="padding:0 4px;font-size:16px">${esc(u.gender)}</div></div>` : ""}
-        </div>
-        <p style="font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 10px">
-          ${LEARNER_GRADES.includes(u.grade) ? "Jou graad gaan elke jaar op 1 Januarie outomaties een hoër. " : ""}Is jou graad of geslag verkeerd? Vra 'n Hoof-admin om dit reg te stel.</p>
-        <button class="btn-primary" type="submit">Stoor naam</button>
-      </form>
+      <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+        ${detail("Naam", u.name)}${detail("Van", u.surname)}${detail("Graad", u.grade)}${detail("Geslag", u.gender)}
+        <p style="grid-column:1/-1;font-size:13px;color:var(--muted);line-height:1.45;margin:0">
+          ${LEARNER_GRADES.includes(u.grade) ? "Jou graad gaan elke jaar op 1 Januarie outomaties een hoër. " : ""}Is iets hier verkeerd? Vra 'n Hoof-admin om dit reg te stel.</p>
+      </div>
     </section>
 
     <section class="settings-section">
@@ -2481,6 +2626,14 @@ function screenSettings(){
       </div>
     </section>
 
+    ${roleOf() === "key" ? `<section class="settings-section">
+      <h2>Addisionele funksies</h2>
+      <div class="card" style="padding:0 14px">
+        <button class="settings-row" data-action="settings-page" data-page="learner"><span>Verander 'n leerder se naam, graad of geslag</span>${icon("right",16,"var(--muted)")}</button>
+        <button class="settings-row" data-action="settings-page" data-page="preview"><span>Leerder-aansig: sien die app soos 'n leerder</span>${icon("right",16,"var(--muted)")}</button>
+      </div>
+    </section>` : ""}
+
     <section class="settings-section">
       <h2>Rekening</h2>
       <div class="card" style="padding:0 14px">
@@ -2491,7 +2644,86 @@ function screenSettings(){
   </div></div>`;
 }
 
-/* --- 6e. Event detail ---------------------------------------------------
+// Top of an "Addisionele funksies" page: back to Instellings.
+function settingsSubHead(title, intro){
+  return `<button data-action="settings-page" data-page="" aria-label="Terug na Instellings" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
+    <h1 style="margin:10px 0 6px">${title}</h1>
+    <p style="font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 14px">${intro}</p>`;
+}
+
+/* Hoof-admin: change a learner's name, grade or gender. Learners can't do
+   it themselves (the database refuses), so nobody can switch grade to see
+   another grade's events. First look the learner up, then edit. */
+function screenLearnerEdit(){
+  const found = state.learnerEdit;
+  return `<div class="panel"><div class="content" style="max-width:560px">
+    ${settingsSubHead("Verander 'n leerder", "Soek die leerder op met sy of haar e-posadres. Almal gaan op 1 Januarie outomaties 'n graad hoër (Graad 12 word Alumni), so dit is net vir regstellings.")}
+    <form data-form="find-learner" class="card" novalidate style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <label class="field" style="flex:1;min-width:200px;margin:0"><span>E-posadres</span>
+        <input name="email" type="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" value="${esc(found ? found.email : "")}" placeholder="naam@voorbeeld.co.za"></label>
+      <button class="mini-btn" type="submit" style="height:46px;padding:0 16px">${icon("search",16)} Soek</button>
+    </form>
+    ${found ? `<form data-form="edit-learner" class="card" novalidate style="margin-top:12px">
+      ${profileFields(found)}
+      <button class="btn-primary" type="submit">Stoor veranderinge</button>
+    </form>` : ""}
+  </div></div>`;
+}
+
+/* Hoof-admin: see the app the way a learner of a chosen grade and gender
+   sees it. Nothing is saved while in this view (see PREVIEW). */
+function screenPreviewStart(){
+  return `<div class="panel"><div class="content" style="max-width:560px">
+    ${settingsSubHead("Leerder-aansig", "Sien die app presies soos 'n leerder met hierdie graad en geslag dit sien: net die geleenthede vir hulle, en geen admin-oortjies nie. In die aansig word niks gestoor of verander nie.")}
+    <form data-form="start-preview" class="card" novalidate>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <label class="field" style="flex:1;min-width:140px"><span>Graad</span>
+          <select name="grade"><option value="">Kies</option>${GRADES.map(g => `<option>${g}</option>`).join("")}</select></label>
+        <label class="field" style="flex:1;min-width:140px"><span>Geslag</span>
+          <select name="gender"><option value="">Kies</option>${GENDERS.map(g => `<option>${g}</option>`).join("")}</select></label>
+      </div>
+      <button class="btn-primary" type="submit">Begin leerder-aansig</button>
+    </form>
+  </div></div>`;
+}
+
+/* ---------------------------------------------------------------------------
+   PREVIEW ("Leerder-aansig")
+   The Hoof-admin's own details are put aside and replaced by a pretend
+   learner (chosen grade and gender, no admin role, nothing supported or
+   checked in). Every action that would save something is refused with a
+   toast, the submit handler refuses all forms, data refreshes keep the
+   pretend learner, and "Verlaat" puts everything back exactly as it was.
+--------------------------------------------------------------------------- */
+function previewOverlay(){
+  const real = { user:state.user, supported:state.supported, checkins:CHECKINS };
+  state.preview.real = real;
+  state.user = { ...real.user, grade:state.preview.grade, gender:state.preview.gender, role:"user", department:null };
+  state.supported = new Set();
+  CHECKINS = {};
+}
+function startPreview(grade, gender){
+  state.preview = { grade, gender: LEARNER_GRADES.includes(grade) ? gender : "" };
+  previewOverlay();
+  Object.assign(state, { settingsOpen:false, settingsPage:null, tab:"calendar", openEventId:null, qrEventId:null, editingId:null });
+  render();
+}
+function endPreview(){
+  if (!state.preview) return;
+  const real = state.preview.real;
+  state.preview = null;
+  state.user = real.user; state.supported = real.supported; CHECKINS = real.checkins;
+  Object.assign(state, { tab:"calendar", openEventId:null, qrEventId:null, settingsOpen:true, settingsPage:null });
+  render();
+}
+// Call at the top of anything that saves: true (and a toast) in the preview.
+function previewBlocks(){
+  if (!state.preview) return false;
+  toast("Leerder-aansig: niks word gestoor nie.");
+  return true;
+}
+
+/* --- 6e. Event detail/* --- 6e. Event detail ---------------------------------------------------
    Reached from any tab. Two actions at the bottom, in this order:
      "Koop kaartjies" — outbound link to the event's Quicket page.
                         Hidden when ticketUrl is null (free events).
@@ -2734,19 +2966,6 @@ function screenManage(){
       <button class="btn-primary" type="submit">Voeg admin by</button>
     </form>
 
-    <h2>Leerder se graad of geslag</h2>
-    <p style="font-size:13px;color:var(--muted);margin:-4px 0 8px;line-height:1.45">Leerders kan dit nie self verander nie, sodat niemand geleenthede vir ander grade kan sien nie. Almal gaan op 1 Januarie outomaties 'n graad hoër (Graad 12 word Alumni).</p>
-    <form data-form="set-learner" class="card" novalidate>
-      <label class="field"><span>E-pos van die leerder</span>
-        <input name="email" type="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" placeholder="naam@voorbeeld.co.za"></label>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <label class="field" style="flex:1;min-width:140px"><span>Graad</span>
-          <select name="grade"><option value="">Kies</option>${GRADES.map(g => `<option>${g}</option>`).join("")}</select></label>
-        <label class="field" style="flex:1;min-width:140px"><span>Geslag</span>
-          <select name="gender"><option value="">Kies</option>${GENDERS.map(g => `<option>${g}</option>`).join("")}</select></label>
-      </div>
-      <button class="btn-primary" type="submit">Verander</button>
-    </form>
   </div></div>`;
 }
 
@@ -2909,7 +3128,11 @@ function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
   tabbarEl.style.display = state.user && !state.loading && !state.needsConsent ? "" : "none";
   const gearBtn = document.getElementById("settings-btn");
-  gearBtn.style.display = tabbarEl.style.display === "none" ? "none" : "";
+  gearBtn.style.display = tabbarEl.style.display === "none" || state.preview ? "none" : "";
+  const banner = document.getElementById("preview-banner");
+  banner.style.display = state.preview && state.user ? "" : "none";
+  if (state.preview) banner.innerHTML = `<span>${icon("eye",15,"#fff")} Leerder-aansig · ${esc(state.preview.grade)}${state.preview.gender ? " · " + esc(state.preview.gender) : ""}</span>
+    <button data-action="end-preview">Verlaat</button>`;
   gearBtn.innerHTML = icon("gear", 19);
   gearBtn.classList.toggle("on", !!state.settingsOpen);
   unmountMaps(); stopScanner(); stopQrTicker();
@@ -3064,7 +3287,9 @@ function handle(target){
       }
       case "signout":        signOut(); return;
       case "open-settings":  state.settingsOpen = !state.settingsOpen; state.openEventId = null; state.qrEventId = null; break;
-      case "close-settings": state.settingsOpen = false; break;
+      case "close-settings": state.settingsOpen = false; state.settingsPage = null; break;
+      case "settings-page":  state.settingsPage = target.dataset.page || null; if (!state.settingsPage) state.learnerEdit = null; break;
+      case "end-preview":    endPreview(); return;
       case "delete-account": openDeleteAccount(); return;
       case "push-on":        enablePush(); return;
       case "install-help":   openInstallHelp(); return;
@@ -3145,6 +3370,7 @@ phoneEl.addEventListener("submit", async ev => {
   ev.preventDefault();
   const form = ev.target;
   if (form.dataset.busy) return;                 // no double submits
+  if (previewBlocks()) return;                   // nothing is saved in the learner preview
   const data = Object.fromEntries(new FormData(form));
   const auth = state.auth;
   const busy = on => {
@@ -3214,16 +3440,42 @@ phoneEl.addEventListener("submit", async ev => {
     return;
   }
 
-  if (form.dataset.form === "settings-profile"){
-    // Only the name: grade and gender are locked (a Hoof-admin changes them).
-    const [p, errors] = checkProfile({ ...data, grade: state.user.grade, gender: state.user.gender });
-    if (!showErrors(form, errors)) return;
+  if (form.dataset.form === "find-learner"){
+    if (roleOf() !== "key") return;
+    const email = normEmail(data.email);
+    if (!showErrors(form, !email ? { email:"Tik die leerder se e-posadres in." } : !isEmail(email) ? { email:"Dit lyk nie soos 'n e-posadres nie." } : {})) return;
     busy(true);
-    const { error } = await sb.from("profiles").update({ name:p.name, surname:p.surname }).eq("id", state.user.id);
+    const { data:rows, error } = await sb.rpc("admin_get_learner", { p_email:email });
     busy(false);
     if (error){ toast(dbMessage(error)); return; }
-    await loadAll(); render();
-    toast("Naam gestoor");
+    if (!rows || !rows.length){ state.learnerEdit = null; render(); showErrors(document.querySelector('[data-form="find-learner"]'), { email:"Niemand met hierdie e-posadres het al geregistreer nie." }); return; }
+    state.learnerEdit = { email, ...rows[0], gender: rows[0].gender || "" };
+    render();
+    return;
+  }
+
+  if (form.dataset.form === "edit-learner"){
+    if (roleOf() !== "key" || !state.learnerEdit) return;
+    const [p, errors] = checkProfile(data);
+    if (!showErrors(form, errors)) return;
+    busy(true);
+    const { data:ok, error } = await sb.rpc("admin_set_learner", { p_email:state.learnerEdit.email, p_name:p.name, p_surname:p.surname, p_grade:p.grade, p_gender:p.gender || "" });
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    if (!ok){ toast("Die leerder bestaan nie meer nie."); return; }
+    state.learnerEdit = { ...state.learnerEdit, ...p };
+    toast(`${p.name} ${p.surname} is bygewerk`);
+    render();
+    return;
+  }
+
+  if (form.dataset.form === "start-preview"){
+    if (roleOf() !== "key") return;
+    const errors = {};
+    if (!GRADES.includes(data.grade)) errors.grade = "Kies 'n graad.";
+    else if (LEARNER_GRADES.includes(data.grade) && !GENDERS.includes(data.gender)) errors.gender = "Kies seun of meisie.";
+    if (!showErrors(form, errors)) return;
+    startPreview(data.grade, data.gender);
     return;
   }
 
@@ -3286,23 +3538,6 @@ phoneEl.addEventListener("submit", async ev => {
     await loadAll(); render();
   }
 
-  if (form.dataset.form === "set-learner"){
-    if (roleOf() !== "key") return;
-    const errors = {};
-    const email = normEmail(data.email);
-    if (!email) errors.email = "Tik die leerder se e-posadres in.";
-    else if (!isEmail(email)) errors.email = "Dit lyk nie soos 'n e-posadres nie.";
-    if (!GRADES.includes(data.grade)) errors.grade = "Kies 'n graad.";
-    else if (LEARNER_GRADES.includes(data.grade) && !GENDERS.includes(data.gender)) errors.gender = "Kies seun of meisie.";
-    if (!showErrors(form, errors)) return;
-    busy(true);
-    const { data:found, error } = await sb.rpc("admin_set_learner", { p_email:email, p_grade:data.grade, p_gender:data.gender || "" });
-    busy(false);
-    if (error){ toast(dbMessage(error)); return; }
-    if (!found){ showErrors(form, { email: "Niemand met hierdie e-posadres het al geregistreer nie." }); return; }
-    form.reset();
-    toast("Graad en geslag bygewerk");
-  }
 });
 
 // Create / update an event from the Skep form. Returns { field: message } for
@@ -3403,7 +3638,7 @@ phoneEl.addEventListener("input", ev => {
 phoneEl.addEventListener("change", ev => {
   const el = ev.target;
   clearFieldError(el);
-  if (el.name === "grade" && el.closest('[data-form="auth-details"], [data-form="profile"]')){
+  if (el.name === "grade" && el.closest('[data-form="auth-details"], [data-form="profile"], [data-form="edit-learner"]')){
     // Boy/girl only matters for learners (events can be for girls or boys only).
     document.getElementById("auth-gender").style.display = LEARNER_GRADES.includes(el.value) ? "" : "none";
   } else if (el.id === "date-jump"){
@@ -3465,7 +3700,7 @@ function dbMessage(err){
   const code = err && err.code;
   if (isNetworkError(err)) return "Geen internet nie. Probeer weer sodra jy aanlyn is.";
   if (/last_key_admin/.test(m)) return "Daar moet altyd minstens een Hoof-admin wees.";
-  if (/grade_locked/.test(m)) return "Jy kan nie self jou graad of geslag verander nie. Vra 'n Hoof-admin.";
+  if (/grade_locked/.test(m)) return "Jy kan nie self jou naam, graad of geslag verander nie. Vra 'n Hoof-admin.";
   if (code === "23505") return "Dit bestaan reeds.";
   if (code === "23503") return "Dit word nog gebruik en kan nie geskrap word nie.";
   if (code === "23514") return "Een van die waardes word nie toegelaat nie.";
@@ -3606,8 +3841,10 @@ function applyData(d){
   ADMINS = (d.admins || []).map(a => ({ email:a.email, role:a.role, department:a.department_id }));
   STATS = {};
   (d.stats || []).forEach(x => { STATS[x.event_id] = { supporters:x.supporters, checkedIn:x.checked_in, suspicious:x.suspicious }; });
+  if (state.preview && state.user) previewOverlay();     // fresh data, same pretend learner
 }
 async function refreshMyCheckins(){
+  if (state.preview) return;
   const { data, error } = await fetchAll(() => sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags").order("event_id"));
   if (error) return;
   CHECKINS = {};
@@ -3627,6 +3864,7 @@ async function dbAction(run, successMessage){
 
 // "Ek ondersteun": update the screen straight away, undo if the server says no.
 async function toggleSupport(e){
+  if (previewBlocks()) return;
   const on = !state.supported.has(e.id);
   on ? state.supported.add(e.id) : state.supported.delete(e.id);
   render();
@@ -3671,7 +3909,7 @@ window.addEventListener("appinstalled", () => { installEvent = null; closeInstal
 
 // Returns true when the sheet is about to open (so nothing else pops up over it).
 function maybeOfferInstall(){
-  if (!state.user || state.needsConsent || isStandalone() || !isPhone() || state.installOffered) return false;
+  if (state.preview || !state.user || state.needsConsent || isStandalone() || !isPhone() || state.installOffered) return false;
   state.installOffered = true;
   if (loadJSON(INSTALL_KEY)) return false;
   setTimeout(() => openInstallHelp(), 600);
@@ -3818,7 +4056,7 @@ const PUSH_OFF_KEY = "garsie.pushOff";          // the uid that switched them of
 const PUSH_ASK_AGAIN_MS = 3 * 24 * 60 * 60 * 1000;
 
 function maybeOfferPush(){
-  if (!state.user || state.needsConsent || state.pushOffered) return;
+  if (state.preview || !state.user || state.needsConsent || state.pushOffered) return;
   if (document.getElementById("install-help") || document.getElementById("push-ask")) return;
   const supported = "Notification" in window && "PushManager" in window && "serviceWorker" in navigator && window.isSecureContext;
   if (!supported) return;
@@ -3957,6 +4195,7 @@ function renderPushCard(){
 }
 
 async function enablePush(){
+  if (previewBlocks()) return;
   const p = state.push;
   if (p.busy) return;
   p.busy = true; renderPushCard();
@@ -3983,6 +4222,7 @@ async function forgetThisDevice(){
   await sub.unsubscribe();       // if the server call failed, the next send finds it gone and cleans up
 }
 async function disablePush(){
+  if (previewBlocks()) return;
   const p = state.push;
   if (p.busy) return;
   p.busy = true; renderPushCard();
@@ -3992,6 +4232,7 @@ async function disablePush(){
 }
 
 async function testPush(){
+  if (previewBlocks()) return;
   const { data, error } = await sb.rpc("push_test");
   if (error) return toast(dbMessage(error));
   if (!data){ state.push.status = "off"; renderPushCard(); return toast("Hierdie toestel is nie meer geregistreer nie. Skakel kennisgewings weer aan."); }
@@ -3999,6 +4240,7 @@ async function testPush(){
 }
 
 async function toggleNotifyNew(){
+  if (previewBlocks()) return;
   if (!state.user || state.push.busy) return;
   const want = !state.user.notifyNew;
   state.user.notifyNew = want; renderPushCard();
@@ -4031,6 +4273,7 @@ if ("serviceWorker" in navigator){
 /* "Skrap my rekening" (Myne). Deletes the account and everything linked to
    it on the server (delete_my_account), then signs out on this phone. */
 function openDeleteAccount(){
+  if (previewBlocks()) return;
   if (document.getElementById("delete-account")) return;
   const el = document.createElement("div");
   el.id = "delete-account";
@@ -4074,6 +4317,7 @@ async function deleteAccount(){
 }
 
 async function signOut(){
+  if (state.preview) endPreview();
   stopLocation();
   // Don't let the next person on this phone get this person's notifications.
   try { await forgetThisDevice(); } catch {}
@@ -4082,13 +4326,15 @@ async function signOut(){
   try { if (sb) await sb.auth.signOut({ scope:"local" }); } catch {}
   saveJSON(CACHE_KEY, null);                    // don't leave data behind on a shared phone
   Object.assign(state, { session:null, user:null, needsProfile:false, offline:false, mapEventId:null,
-                         tab:"calendar", openEventId:null, editingId:null, qrEventId:null, settingsOpen:false,
+                         tab:"calendar", openEventId:null, editingId:null, qrEventId:null, settingsOpen:false, settingsPage:null, preview:null,
                          auth:{ mode:"signin", step:"details", draft:{} } });
   DEPARTMENTS = []; EVENTS = []; ADMINS = []; CHECKINS = {}; STATS = {}; state.supported = new Set();
   render();
 }
 
 async function init(){
+  // #animasie: just the loading animation, on a loop (for checking it).
+  if (location.hash === "#animasie"){ state.loading = true; render(); return; }
   takeOAuthError();
   checkGoogle();
   takeScanFromUrl();
