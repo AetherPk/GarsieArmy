@@ -6,7 +6,7 @@
 
   WHAT THIS IS
   Every school event — sport and cultural — in one calendar, with a link out
-  to the ticket page (tickets stay on Quicket). Supporters say "Ek ondersteun"
+  to the ticket page (tickets stay on Quicket). Supporters say "Bespreek"
   and check in at the event (location or QR code). One HTML file plus sw.js,
   no build step; installable on the home screen (manifest.json).
 
@@ -258,6 +258,25 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .field input[type=range]{height:auto;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand)}
 .field input[type=checkbox],.field input[type=radio]{width:18px;height:18px;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand);flex:none;margin:0}
 .check-row{display:flex;flex-wrap:wrap;gap:8px}
+/* Unread count on the My program tab, the inbox at the top of My program,
+   on/off switches (Wat ek volg) and the "who gets a notification" box. */
+.tab{position:relative}
+.tab-badge{position:absolute;top:1px;right:4px;min-width:16px;height:16px;border-radius:8px;padding:0 4px;background:var(--danger);color:#fff;font-family:var(--font-body);font-size:10px;font-weight:700;line-height:16px;text-align:center;letter-spacing:0}
+.inbox{max-width:1100px;margin:0 auto 14px;background:rgba(255,255,255,.07);border-radius:16px;padding:0 14px;color:#fff}
+.inbox>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;cursor:pointer;font-family:var(--font-display);font-weight:600;letter-spacing:.06em;font-size:15px}
+.inbox>summary::-webkit-details-marker{display:none}
+.inbox>summary svg{transition:transform .2s}
+.inbox[open]>summary svg{transform:rotate(90deg)}
+.inbox-list{max-height:360px;overflow-y:auto;margin:0 -4px 10px;padding:0 4px}
+.inbox-item{display:flex;gap:10px;padding:10px 0;border-top:.5px solid rgba(173,205,226,.2);font-size:13px;color:#dfe8ef;line-height:1.4}
+.inbox-item b{color:#fff;font-size:14px}
+.count-pill{display:inline-block;min-width:20px;padding:1px 7px;border-radius:10px;background:var(--danger);color:#fff;font-family:var(--font-body);font-size:12px;font-weight:700;letter-spacing:0;text-align:center}
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:9px;background:var(--surface);color:var(--muted);border:.5px solid var(--hairline);flex:none}
+.switch{display:block;width:36px;height:22px;border-radius:11px;flex:none;position:relative;background:rgba(173,205,226,.35)}
+.switch.on{background:var(--brand)}
+.switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.switch.on::after{left:16px}
+.notify-box>summary{cursor:pointer;font-size:14px;padding:4px 0;color:var(--shadow-ink)}
 .check-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:12px;border:.5px solid var(--hairline);background:var(--surface);font-size:14px;cursor:pointer;color:var(--shadow-ink)}
 .check-chip:has(input:checked){border-color:var(--brand);background:var(--brand-wash)}
 .audience-badge{font-size:12px;padding:3px 10px;border-radius:10px;background:var(--surface-2);color:var(--shadow-ink);display:inline-flex;align-items:center;gap:4px}
@@ -378,15 +397,27 @@ const CONFIG = {
      ticketUrl    string|null     null hides the "Koop kaartjies" button
      location     {lat,lng,radius,address}   check-in pin + radius (m)
      audience     {grades:[], gender, learnersOnly}   who may come (see AUDIENCE)
+     group        uuid|null       events.group_id — the subafdeling (optional)
+     inviteOnly   boolean         only invited people (and admins) see it
 =========================================================================== */
 let DEPARTMENTS = [];   // [{ id, name, colour }]
 let EVENTS      = [];   // only what this user may see (the database filters)
 let ADMINS      = [];   // Hoof-admin only: [{ email, role, department }]
 let CHECKINS    = {};   // MY check-ins: { [eventId]: { at, method, distance, flags } }
-let STATS       = {};   // admins: { [eventId]: { supporters, checkedIn, suspicious } }
+let STATS       = {};   // admins: { [eventId]: { supporters, checkedIn, suspicious, invited, accepted, declined } }
+let GROUPS      = [];   // subafdelings I may see: [{ id, department, name, open }]
+let INVITES     = {};   // MY invitations: { [eventId]: "pending" | "accepted" | "declined" }
+let INBOX       = [];   // MY inbox: [{ id, eventId, kind, title, body, at, read }]
+let GROUP_STATS = {};   // admins: { [groupId | "dept:" + departmentId]: members }
 
 function checkinFor(e){ return CHECKINS[e.id] || null; }
 function locationOf(e){ return e.location || CONFIG.schoolLocation; }
+function groupById(id){ return GROUPS.find(g => g.id === id) || null; }
+function groupsOf(deptId){ return GROUPS.filter(g => g.department === deptId).sort((a,b) => a.name.localeCompare(b.name, "af")); }
+// "Sport · Rugby": the department, plus the subafdeling if there is one.
+function deptLabel(e){ const g = e.group && groupById(e.group); return deptOf(e).name + (g ? " · " + g.name : ""); }
+function pendingInvites(){ return EVENTS.filter(e => INVITES[e.id] === "pending" && e.date >= toISO(TODAY)); }
+function unreadCount(){ return pendingInvites().length + INBOX.filter(m => !m.read).length; }
 
 /* ---------------------------------------------------------------------------
    STRINGS
@@ -509,7 +540,8 @@ function fitsAudience(e, person){
   return true;
 }
 // What the signed-in user may see: events they manage, plus events they fit.
-function isForUser(e){ return canAdmin(e) || fitsAudience(e, state.user); }
+// An invitation always gives access; an invite-only event needs one.
+function isForUser(e){ return canAdmin(e) || !!INVITES[e.id] || (!e.inviteOnly && fitsAudience(e, state.user)); }
 function visibleEvents(){ return EVENTS.filter(isForUser); }
 
 // "Graad 11 & 12 · Meisies" — or "" when the event is for everyone.
@@ -545,6 +577,7 @@ function adminDepartments(){
   if (roleOf() === "dept") return DEPARTMENTS.filter(d => d.id === state.user.department);
   return [];
 }
+function canAdminDept(id){ return adminDepartments().some(d => d.id === id); }
 
 /* ===========================================================================
    5. STATE
@@ -576,7 +609,9 @@ const state = {
   monthStart: new Date(TODAY.getFullYear(), TODAY.getMonth(), 1),
   calHours: [CONFIG.dayStartHour, CONFIG.dayEndHour, CONFIG.hourWidthPx],
 
-  supported: new Set(),             // event ids this user tapped "Ek ondersteun" on
+  supported: new Set(),             // event ids this user booked ("Bespreek")
+  myGroups: new Set(),              // groups (subafdelings) I'm in
+  unfollowed: new Set(),            // departments I stopped following (everyone follows all at first)
 
   query: "",
   filter: "Alles",
@@ -757,7 +792,7 @@ const PRIVACY_NOTICE = `
   <h3>Wat ons stoor</h3>
   <ul>
     <li>Jou naam, van, e-posadres, graad en geslag.</li>
-    <li>Watter geleenthede jy ondersteun.</li>
+    <li>Watter geleenthede jy bespreek, watter afdelings en groepe jy volg, en uitnodigings wat jy kry.</li>
     <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
     <li>As jy kennisgewings aanskakel: jou toestel se kennisgewingadres.</li>
   </ul>
@@ -765,9 +800,9 @@ const PRIVACY_NOTICE = `
   <h3>Hoekom</h3>
   <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
-  <p>Ons gebruik jou ligging net wanneer jy self "Meld aan" druk of 'n QR-kode skandeer, nooit in die agtergrond nie.</p>
+  <p>Ons gebruik jou ligging net terwyl die app oop is: om te sien of jy by 'n geleentheid is (dan sê ons jy mag aanmeld), en wanneer jy aanmeld. Dit word net gestoor wanneer jy aanmeld, en nooit in die agtergrond gelees nie.</p>
   <h3>Wie dit sien</h3>
-  <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
+  <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat bespreek het, genooi is of aangemeld het, en kan dit as 'n Excel-lys aflaai. 'n Afdeling se admins sien ook wie hul afdeling volg en wie in hul groepe is. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
   <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
   <h3>Jou regte</h3>
@@ -2495,11 +2530,12 @@ function screenMine(){
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
     </div>
     <h1 style="font-size:30px;color:#fff;margin:6px auto 10px;max-width:1100px">My program</h1>
+    ${inboxHtml()}
     <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
     <div style="max-width:1100px;margin:0 auto">`;
 
   if (!mine.length){
-    html += `<p style="color:#c4d3df;font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
+    html += `<p style="color:#c4d3df;font-size:14px">Jy het nog niks bespreek nie. Kies 'n geleentheid in die kalender.</p>`;
   }
 
   const card = e => {
@@ -2525,6 +2561,97 @@ function screenMine(){
     <div style="height:90px"></div></div>`;
 }
 
+/* Inbox (a dropdown at the top of My program): invitations to answer, then
+   what was sent to me — new events in what I follow, changes and
+   cancellations of what I booked. Opening it marks the messages as read. */
+function inboxHtml(){
+  const invites = pendingInvites().sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+  const n = unreadCount();
+  const items = [
+    ...invites.map(e => `<div class="inbox-item">${icon("calendar",16,"#fff")}
+      <div style="flex:1;min-width:0"><b>Uitnodiging: ${esc(e.title)}</b>
+        <div>${shortDate(toDate(e.date))} · ${e.start}${e.venue ? " · " + esc(e.venue) : ""}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <button class="mini-btn" data-action="answer-invite" data-id="${e.id}" data-accept="1" style="background:var(--brand);color:#fff;border:none">Aanvaar</button>
+          <button class="mini-btn" data-action="answer-invite" data-id="${e.id}" data-accept="0">Weier</button>
+          <button class="mini-btn" data-event="${e.id}">Meer</button></div></div></div>`),
+    ...INBOX.map(m => {
+      const e = m.eventId != null && eventById(m.eventId);
+      return `<div class="inbox-item" ${e ? `data-event="${e.id}" role="button" tabindex="0" style="cursor:pointer"` : ""}>
+        <span style="width:8px;height:8px;border-radius:4px;margin-top:6px;flex:none;background:${m.read ? "transparent" : "var(--danger)"}"></span>
+        <div style="flex:1;min-width:0"><b>${esc(m.title)}</b><div>${esc(m.body)}</div>
+          <div style="font-size:11px;color:#9db3c6;margin-top:2px">${formatDateTime(m.at)}</div></div></div>`;
+    })
+  ];
+  return `<details class="inbox" id="inbox" ${state.inboxOpen ? "open" : ""}>
+    <summary><span style="display:flex;align-items:center;gap:8px">Inbox ${n ? `<span class="count-pill">${n}</span>` : ""}</span>${icon("right",16,"#c4d3df")}</summary>
+    <div class="inbox-list">${items.length ? items.join("") : `<div class="inbox-item">Niks nuuts nie.</div>`}</div>
+  </details>`;
+}
+async function markInboxRead(){
+  if (state.preview || !INBOX.some(m => !m.read)) return;
+  const { error } = await sb.rpc("mark_inbox_read");
+  if (error) return;
+  INBOX.forEach(m => { m.read = true; });          // the dots stay until the next redraw
+  const badge = document.querySelector('[data-tab="mine"] .tab-badge');
+  const n = unreadCount();
+  if (badge){ if (n) badge.textContent = n; else badge.remove(); }
+}
+async function answerInvite(id, accept){
+  if (previewBlocks()) return;
+  const { error } = await sb.rpc("answer_invitation", { p_event_id:id, p_accept:accept });
+  if (error){ toast(dbMessage(error)); return; }
+  INVITES[id] = accept ? "accepted" : "declined";
+  accept ? state.supported.add(id) : state.supported.delete(id);
+  toast(accept ? "Aanvaar — jou plek is bespreek" : "Uitnodiging geweier");
+  render();
+}
+
+/* --- Wat ek volg (Instellings) -------------------------------------------
+   Departments: everyone follows all of them from the start. Open groups:
+   join or leave. Private groups: only admins add or remove people, so they
+   show without a switch. Admins send "Nuwe geleentheid" to followers and
+   members; nobody else sees who follows what.
+------------------------------------------------------------------------- */
+function screenFollow(){
+  const row = (html, name, sub, on, action, id, locked) => `<div class="list-row">
+      <div style="flex:1;min-width:0"><div style="font-size:15px">${html}</div>${sub ? `<div style="font-size:12px;color:var(--muted)">${sub}</div>` : ""}</div>
+      ${locked ? `<span class="pill">${icon("shield",11)} Lid</span>`
+        : `<button data-action="${action}" data-id="${esc(id)}" role="switch" aria-checked="${on}" aria-label="Volg ${esc(name)}" style="background:none;border:none;padding:4px;cursor:pointer"><span class="switch ${on ? "on" : ""}"></span></button>`}
+    </div>`;
+  return `<div class="panel"><div class="content" style="max-width:560px">
+    ${settingsSubHead("Wat ek volg", "Volg 'n afdeling of groep om te hoor wanneer daar iets nuuts is. Niemand anders sien wat jy volg nie.")}
+    ${DEPARTMENTS.map(d => {
+      const groups = groupsOf(d.id).filter(g => g.open || state.myGroups.has(g.id));
+      return `<div class="card" style="padding:4px 14px;margin-bottom:12px">
+        ${row(`<span class="dot" style="background:${d.colour};display:inline-block;margin-right:8px"></span><b>${esc(d.name)}</b>`, d.name, "Die hele afdeling", !state.unfollowed.has(d.id), "toggle-follow-dept", d.id, false)}
+        ${groups.map(g => row(esc(g.name), g.name, g.open ? "" : "Privaat groep — 'n admin het jou bygevoeg", state.myGroups.has(g.id), "toggle-group", g.id, !g.open)).join("")}
+      </div>`;
+    }).join("")}
+  </div></div>`;
+}
+async function toggleFollowDept(id){
+  if (previewBlocks() || !DEPARTMENTS.some(d => d.id === id)) return;
+  const follow = state.unfollowed.has(id);
+  follow ? state.unfollowed.delete(id) : state.unfollowed.add(id);
+  render();
+  const { error } = follow
+    ? await sb.from("department_unfollows").delete().eq("department_id", id).eq("user_id", state.user.id)
+    : await sb.from("department_unfollows").insert({ department_id:id });
+  if (error && error.code !== "23505"){ follow ? state.unfollowed.add(id) : state.unfollowed.delete(id); toast(dbMessage(error)); render(); }
+}
+async function toggleGroup(id){
+  const g = groupById(id);
+  if (previewBlocks() || !g || !g.open) return;
+  const join = !state.myGroups.has(id);
+  join ? state.myGroups.add(id) : state.myGroups.delete(id);
+  render();
+  const { error } = join
+    ? await sb.from("group_members").insert({ group_id:id })
+    : await sb.from("group_members").delete().eq("group_id", id).eq("user_id", state.user.id);
+  if (error && error.code !== "23505"){ join ? state.myGroups.delete(id) : state.myGroups.add(id); toast(dbMessage(error)); render(); }
+}
+
 /* --- Instellings (the gear, top right) ------------------------------------
    Profile (a learner's grade changes every year), notifications, the app
    (home screen, privacy notice) and the account (sign out, delete).
@@ -2532,6 +2659,7 @@ function screenMine(){
 function screenSettings(){
   if (state.settingsPage === "learner") return screenLearnerEdit();
   if (state.settingsPage === "preview") return screenPreviewStart();
+  if (state.settingsPage === "follow") return screenFollow();
   const u = state.user;
   const detail = (label, value) => value ? `<div><div class="eyebrow" style="margin:0 0 3px">${label}</div><div style="font-size:16px">${esc(value)}</div></div>` : "";
   return `<div class="panel"><div class="content" style="max-width:560px">
@@ -2551,6 +2679,9 @@ function screenSettings(){
     <section class="settings-section">
       <h2>Kennisgewings</h2>
       <div id="push-card">${pushCardHtml()}</div>
+      <div class="card" style="padding:0 14px">
+        <button class="settings-row" data-action="settings-page" data-page="follow"><span>Afdelings en groepe wat ek volg</span>${icon("right",16,"var(--muted)")}</button>
+      </div>
     </section>
 
     <section class="settings-section">
@@ -2631,11 +2762,13 @@ function screenPreviewStart(){
    pretend learner, and "Verlaat" puts everything back exactly as it was.
 --------------------------------------------------------------------------- */
 function previewOverlay(){
-  const real = { user:state.user, supported:state.supported, checkins:CHECKINS };
+  const real = { user:state.user, supported:state.supported, checkins:CHECKINS, invites:INVITES, inbox:INBOX,
+                 myGroups:state.myGroups, unfollowed:state.unfollowed };
   state.preview.real = real;
   state.user = { ...real.user, grade:state.preview.grade, gender:state.preview.gender, role:"user", department:null };
   state.supported = new Set();
-  CHECKINS = {};
+  CHECKINS = {}; INVITES = {}; INBOX = [];
+  state.myGroups = new Set(); state.unfollowed = new Set();
 }
 function startPreview(grade, gender){
   state.preview = { grade, gender: LEARNER_GRADES.includes(grade) ? gender : "" };
@@ -2648,6 +2781,7 @@ function endPreview(){
   const real = state.preview.real;
   state.preview = null;
   state.user = real.user; state.supported = real.supported; CHECKINS = real.checkins;
+  INVITES = real.invites; INBOX = real.inbox; state.myGroups = real.myGroups; state.unfollowed = real.unfollowed;
   Object.assign(state, { tab:"calendar", openEventId:null, qrEventId:null, settingsOpen:true, settingsPage:null });
   render();
 }
@@ -2662,7 +2796,7 @@ function previewBlocks(){
    Reached from any tab. Two actions at the bottom, in this order:
      "Koop kaartjies" — outbound link to the event's Quicket page.
                         Hidden when ticketUrl is null (free events).
-     "Ek ondersteun"  — the app's own signal, works with or without tickets.
+     "Bespreek"       — the app's own signal, works with or without tickets.
    Keep tickets ABOVE support: the ticket is the thing with a deadline.
 ------------------------------------------------------------------------- */
 function screenEventDetail(){
@@ -2690,8 +2824,11 @@ function screenEventDetail(){
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
       <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:15px">${(st => `<b>${st.supporters}</b> ondersteun · <b>${st.checkedIn}</b> aangemeld${st.suspicious ? ` · <b style="color:var(--warn)">${st.suspicious}</b> verdag` : ""}`)(statsFor(e))}</span>
-        <span style="display:flex;gap:6px">
+        <span style="font-size:15px">${(st => `<b>${st.supporters}</b> bespreek · <b>${st.checkedIn}</b> aangemeld${
+          st.invited ? ` · <b>${st.accepted}</b>/${st.invited} uitnodigings aanvaar${st.declined ? `, ${st.declined} geweier` : ""}` : ""}${
+          st.suspicious ? ` · <b style="color:var(--warn)">${st.suspicious}</b> verdag` : ""}`)(statsFor(e))}</span>
+        <span style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="mini-btn" data-action="invite-open" data-id="${e.id}">${icon("plus",14)} Nooi</button>
           <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
           <button class="mini-btn" data-action="show-qr" data-id="${e.id}">${icon("qr",14)} QR</button>
           <button class="mini-btn" data-action="export" data-id="${e.id}">${icon("download",14)} Excel</button>
@@ -2703,8 +2840,9 @@ function screenEventDetail(){
   <div class="content" style="padding:8px 18px">
     <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
     <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${esc(e.title)}</h1>
-    <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptOf(e).name)}</span>
+    <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptLabel(e))}</span>
     ${hasAudience(e) ? `<span class="audience-badge">${icon("shield",12)} Net vir: ${esc(audienceLabel(e))}</span>` : ""}
+    ${e.inviteOnly ? `<span class="audience-badge">${icon("shield",12)} Net op uitnodiging</span>` : ""}
 
     <div class="facts">
       ${rows.map(([ic_, label, value]) => `
@@ -2717,6 +2855,7 @@ function screenEventDetail(){
       <span style="flex:1;font-size:14px">${checkinFor(e) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
       ${icon("right",16,"var(--muted)")}
     </button>` : ""}
+    ${INVITES[e.id] && !canAdmin(e) ? inviteCard(e) : ""}
     ${e.description ? `<div class="eyebrow" style="margin:18px 0 8px">Bykomende inligting</div>
     <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
     ${adminCard}
@@ -2727,9 +2866,79 @@ function screenEventDetail(){
     ${ticketButton}
     <button data-action="toggle-support"
       style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "var(--surface)" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 6px 18px rgba(0,20,40,.35)">
-      ${isSupported ? icon("check",18,"var(--brand-text)") + "Jy ondersteun" : "Ek ondersteun"}
+      ${isSupported ? icon("check",18,"var(--brand-text)") + "Jy het bespreek" : "Bespreek"}
     </button>
   </div>`;
+}
+
+// An invitation on the event screen: answer it, or see your answer.
+function inviteCard(e){
+  const st = INVITES[e.id];
+  if (st === "pending") return `<div class="card" style="margin-top:10px;border:1.5px solid var(--brand)">
+      <div style="font-size:15px;font-weight:600">Jy is genooi</div>
+      <div style="font-size:13px;color:var(--muted);margin:2px 0 10px;line-height:1.4">Aanvaar om jou plek te bespreek, of weier as jy nie kan kom nie.</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-checkin" data-action="answer-invite" data-id="${e.id}" data-accept="1" style="flex:1">Aanvaar</button>
+        <button class="btn-checkin done" data-action="answer-invite" data-id="${e.id}" data-accept="0" style="flex:1">Weier</button>
+      </div></div>`;
+  return `<div style="margin-top:10px;font-size:13px;color:var(--muted)">${st === "accepted" ? "Jy het die uitnodiging aanvaar." : "Jy het die uitnodiging geweier."}${
+    st === "declined" ? ` <button class="btn-link" data-action="answer-invite" data-id="${e.id}" data-accept="1" style="font-size:13px;padding:0 4px">Aanvaar tog</button>` : ""}</div>`;
+}
+
+/* --- Nooi (admins) --------------------------------------------------------
+   Invite people to one event: by grade (and gender), by e-mail address, or
+   a whole subafdeling. Each new invitee gets a notification and sees the
+   invitation in their inbox; an invitation always gives access to the event.
+------------------------------------------------------------------------- */
+function screenInvite(){
+  const e = eventById(state.inviteEventId);
+  return `<div class="panel"><div class="content" style="max-width:560px">
+    <button data-action="invite-close" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
+    <h1 style="margin:10px 0 2px">Nooi mense</h1>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">${esc(e.title)} · ${shortDate(toDate(e.date))} · ${e.start}</div>
+    ${state.inviteResult ? `<div class="card" style="margin-bottom:12px;font-size:14px;line-height:1.5">${state.inviteResult}</div>` : ""}
+    <form data-form="invite" class="card" novalidate>
+      ${pickPeopleFields("", groupsOf(e.department))}
+      <button class="btn-primary" type="submit">Stuur uitnodigings</button>
+    </form>
+    <p style="font-size:12px;color:var(--muted);line-height:1.5;margin-top:10px">Mense wat reeds genooi is, kry nie weer 'n boodskap nie. Net admins sien wie genooi is.</p>
+  </div></div>`;
+}
+
+// Grades (+ gender), subafdelings and e-mail addresses: used by Nooi and by
+// "Wie kry 'n kennisgewing?". The prefix keeps the names apart in one form.
+function groupChips(p, groups){
+  return groups.length ? `<div style="font-size:13px;color:var(--muted);margin-bottom:6px">Subafdelings en groepe</div>
+    <div class="check-row" style="margin-bottom:12px">
+      ${groups.map(g => `<label class="check-chip"><input type="checkbox" name="${p}groups" value="${esc(g.id)}"> ${esc(g.name)}${g.open ? "" : " 🔒"}</label>`).join("")}
+    </div>` : "";
+}
+function pickPeopleFields(p, groups){
+  return `<div style="font-size:13px;color:var(--muted);margin-bottom:6px">Grade</div>
+    <div class="check-row" style="margin-bottom:8px">
+      ${GRADES.map(g => `<label class="check-chip"><input type="checkbox" name="${p}grades" value="${g}"> ${g.replace("Graad ", "Gr ")}</label>`).join("")}
+    </div>
+    <div class="check-row" style="margin-bottom:12px">
+      ${[["all","Seuns en meisies"],["Meisie","Net meisies"],["Seun","Net seuns"]].map(([v, label]) =>
+        `<label class="check-chip"><input type="radio" name="${p}gender" value="${v}" ${v === "all" ? "checked" : ""} style="accent-color:var(--brand)"> ${label}</label>`).join("")}
+    </div>
+    <div id="${p}groups-box">${groupChips(p, groups)}</div>
+    <label class="field" style="margin:0"><span>E-posadresse (een per reël, of met kommas)</span>
+      <textarea name="${p}emails" placeholder="naam@voorbeeld.co.za" style="min-height:64px"></textarea></label>`;
+}
+function readPeople(form, p){
+  const fd = new FormData(form);
+  const raw = String(fd.get(p + "emails") || "").split(/[\s,;]+/).map(normEmail).filter(Boolean);
+  const gender = fd.get(p + "gender");
+  return { grades: fd.getAll(p + "grades").filter(g => GRADES.includes(g)),
+           gender: GENDERS.includes(gender) ? gender : "all",
+           groups: fd.getAll(p + "groups").filter(id => groupById(id)),
+           emails: [...new Set(raw.filter(isEmail))], bad: raw.filter(x => !isEmail(x)) };
+}
+// "12 genooi." plus the addresses nobody registered with.
+function peopleResult(html, unknown){
+  return html + (unknown && unknown.length
+    ? `<br><span style="color:var(--warn)">Nie geregistreer nie (${unknown.length}): ${unknown.map(esc).join(", ")}</span>` : "");
 }
 
 /* --- 6f. Skep (Departement-admin + Hoof-admin) ---------------------------
@@ -2746,7 +2955,7 @@ function screenCreate(){
       <p style="color:var(--muted)">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n Hoof-admin.</p></div></div>`;
   }
   const editing = state.editingId != null ? eventById(state.editingId) : null;
-  const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
+  const e = editing || { title:"", department:depts[0].id, group:null, inviteOnly:false, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
   // Not your department any more? (e.g. a Hoof-admin moved it) — show yours.
   if (!depts.some(d => d.id === e.department)) e.department = depts[0].id;
   const loc = locationOf(e);
@@ -2764,6 +2973,8 @@ function screenCreate(){
         <select name="department" ${depts.length === 1 ? "disabled" : ""}>
           ${depts.map(d => `<option value="${esc(d.id)}" ${e.department===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
         </select></label>
+      <label class="field"><span>Subafdeling (opsioneel)</span>
+        <select name="group" id="group-select">${groupOptions(e.department, e.group)}</select></label>
       <label class="field"><span>Datum</span>
         <input name="date" type="date" value="${esc(e.date)}" ${editing ? "" : `min="${toISO(TODAY)}"`} max="${toISO(addDays(TODAY, 730))}"></label>
       <div style="display:flex;gap:10px">
@@ -2791,10 +3002,13 @@ function screenCreate(){
       <label class="field"><span>Radius: <b id="radius-label">${loc.radius} m</b> — mense binne hierdie sirkel kan aanmeld</span>
         <input name="radius" type="range" min="${CONFIG.radiusMin}" max="${CONFIG.radiusMax}" step="25" value="${loc.radius}"></label>
       <label class="field"><span>Bykomende inligting</span>
-        <textarea name="description" maxlength="${LIMITS.description}" placeholder="Een of twee sinne vir ondersteuners (opsioneel)">${esc(e.description)}</textarea>
+        <textarea name="description" maxlength="${LIMITS.description}" placeholder="Een of twee sinne vir almal wat kom (opsioneel)">${esc(e.description)}</textarea>
         <small class="counter" id="desc-count">${(e.description || "").length}/${LIMITS.description}</small></label>
       <div class="field"><span>Wie mag kom?</span>
         <div class="card" style="background:var(--surface);padding:12px">
+          <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
+            <input type="checkbox" name="inviteOnly" ${e.inviteOnly ? "checked" : ""}> Net op uitnodiging <span style="color:var(--muted);font-size:12px">(net wie genooi is, sien dit)</span>
+          </label>
           <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
             <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie alumni nie)</span>
           </label>
@@ -2811,6 +3025,15 @@ function screenCreate(){
       </div>
       <label class="field"><span>Kaartjieskakel (opsioneel)</span>
         <input name="ticketUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.url}" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
+      ${editing ? "" : `<details class="field notify-box">
+        <summary>Wie kry 'n kennisgewing? <small style="color:var(--muted);font-size:12px">(tik om te kies)</small></summary>
+        <div class="card" style="background:var(--surface);padding:12px;margin-top:8px">
+          <label class="check-chip" style="width:100%;border:none;padding:0 0 8px;background:none"><input type="checkbox" name="n_followers" ${e.group ? "" : "checked"}> Almal wat die departement volg</label>
+          <label class="check-chip" style="width:100%;border:none;padding:0 0 12px;background:none"><input type="checkbox" name="n_group" checked> Almal in die subafdeling (as jy een gekies het)</label>
+          <div style="font-size:13px;color:var(--muted);margin-bottom:8px">En ook:</div>
+          ${pickPeopleFields("n_", groupsOf(e.department))}
+          <p style="font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.45">Net mense wat die geleentheid mag sien, kry dit. Niemand sien wie anders dit gekry het nie.</p>
+        </div></details>`}
       <button class="btn-primary" type="submit">${editing ? "Stoor veranderinge" : "Skep geleentheid"}</button>
       ${editing ? `<button type="button" class="btn-link" data-action="cancel-edit" style="width:100%;margin-top:6px">Kanselleer</button>` : ""}
     </form>
@@ -2822,7 +3045,7 @@ function screenCreate(){
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
           <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
             <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
-            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${ev.start} · ${statsFor(ev).supporters} ondersteun${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
+            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${ev.start} · ${statsFor(ev).supporters} bespreek${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}${ev.inviteOnly ? " · <b>Op uitnodiging</b>" : ""}</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
           <button class="mini-btn" data-action="show-qr" data-id="${ev.id}" aria-label="Wys QR-kode">${icon("qr",14)}</button>
@@ -2834,7 +3057,15 @@ function screenCreate(){
   </div></div>`;
 }
 
-/* --- 6g. Bestuur (Hoof-admin only) ----------------------------------------
+function groupOptions(deptId, selected){
+  return `<option value="">Geen — die hele departement</option>` +
+    groupsOf(deptId).map(g => `<option value="${esc(g.id)}" ${g.id === selected ? "selected" : ""}>${esc(g.name)}</option>`).join("");
+}
+
+/* --- 6g. Bestuur -----------------------------------------------------------
+   Every admin: the subafdelings of their department (open or private, who
+   is in them, add or remove people) and who follows the department.
+   Hoof-admin also: departments and admins, for any department.
    Departments (name + colour) and the admins list: who may edit what.
    TODO: /api/departments and /api/admins, Hoof-admin only on the server.
 ------------------------------------------------------------------------- */
@@ -2844,13 +3075,128 @@ function isLastKeyAdmin(a){ return a.role === "key" && ADMINS.filter(x => x.role
 const DEPT_PALETTE = ["#0a84ff","#34c759","#ff9f0a","#af52de","#30b0c7","#ff375f","#a2845e"];
 
 function screenManage(){
+  if (state.manageGroupId && groupById(state.manageGroupId)) return screenGroup();
+  if (state.manageFollowers && canAdminDept(state.manageFollowers)) return screenFollowers();
+  return `<div class="panel"><div class="content">
+    <h1>Bestuur</h1>
+    ${subdeptSection()}
+    ${roleOf() === "key" ? keyAdminSections() : ""}
+  </div></div>`;
+}
+
+// The department whose subafdelings are shown (a Hoof-admin can pick).
+function manageDept(){
+  const depts = adminDepartments();
+  return depts.find(d => d.id === state.manageDept) || depts[0] || null;
+}
+function subdeptSection(){
+  const depts = adminDepartments(), d = manageDept();
+  if (!d) return `<p style="color:var(--muted)">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n Hoof-admin.</p>`;
+  const groups = groupsOf(d.id);
+  const radio = (v, label, on) => `<label class="check-chip"><input type="radio" name="open" value="${v}" ${on ? "checked" : ""} style="accent-color:var(--brand)"> ${label}</label>`;
+  return `<h2>Subafdelings</h2>
+    <p style="font-size:13px;color:var(--muted);margin:-4px 0 10px;line-height:1.45"><b>Oop</b>: enigiemand kan dit volg of verlaat. <b>Privaat</b>: net admins voeg mense by of haal hulle af (bv. 'n span). Net admins sien wie in 'n groep is.</p>
+    ${depts.length > 1 ? `<label class="field" style="max-width:280px"><span>Departement</span>
+      <select id="manage-dept">${depts.map(x => `<option value="${esc(x.id)}" ${x.id === d.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>` : ""}
+    <div class="card" style="padding:4px 14px">
+      <div class="list-row">
+        <span class="dot" style="background:${d.colour}"></span>
+        <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(d.name)} — die hele afdeling</div>
+          <div style="font-size:12px;color:var(--muted)">${GROUP_STATS["dept:" + d.id] ?? 0} volgers · almal volg outomaties</div></div>
+        <button class="mini-btn" data-action="show-followers" data-id="${esc(d.id)}">Lys</button>
+      </div>
+      ${groups.map(g => `<div class="list-row">
+        <span class="dot" style="background:transparent"></span>
+        <div style="flex:1;min-width:0"><div style="font-size:14px;font-weight:600">${esc(g.name)}</div>
+          <div style="font-size:12px;color:var(--muted)">${g.open ? "Oop" : "Privaat 🔒"} · ${GROUP_STATS[g.id] ?? 0} lede</div></div>
+        <button class="mini-btn" data-action="open-group" data-id="${esc(g.id)}">Bestuur</button>
+      </div>`).join("")}
+    </div>
+    <form data-form="new-group" class="card" novalidate style="margin-top:10px">
+      <label class="field"><span>Nuwe subafdeling in ${esc(d.name)}</span>
+        <input name="name" maxlength="40" placeholder="bv. Rugby, Koor, Eerste span"></label>
+      <div class="check-row" style="margin-bottom:10px">${radio(1, "Oop — enigiemand kan volg", true)}${radio(0, "Privaat — net admins voeg by", false)}</div>
+      <button class="btn-primary" type="submit">Skep subafdeling</button>
+    </form>`;
+}
+
+// One subafdeling: rename, open/private, add people by e-mail, who is in it.
+function screenGroup(){
+  const g = groupById(state.manageGroupId), d = deptById(g.department);
+  const list = state.memberList && state.memberList.key === g.id ? state.memberList : null;
+  if (!list) loadMemberList(g.id, null);
+  const radio = (v, label, on) => `<label class="check-chip"><input type="radio" name="open" value="${v}" ${on ? "checked" : ""} style="accent-color:var(--brand)"> ${label}</label>`;
+  return `<div class="panel"><div class="content" style="max-width:640px">
+    <button data-action="close-group" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
+    <h1 style="margin:10px 0 2px">${esc(g.name)}</h1>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px">${esc(d.name)} · ${g.open ? "Oop: enigiemand kan dit volg" : "Privaat: net admins voeg mense by"}</div>
+    <form data-form="edit-group" class="card" novalidate>
+      <label class="field"><span>Naam</span><input name="name" maxlength="40" value="${esc(g.name)}"></label>
+      <div class="check-row" style="margin-bottom:10px">${radio(1, "Oop", g.open)}${radio(0, "Privaat", !g.open)}</div>
+      <button class="btn-primary" type="submit">Stoor</button>
+    </form>
+    <form data-form="add-members" class="card" novalidate style="margin-top:12px">
+      <label class="field"><span>Voeg mense by (e-posadresse, een per reël of met kommas)</span>
+        <textarea name="emails" placeholder="naam@voorbeeld.co.za"></textarea></label>
+      <button class="btn-primary" type="submit">Voeg by</button>
+    </form>
+    ${state.groupResult ? `<div class="card" style="margin-top:12px;font-size:14px;line-height:1.5">${state.groupResult}</div>` : ""}
+    <h2>Lede${list && !list.loading ? ` (${list.rows.length})` : ""}</h2>
+    ${memberRows(list, true)}
+    <button class="btn-link" data-action="delete-group" data-id="${esc(g.id)}" style="color:var(--danger);margin-top:16px">${icon("trash",14,"var(--danger)")} Skrap hierdie subafdeling</button>
+  </div></div>`;
+}
+
+// Everyone who follows a department (everybody, minus who switched it off).
+function screenFollowers(){
+  const d = deptById(state.manageFollowers), key = "dept:" + d.id;
+  const list = state.memberList && state.memberList.key === key ? state.memberList : null;
+  if (!list) loadMemberList(null, d.id);
+  return `<div class="panel"><div class="content" style="max-width:640px">
+    <button data-action="close-group" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
+    <h1 style="margin:10px 0 2px">Volgers van ${esc(d.name)}</h1>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:14px;line-height:1.45">Almal volg outomaties. Leerders kan dit self in Instellings afskakel.</div>
+    <h2>${list && !list.loading ? list.rows.length : "…"} volgers</h2>
+    ${memberRows(list, false)}
+  </div></div>`;
+}
+function memberRows(list, removable){
+  if (!list || list.loading) return `<p style="color:var(--muted);font-size:14px">Laai…</p>`;
+  if (list.error) return `<p style="color:var(--danger);font-size:14px">${esc(list.error)}</p>`;
+  if (!list.rows.length) return `<p style="color:var(--muted);font-size:14px">Nog niemand nie.</p>`;
+  return `<div class="card" style="padding:4px 14px">${list.rows.map(p => `<div class="list-row">
+      <div style="flex:1;min-width:0"><div style="font-size:14px">${esc(p.name)} ${esc(p.surname)}</div>
+        <div style="font-size:12px;color:var(--muted);word-break:break-all">${esc(p.grade)}${p.gender ? " · " + esc(p.gender) : ""} · ${esc(p.email)}</div></div>
+      ${removable ? `<button class="mini-btn danger" data-action="remove-member" data-user="${esc(p.user_id)}" aria-label="Haal ${esc(p.name)} af">${icon("trash",14)}</button>` : ""}
+    </div>`).join("")}</div>`;
+}
+// Members of a group, or followers of a department, fetched when shown.
+async function loadMemberList(groupId, deptId){
+  const key = groupId || "dept:" + deptId;
+  state.memberList = { key, loading:true, rows:[] };
+  const { data, error } = await fetchAll(() => sb.rpc("admin_member_list", { p_group:groupId, p_department:deptId }).order("surname").order("name").order("user_id"));
+  if (!state.memberList || state.memberList.key !== key) return;
+  state.memberList = error ? { key, rows:[], error:dbMessage(error) } : { key, rows:data };
+  render();
+}
+async function removeMember(userId){
+  const g = groupById(state.manageGroupId);
+  if (!g || !canAdminDept(g.department) || !state.memberList) return;
+  const p = state.memberList.rows.find(r => r.user_id === userId);
+  if (!p || !confirm(`Haal ${p.name} ${p.surname} uit ${g.name}?`)) return;
+  const { error } = await sb.from("group_members").delete().eq("group_id", g.id).eq("user_id", userId);
+  if (error){ toast(dbMessage(error)); return; }
+  state.memberList.rows = state.memberList.rows.filter(r => r.user_id !== userId);
+  GROUP_STATS[g.id] = state.memberList.rows.length;
+  toast("Afgehaal"); render();
+}
+
+function keyAdminSections(){
   const nextColour = DEPT_PALETTE[DEPARTMENTS.length % DEPT_PALETTE.length];
   const deptOptions = (selected) => DEPARTMENTS.map(d =>
     `<option value="${esc(d.id)}" ${selected===d.id ? "selected" : ""}>${esc(d.name)}</option>`).join("");
 
-  return `<div class="panel"><div class="content">
-    <h1>Bestuur</h1>
-
+  return `
     <h2>Departemente</h2>
     <div class="card" style="padding:4px 14px">
       ${DEPARTMENTS.map(d => {
@@ -2899,9 +3245,7 @@ function screenManage(){
           <select name="department">${deptOptions(DEPARTMENTS[0] && DEPARTMENTS[0].id)}</select></label>
       </div>
       <button class="btn-primary" type="submit">Voeg admin by</button>
-    </form>
-
-  </div></div>`;
+    </form>`;
 }
 
 /* --- 6h. Excel export ------------------------------------------------------
@@ -2981,29 +3325,46 @@ function buildXlsx(sheetName, rows, boldRows, colWidths){
 }
 
 // Rows for one event's attendance sheet, from event_attendees() in the database:
-// [{ name, surname, grade, gender, email, supports, checked_in_at, method, distance_m, flags }]
+// [{ name, surname, grade, gender, email, supports, checked_in_at, method, distance_m, flags, invitation }]
+// In sections: who came first, then who booked but didn't come, then who
+// was invited but didn't book, then check-ins to look at.
 function attendeeRows(e, list){
   const all = (list || []).map(p => ({ ...p, flags: p.flags || [] }));
+  const ok = p => p.checked_in_at && !p.flags.length;
+  const came = all.filter(ok);
+  const bookedOnly = all.filter(p => p.supports && !p.checked_in_at);
+  const invitedOnly = all.filter(p => !p.supports && !p.checked_in_at && p.invitation);
   const suspicious = all.filter(p => p.checked_in_at && p.flags.length);
-  const people = all.filter(p => p.supports || (p.checked_in_at && !p.flags.length));
-  const checkedIn = people.filter(p => p.checked_in_at && !p.flags.length).length;
+  const invited = all.filter(p => p.invitation);
+  const INVITE = { pending:"Geen antwoord", accepted:"Aanvaar", declined:"Geweier" };
+  const bySurname = (a, b) => (a.surname || "").localeCompare(b.surname || "", "af") || (a.name || "").localeCompare(b.name || "", "af");
   const rows = [
     [e.title],
-    [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptOf(e).name}${hasAudience(e) ? `  ·  Net vir: ${audienceLabel(e)}` : ""}`],
-    [`Totaal: ${people.length}  ·  Aangemeld: ${checkedIn}  ·  Verdag: ${suspicious.length}`],
-    [],
-    ["Naam", "Van", "Graad", "Geslag", "E-pos", "Ondersteun", "Aangemeld"],
-    ...people.map(p => [p.name, p.surname, p.grade, p.gender || "", p.email, p.supports ? "Ja" : "Nee",
-                        p.checked_in_at && !p.flags.length ? `${formatDateTime(p.checked_in_at)} · ${METHOD_LABELS[p.method] || "GPS"}${p.distance_m != null ? ` (${p.distance_m} m)` : ""}` : ""]),
+    [`${e.date}  ${e.start}–${e.end}  ·  ${e.venue}  ·  ${deptLabel(e)}${hasAudience(e) ? `  ·  Net vir: ${audienceLabel(e)}` : ""}${e.inviteOnly ? "  ·  Net op uitnodiging" : ""}`],
+    [`Bespreek: ${all.filter(p => p.supports).length}  ·  Aangemeld: ${came.length} (waarvan ${came.filter(p => p.supports).length} vooraf bespreek het)` +
+     (invited.length ? `  ·  Genooi: ${invited.length} (${invited.filter(p => p.invitation === "accepted").length} aanvaar, ${invited.filter(p => p.invitation === "declined").length} geweier)` : "") +
+     `  ·  Verdag: ${suspicious.length}`],
     []
   ];
-  const bold = [0, 4, rows.length];
+  const bold = [0];
+  const head = ["Naam", "Van", "Graad", "Geslag", "E-pos", "Vooraf bespreek", "Uitnodiging", "Aangemeld"];
+  const line = p => [p.name, p.surname, p.grade, p.gender || "", p.email, p.supports ? "Ja" : "Nee", INVITE[p.invitation] || "",
+    ok(p) ? `${formatDateTime(p.checked_in_at)} · ${METHOD_LABELS[p.method] || "GPS"}${p.distance_m != null ? ` (${p.distance_m} m)` : ""}` : ""];
+  const section = (title, people) => {
+    bold.push(rows.length); rows.push([`${title} (${people.length})`]);
+    if (people.length){ bold.push(rows.length); rows.push(head); people.sort(bySurname).forEach(p => rows.push(line(p))); }
+    else rows.push(["Niemand nie."]);
+    rows.push([]);
+  };
+  section("Aangemeld", came);
+  section("Bespreek, maar nie aangemeld nie", bookedOnly);
+  if (invitedOnly.length) section("Genooi, maar nie bespreek nie", invitedOnly);
   // Separate section so an admin can check these before counting them.
-  rows.push(["Verdagte aanmeldings — gaan asseblief na"]);
+  bold.push(rows.length); rows.push(["Verdagte aanmeldings — gaan asseblief na"]);
   if (suspicious.length){
     bold.push(rows.length);
     rows.push(["Naam", "Van", "Graad", "Geslag", "E-pos", "Tyd", "Metode", "Rede"]);
-    suspicious.forEach(p => rows.push([p.name, p.surname, p.grade, p.gender || "", p.email,
+    suspicious.sort(bySurname).forEach(p => rows.push([p.name, p.surname, p.grade, p.gender || "", p.email,
       formatDateTime(p.checked_in_at), METHOD_LABELS[p.method] || "GPS", p.flags.join("; ")]));
   } else {
     rows.push(["Geen."]);
@@ -3022,7 +3383,7 @@ async function exportAttendees(e){
   const { data, error } = await fetchAll(() => sb.rpc("event_attendees", { p_event_id:e.id }).order("email"));
   if (error){ toast(dbMessage(error)); return; }
   const { rows, bold } = attendeeRows(e, data);
-  const blob = buildXlsx("Bywoning", rows, bold, [18, 20, 20, 10, 36, 22, 30, 50]);
+  const blob = buildXlsx("Bywoning", rows, bold, [18, 20, 12, 10, 36, 16, 16, 50]);
   const filename = `Bywoning - ${e.title} - ${e.date}.xlsx`.replace(/[\\/:*?"<>|]/g, "-");
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href:url, download:filename });
@@ -3045,14 +3406,14 @@ function toast(message){
 =========================================================================== */
 const SCREENS = { manage:screenManage, create:screenCreate, calendar:screenCalendar, map:screenMap, search:screenSearch, mine:screenMine };
 
-// Tabs per role. Admin tabs go in front: Bestuur (Hoof-admin), then Skep.
+// Tabs per role. Admin tabs go in front: Bestuur, then Skep.
 function tabsForRole(){
   const calendar = ["calendar","calendar","Kalender"], map = ["map","pin","Kaart"],
         search = ["search","search","Soek"], mine = ["mine","heart","My program"];
   const role = roleOf();
   // Admins don't check in, so they get no Kaart tab (pins are set in Skep).
   if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], calendar, search, mine];
-  if (role === "dept") return [["create","plus","Skep"], calendar, search, mine];
+  if (role === "dept") return [["manage","shield","Bestuur"], ["create","plus","Skep"], calendar, search, mine];
   return [calendar, map, search, mine];
 }
 
@@ -3082,10 +3443,12 @@ function render(){
   if (state.openEventId != null && !(eventById(state.openEventId) && isForUser(eventById(state.openEventId)))) state.openEventId = null;
   if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
   if (state.qrEventId != null && !(eventById(state.qrEventId) && canAdmin(eventById(state.qrEventId)))) state.qrEventId = null;
+  if (state.inviteEventId != null && !(eventById(state.inviteEventId) && canAdmin(eventById(state.inviteEventId)))) state.inviteEventId = null;
 
   const keepMonthScroll = (document.getElementById("monthview") || {}).scrollTop;
   screenEl.innerHTML = state.settingsOpen ? screenSettings()
                      : state.qrEventId != null ? screenQr()
+                     : state.inviteEventId != null ? screenInvite()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
   if (!maybeOfferInstall()) maybeOfferPush();
@@ -3094,7 +3457,9 @@ function render(){
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
     const active = id === state.tab && !state.openEventId && state.qrEventId == null;
-    return `<button class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-tab="${id}">${icon(iconName, 22)}${label}</button>`;
+    const unread = id === "mine" ? unreadCount() : 0;
+    return `<button class="tab ${active ? "is-active" : ""}" role="tab" aria-selected="${active}" data-tab="${id}">${icon(iconName, 22)}${label}${
+      unread ? `<span class="tab-badge" aria-label="${unread} nuut">${unread}</span>` : ""}</button>`;
   }).join("");
 
   // Week view: restore horizontal scroll, or start near "now" (this week)
@@ -3125,6 +3490,8 @@ function handle(target){
     state.qrEventId = null;
     state.openEventId = null;
     state.settingsOpen = false;
+    state.inviteEventId = null;
+    state.manageGroupId = null; state.manageFollowers = null; state.memberList = null;
   } else if (target.dataset.event){
     state.openEventId = Number(target.dataset.event);
   } else if (target.dataset.filter){
@@ -3226,12 +3593,33 @@ function handle(target){
       case "close-settings": state.settingsOpen = false; state.settingsPage = null; break;
       case "settings-page":  state.settingsPage = target.dataset.page || null; if (!state.settingsPage) state.learnerEdit = null; break;
       case "end-preview":    endPreview(); return;
+      case "answer-invite":  answerInvite(Number(target.dataset.id), target.dataset.accept === "1"); return;
+      case "toggle-follow-dept": toggleFollowDept(target.dataset.id); return;
+      case "toggle-group":   toggleGroup(target.dataset.id); return;
+      case "invite-open": {
+        const e = eventById(Number(target.dataset.id));
+        if (!e || !canAdmin(e)) return;
+        state.inviteEventId = e.id; state.inviteResult = ""; state.openEventId = e.id;
+        break;
+      }
+      case "invite-close":   state.inviteEventId = null; break;
+      case "open-group":     state.manageGroupId = target.dataset.id; state.memberList = null; state.groupResult = ""; break;
+      case "show-followers": state.manageFollowers = target.dataset.id; state.memberList = null; break;
+      case "close-group":    state.manageGroupId = null; state.manageFollowers = null; state.memberList = null; break;
+      case "remove-member":  removeMember(target.dataset.user); return;
+      case "delete-group": {
+        const g = groupById(target.dataset.id);
+        if (!g || !canAdminDept(g.department)) return;
+        if (!confirm(`Skrap "${g.name}"? Wie daarin is, word net uit die groep gehaal; geleenthede bly.`)) return;
+        state.manageGroupId = null; state.memberList = null;
+        dbAction(() => sb.from("groups").delete().eq("id", g.id), "Subafdeling geskrap");
+        return;
+      }
       case "delete-account": openDeleteAccount(); return;
       case "push-on":        enablePush(); return;
       case "install-help":   openInstallHelp(); return;
       case "push-off":       disablePush(); return;
       case "push-test":      testPush(); return;
-      case "push-new":       toggleNotifyNew(); return;
 
       // --- Admin actions. Each re-checks permission; the UI hiding a button isn't enough.
       case "new-event":      state.editingId = null; state.tab = "create"; state.openEventId = null; break;
@@ -3249,7 +3637,7 @@ function handle(target){
       }
       case "delete-event": {
         const e = eventById(Number(target.dataset.id));
-        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Almal se ondersteuning en aanmeldings daarvoor word ook geskrap. Dit kan nie ongedaan gemaak word nie.`)) return;
+        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Almal se besprekings, uitnodigings en aanmeldings daarvoor word ook geskrap. Dit kan nie ongedaan gemaak word nie.`)) return;
         if (state.editingId === e.id) state.editingId = null;
         dbAction(() => sb.from("events").delete().eq("id", e.id), "Geleentheid geskrap");
         return;
@@ -3427,10 +3815,63 @@ phoneEl.addEventListener("submit", async ev => {
 
   if (form.dataset.form === "event"){
     busy(true);
-    const errors = await saveEventForm({ ...data, grades: new FormData(form).getAll("grades") });
+    const errors = await saveEventForm({ ...data, grades: new FormData(form).getAll("grades"), people: readPeople(form, "n_") });
     busy(false);
     if (!showErrors(form, errors)) return;
     render();
+    return;
+  }
+
+  if (form.dataset.form === "invite"){
+    const e = eventById(state.inviteEventId);
+    if (!e || !canAdmin(e)) return;
+    const pp = readPeople(form, "");
+    if (pp.bad.length){ showErrors(form, { emails:`Dit lyk nie soos e-posadresse nie: ${pp.bad.join(", ")}` }); return; }
+    if (!pp.grades.length && !pp.groups.length && !pp.emails.length){ showErrors(form, { emails:"Kies grade of 'n groep, of tik e-posadresse in." }); return; }
+    busy(true);
+    const { data:res, error } = await sb.rpc("invite_to_event", { p_event_id:e.id, p_grades:pp.grades, p_gender:pp.gender, p_emails:pp.emails, p_groups:pp.groups });
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    state.inviteResult = peopleResult(`<b>${res.invited}</b> ${res.invited === 1 ? "persoon" : "mense"} genooi${res.already ? ` · ${res.already} was reeds genooi` : ""}.`, res.unknown);
+    await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "new-group" || form.dataset.form === "edit-group"){
+    const editing = form.dataset.form === "edit-group";
+    const g = editing ? groupById(state.manageGroupId) : null;
+    const d = editing ? (g && deptById(g.department)) : manageDept();
+    if (!d || !canAdminDept(d.id) || (editing && !g)) return;
+    const name = cleanText(data.name, 40), errors = {};
+    if (name.length < 2) errors.name = "Gee die subafdeling 'n naam (minstens 2 letters).";
+    else if (!isDeptName(name)) errors.name = "Net letters, syfers, spasies en - & ' ( ) asseblief.";
+    else if (groupsOf(d.id).some(x => (!g || x.id !== g.id) && x.name.toLowerCase() === name.toLowerCase())) errors.name = "Daar is reeds 'n subafdeling met hierdie naam.";
+    if (!showErrors(form, errors)) return;
+    busy(true);
+    const row = { name, open: data.open !== "0" };
+    const { error } = editing ? await sb.from("groups").update(row).eq("id", g.id)
+                              : await sb.from("groups").insert({ ...row, department_id:d.id });
+    busy(false);
+    if (error){ showErrors(form, { name: error.code === "23505" ? "Daar is reeds 'n subafdeling met hierdie naam." : dbMessage(error) }); return; }
+    toast(editing ? "Gestoor" : `${name} geskep`);
+    await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "add-members"){
+    const g = groupById(state.manageGroupId);
+    if (!g || !canAdminDept(g.department)) return;
+    const raw = String(data.emails || "").split(/[\s,;]+/).map(normEmail).filter(Boolean);
+    const bad = raw.filter(x => !isEmail(x));
+    if (!raw.length){ showErrors(form, { emails:"Tik een of meer e-posadresse in." }); return; }
+    if (bad.length){ showErrors(form, { emails:`Dit lyk nie soos e-posadresse nie: ${bad.join(", ")}` }); return; }
+    busy(true);
+    const { data:res, error } = await sb.rpc("admin_group_add", { p_group:g.id, p_emails:[...new Set(raw)] });
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    state.groupResult = peopleResult(`<b>${res.added}</b> bygevoeg.`, res.unknown);
+    state.memberList = null;
+    await loadAll(); render();
     return;
   }
 
@@ -3524,6 +3965,10 @@ async function saveEventForm(data){
     errors.radius = `Die radius moet tussen ${CONFIG.radiusMin} en ${CONFIG.radiusMax} m wees.`;
   }
   const description = cleanMultiline(data.description, LIMITS.description);
+  const group = data.group ? groupById(data.group) : null;
+  if (data.group && (!group || group.department !== department)) errors.group = "Kies 'n subafdeling van hierdie departement.";
+  const people = data.people || { grades:[], gender:"all", groups:[], emails:[], bad:[] };
+  if (!existing && people.bad.length) errors.n_emails = `Dit lyk nie soos e-posadresse nie: ${people.bad.join(", ")}`;
 
   // People paste "quicket.co.za/..." without https:// — add it for them.
   let ticketUrl = cleanText(data.ticketUrl, LIMITS.url);
@@ -3542,16 +3987,26 @@ async function saveEventForm(data){
     ticket_url: ticketUrl || null, lat, lng, radius, address,
     audience_grades: (data.grades || []).filter(g => LEARNER_GRADES.includes(g)),
     audience_gender: GENDERS.includes(data.gender) ? data.gender : "all",
-    audience_learners_only: data.learnersOnly === "on"
+    audience_learners_only: data.learnersOnly === "on",
+    group_id: group ? group.id : null,
+    invite_only: data.inviteOnly === "on"
   };
-  const { error } = existing
+  const { data:saved, error } = existing
     ? await sb.from("events").update(row).eq("id", existing.id)
-    : await sb.from("events").insert(row);
+    : await sb.from("events").insert(row).select("id").single();
   if (error){
     if (error.code === "23505") return { title: duplicate };
     return { title: dbMessage(error) };
   }
-  toast(existing ? "Veranderinge gestoor" : "Geleentheid geskep");
+  let note = existing ? "Veranderinge gestoor" : "Geleentheid geskep";
+  if (!existing && saved){              // tell the people the admin picked
+    const { data:res, error:aErr } = await sb.rpc("announce_event", { p_event_id:saved.id,
+      p_followers:data.n_followers === "on", p_group_members:data.n_group === "on",
+      p_grades:people.grades, p_gender:people.gender, p_emails:people.emails, p_groups:people.groups });
+    if (aErr) note += " — kennisgewings kon nie gestuur word nie";
+    else note = `Geskep · ${res.sent} kennisgewing${res.sent === 1 ? "" : "s"}${res.unknown && res.unknown.length ? ` · ${res.unknown.length} e-pos onbekend` : ""}`;
+  }
+  toast(note);
   if (!existing) goToDate(toDate(date));        // so the calendar shows it straight away
   state.editingId = null;
   await loadAll();
@@ -3577,6 +4032,16 @@ phoneEl.addEventListener("change", ev => {
   if (el.name === "grade" && el.closest('[data-form="auth-details"], [data-form="profile"], [data-form="edit-learner"]')){
     // Boy/girl only matters for learners (events can be for girls or boys only).
     document.getElementById("auth-gender").style.display = LEARNER_GRADES.includes(el.value) ? "" : "none";
+  } else if (el.name === "department" && el.closest('[data-form="event"]')){
+    const sel = document.getElementById("group-select");
+    if (sel) sel.innerHTML = groupOptions(el.value, "");
+    const box = document.getElementById("n_groups-box");
+    if (box) box.innerHTML = groupChips("n_", groupsOf(el.value));
+  } else if (el.name === "group" && el.closest('[data-form="event"]')){
+    const f = el.form.querySelector('[name="n_followers"]');
+    if (f) f.checked = !el.value;          // a subafdeling's event goes to its members, not the whole department
+  } else if (el.id === "manage-dept"){
+    state.manageDept = el.value; render();
   } else if (el.id === "date-jump"){
     if (isValidISODate(el.value)){ goToDate(toDate(el.value)); render(); }
   } else if (el.name === "role" && el.closest('[data-form="admin"]')){
@@ -3592,6 +4057,12 @@ phoneEl.addEventListener("change", ev => {
     dbAction(() => sb.from("departments").update({ colour: el.value.toLowerCase() }).eq("id", el.dataset.deptColour), "Kleur gestoor");
   }
 });
+
+phoneEl.addEventListener("toggle", ev => {
+  if (ev.target.id !== "inbox") return;
+  state.inboxOpen = ev.target.open;
+  if (ev.target.open) markInboxRead();
+}, true);
 
 phoneEl.addEventListener("keydown", ev => {
   if (ev.key !== "Enter" && ev.key !== " ") return;
@@ -3698,10 +4169,11 @@ function rowToEvent(r){
     start: String(r.start_time).slice(0, 5), end: String(r.end_time).slice(0, 5),
     venue: r.venue || "", description: r.description || "", ticketUrl: r.ticket_url || null,
     location: { lat: r.lat, lng: r.lng, radius: r.radius, address: r.address || "" },
-    audience: { grades: r.audience_grades || [], gender: r.audience_gender || "all", learnersOnly: !!r.audience_learners_only }
+    audience: { grades: r.audience_grades || [], gender: r.audience_gender || "all", learnersOnly: !!r.audience_learners_only },
+    group: r.group_id || null, inviteOnly: !!r.invite_only
   };
 }
-function statsFor(e){ return STATS[e.id] || { supporters:0, checkedIn:0, suspicious:0 }; }
+function statsFor(e){ return STATS[e.id] || { supporters:0, checkedIn:0, suspicious:0, invited:0, accepted:0, declined:0 }; }
 
 // Load everything this person may see. On failure (offline) fall back to the
 // copy cached on this phone for the same account.
@@ -3724,31 +4196,39 @@ async function loadAll(){
   const u = state.session && state.session.user;
   if (!u) return;
   try {
-    const [prof, role, depts, evs, sup, chk] = await Promise.all([
-      sb.from("profiles").select("name,surname,grade,gender,notify_new,popia_accepted_at").eq("id", u.id).maybeSingle(),
+    const [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb] = await Promise.all([
+      sb.from("profiles").select("name,surname,grade,gender,popia_accepted_at").eq("id", u.id).maybeSingle(),
       sb.rpc("my_role"),
       sb.from("departments").select("id,name,colour").order("name"),
       fetchAll(() => sb.from("events").select("*").order("date").order("start_time").order("id")),
       fetchAll(() => sb.from("supports").select("event_id").order("event_id")),
-      fetchAll(() => sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags").order("event_id"))
+      fetchAll(() => sb.from("checkins").select("event_id,scanned_at,method,distance_m,flags").order("event_id")),
+      sb.from("groups").select("id,department_id,name,open").order("name"),
+      sb.from("group_members").select("group_id").eq("user_id", u.id),
+      sb.from("department_unfollows").select("department_id"),
+      fetchAll(() => sb.from("invitations").select("event_id,status").order("event_id")),
+      sb.from("inbox").select("id,event_id,kind,title,body,created_at,read_at").order("created_at", { ascending:false }).limit(100)
     ]);
-    for (const r of [prof, role, depts, evs, sup, chk]) if (r.error) throw r.error;
+    for (const r of [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb]) if (r.error) throw r.error;
     const myRole = (role.data || [])[0] || null;
-    let admins = [], stats = [];
+    let admins = [], stats = [], groupStats = [];
     if (myRole){
-      const st = await fetchAll(() => sb.rpc("admin_event_stats").order("event_id"));
+      const [st, gs] = await Promise.all([fetchAll(() => sb.rpc("admin_event_stats").order("event_id")), sb.rpc("admin_group_stats")]);
       if (st.error) throw st.error;
+      if (gs.error) throw gs.error;
       stats = st.data || [];
+      groupStats = gs.data || [];
       if (myRole.role === "key"){
         const ad = await sb.from("admins").select("email,role,department_id").order("email");
         if (ad.error) throw ad.error;
         admins = ad.data || [];
       }
     }
-    applyData({ uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
-                supports:sup.data, checkins:chk.data, admins, stats, savedAt:new Date().toISOString() });
-    saveJSON(CACHE_KEY, { uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
-                          supports:sup.data, checkins:chk.data, admins, stats, savedAt:new Date().toISOString() });
+    const d = { uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
+                supports:sup.data, checkins:chk.data, admins, stats, groups:grp.data, members:mem.data, unfollows:unf.data,
+                invites:inv.data, inbox:inb.data, groupStats, savedAt:new Date().toISOString() };
+    applyData(d);
+    saveJSON(CACHE_KEY, d);
     state.offline = false;
   } catch (err){
     const cache = loadJSON(CACHE_KEY);
@@ -3767,7 +4247,7 @@ function applyData(d){
   state.needsConsent = !!d.profile && !d.profile.popia_accepted_at;
   state.user = d.profile ? {
     id: d.uid, email: (d.email || "").toLowerCase(), name: d.profile.name, surname: d.profile.surname,
-    grade: d.profile.grade, gender: d.profile.gender || "", notifyNew: d.profile.notify_new !== false,
+    grade: d.profile.grade, gender: d.profile.gender || "",
     role: d.role ? d.role.role : "user", department: d.role ? d.role.department_id : null
   } : null;
   DEPARTMENTS = d.departments || [];
@@ -3777,7 +4257,16 @@ function applyData(d){
   (d.checkins || []).forEach(c => { CHECKINS[c.event_id] = { at:c.scanned_at, method:c.method, distance:c.distance_m, flags:c.flags || [] }; });
   ADMINS = (d.admins || []).map(a => ({ email:a.email, role:a.role, department:a.department_id }));
   STATS = {};
-  (d.stats || []).forEach(x => { STATS[x.event_id] = { supporters:x.supporters, checkedIn:x.checked_in, suspicious:x.suspicious }; });
+  (d.stats || []).forEach(x => { STATS[x.event_id] = { supporters:x.supporters, checkedIn:x.checked_in, suspicious:x.suspicious,
+                                                        invited:x.invited || 0, accepted:x.accepted || 0, declined:x.declined || 0 }; });
+  GROUPS = (d.groups || []).map(g => ({ id:g.id, department:g.department_id, name:g.name, open:g.open }));
+  state.myGroups = new Set((d.members || []).map(m => m.group_id));
+  state.unfollowed = new Set((d.unfollows || []).map(x => x.department_id));
+  INVITES = {};
+  (d.invites || []).forEach(i => { INVITES[i.event_id] = i.status; });
+  INBOX = (d.inbox || []).map(m => ({ id:m.id, eventId:m.event_id, kind:m.kind, title:m.title, body:m.body, at:m.created_at, read:!!m.read_at }));
+  GROUP_STATS = {};
+  (d.groupStats || []).forEach(x => { GROUP_STATS[x.group_id || "dept:" + x.department_id] = x.members; });
   if (state.preview && state.user) previewOverlay();     // fresh data, same pretend learner
 }
 async function refreshMyCheckins(){
@@ -3799,11 +4288,13 @@ async function dbAction(run, successMessage){
   return true;
 }
 
-// "Ek ondersteun": update the screen straight away, undo if the server says no.
+// "Bespreek": update the screen straight away, undo if the server says no.
+// Booking an event you were invited to also accepts the invitation (server).
 async function toggleSupport(e){
   if (previewBlocks()) return;
   const on = !state.supported.has(e.id);
   on ? state.supported.add(e.id) : state.supported.delete(e.id);
+  if (on && INVITES[e.id] === "pending") INVITES[e.id] = "accepted";
   render();
   const { error } = on
     ? await sb.from("supports").insert({ event_id:e.id })
@@ -3817,8 +4308,11 @@ async function toggleSupport(e){
 
 /* ---- Push notifications --------------------------------------------------
    The server decides who gets what (supabase/migrations/..._push.sql):
-     - "Nuwe geleentheid" to everyone the event is for (can be switched off)
-     - "Verandering" / "Gekanselleer" to everyone who pressed Ek ondersteun
+     - "Nuwe geleentheid" to the people the admin picks (followers of the
+       department, a subafdeling, grades, e-mail addresses)
+     - "Uitnodiging" to everyone invited
+     - "Verandering" / "Gekanselleer" to everyone who booked ("Bespreek")
+     New events, changes and cancellations also land in the inbox.
      - "Begin binnekort" an hour before, to the same people
    The phone only has to say yes and hand over its push address.
    iPhone: works only once the app is on the home screen (iOS 16.4+). */
@@ -4020,8 +4514,8 @@ function openPushAsk(){
       <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Met kennisgewings bly jy op hoogte van alles wat by die skool gebeur.</p>
       <ul style="list-style:none;padding:0;margin:0 0 6px">
         ${why("⚠️", "Hoor <b>dadelik</b> of 'n geleentheid <b>verskuif of gekanselleer</b> is, voordat jy verniet ry.")}
-        ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy ondersteun.")}
-        ${why("🆕", "Hoor <b>eerste</b> van nuwe geleenthede vir jou graad.")}
+        ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy bespreek het.")}
+        ${why("🆕", "Hoor <b>eerste</b> van nuwe geleenthede en <b>uitnodigings</b>.")}
       </ul>
       <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of die app kennisgewings mag stuur: druk <b>Allow</b>.</p>
       <button class="btn-primary" data-yes>Skakel kennisgewings aan</button>
@@ -4109,19 +4603,12 @@ function pushCardHtml(){
       return box("Kennisgewings is geblokkeer. Skakel dit in jou foon se instellings vir hierdie app aan, en maak die app weer oop.");
     case "off":
       return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span>Kry 'n boodskap wanneer 'n geleentheid wat jy ondersteun, verskuif of gekanselleer word of binnekort begin.</span>
+        <span>Kry 'n boodskap van nuwe geleenthede in wat jy volg, uitnodigings, en as iets wat jy bespreek het verskuif, gekanselleer word of binnekort begin.</span>
         ${btn("push-on", p.busy ? "Wag…" : "Skakel kennisgewings aan", true)}</div>`);
     case "on": {
-      const wantNew = !!(state.user && state.user.notifyNew);
       return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
         <span>🔔 Kennisgewings is op hierdie toestel aan.</span>
-        <span style="display:flex;gap:6px;flex-wrap:wrap">${btn("push-test", "Stuur toets")}${btn("push-off", "Skakel af")}</span></div>
-        <button data-action="push-new" role="switch" aria-checked="${wantNew}" ${p.busy ? "disabled" : ""}
-          style="margin-top:10px;display:flex;align-items:center;gap:10px;background:none;border:none;color:#dfe8ef;font-size:13px;padding:0;cursor:pointer;text-align:left">
-          <span style="width:36px;height:22px;border-radius:11px;flex:none;position:relative;background:${wantNew ? "var(--brand)" : "rgba(173,205,226,.35)"}">
-            <span style="position:absolute;top:2px;${wantNew ? "right" : "left"}:2px;width:18px;height:18px;border-radius:50%;background:#fff"></span></span>
-          Ook as daar 'n nuwe geleentheid vir jou is
-        </button>`);
+        <span style="display:flex;gap:6px;flex-wrap:wrap">${btn("push-test", "Stuur toets")}${btn("push-off", "Skakel af")}</span></div>`);
     }
   }
   return "";
@@ -4176,15 +4663,6 @@ async function testPush(){
   toast("Toets gestuur. Dit behoort binne 'n paar sekondes op te daag.");
 }
 
-async function toggleNotifyNew(){
-  if (previewBlocks()) return;
-  if (!state.user || state.push.busy) return;
-  const want = !state.user.notifyNew;
-  state.user.notifyNew = want; renderPushCard();
-  const { error } = await sb.from("profiles").update({ notify_new:want }).eq("id", state.user.id);
-  if (error){ state.user.notifyNew = !want; renderPushCard(); toast(dbMessage(error)); }
-}
-
 // A notification (or a shared link) can open one event: #geleentheid=<id>.
 function takeEventFromUrl(){
   const k = location.hash.match(/kaart=(\d+)/);
@@ -4226,7 +4704,7 @@ function openDeleteAccount(){
   el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;padding:16px";
   el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;padding:20px;font-size:14px;line-height:1.5">
       <h2 style="font-size:20px;margin:0 0 8px">Skrap jou rekening?</h2>
-      <p style="margin:0 0 8px">Dit vee <b>alles</b> van jou uit: jou profiel, watter geleenthede jy ondersteun, jou aanmeldings en jou kennisgewings.</p>
+      <p style="margin:0 0 8px">Dit vee <b>alles</b> van jou uit: jou profiel, watter geleenthede jy bespreek het, wat jy volg, jou uitnodigings, aanmeldings en kennisgewings.</p>
       <p style="margin:0 0 14px;color:var(--muted)">Dit kan nie ongedaan gemaak word nie. Jy kan later weer registreer, maar as 'n nuwe gebruiker.</p>
       <button class="btn-primary" data-yes>Ja, skrap my rekening</button>
       <button class="btn-link" data-close style="width:100%;margin-top:6px">Kanselleer</button>
