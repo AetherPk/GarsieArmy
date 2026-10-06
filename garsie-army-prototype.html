@@ -158,10 +158,10 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 
 /* Loading animations (see LOADING ANIMATIONS in the script) */
 .loader{margin:30px auto 0;max-width:320px}
-.loader-canvas{display:block;width:100%;max-width:300px;height:auto;aspect-ratio:4/3;margin:0 auto}
+.loader-canvas{display:block;width:100%;max-width:300px;height:auto;aspect-ratio:4/3;margin:0 auto;border-radius:6px;border:.5px solid var(--hairline);background:rgba(10,48,80,.45)}
 .loader-fields{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px}
 .loader-fields span{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);transition:color .3s}
-.loader-fields span.on{color:var(--brand-text)}
+.loader-fields span.on{color:var(--c,var(--brand-text))}
 .loader-fields i{width:5px;height:5px;background:var(--hairline);transform:rotate(45deg)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
@@ -917,10 +917,20 @@ const easeInOut = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
    LOADING ANIMATIONS — scenes
    No people: each scene is a point of view or an object that moves by
    itself (a kick over the posts, a violin that plays itself, chalk that
-   writes on its own). Drawn on a 240 × 180 canvas in the app's colours:
-   white, crest teal and gold, with a few natural tones (wood, leather).
+   writes on its own). Drawn on a 240 × 180 canvas in the app's own
+   colours: white, the crest teals and the navy panels. The one accent
+   colour is the department colour of the field that is playing (Sport
+   green, Kultuur purple, Akademie gold), as on the calendar.
 --------------------------------------------------------------------------- */
-const C_WHITE = "#f3f6f9", C_TEAL = "#5ab7d6", C_DEEP = "#0b6a8a", C_GOLD = "#e0b64f", C_WOOD = "#c98a46", C_WOOD_D = "#8a5426", C_FAINT = "rgba(243,246,249,.18)";
+const C_WHITE = "#f3f6f9", C_TEAL = "#5ab7d6", C_DEEP = "#0b5f7c", C_WOOD = "#1d84ab", C_WOOD_D = "#0b5f7c", C_FAINT = "rgba(243,246,249,.18)";
+const C_PANEL = "#0a3050", C_NIGHT = "#011628", C_WASH = a => `rgba(53,156,173,${a})`;
+const FIELD_COLOURS = { Sport:"#3fae7a", Kultuur:"#9b7fd4", Akademie:"#c9a23f" };
+let C_ACCENT = FIELD_COLOURS.Sport;
+// The field's colour from the departments table once it has loaded, else the default.
+function fieldColour(field){
+  const d = DEPARTMENTS.find(x => x.name === field);
+  return d && isHexColour(d.colour) ? d.colour : FIELD_COLOURS[field];
+}
 const easeOut = t => 1 - (1 - t) ** 3;
 function disc(ctx, p, r){ ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill(); }
 function note(ctx, x, y, a, double){
@@ -933,7 +943,7 @@ function note(ctx, x, y, a, double){
   ctx.globalAlpha = 1;
 }
 function sparkle(ctx, x, y, r, a, colour){
-  ctx.globalAlpha = a; ctx.fillStyle = colour || C_GOLD; ctx.beginPath();
+  ctx.globalAlpha = a; ctx.fillStyle = colour || C_ACCENT; ctx.beginPath();
   ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r);
   ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r); ctx.fill(); ctx.globalAlpha = 1;
 }
@@ -968,13 +978,13 @@ function rugbyBall(ctx, x, y, s, spin){
 function drawKick(ctx, t){
   const vx = 120, vy = 74;                                     // vanishing point
   const g = ctx.createLinearGradient(0, vy, 0, 180);
-  g.addColorStop(0, "rgba(63,174,122,.25)"); g.addColorStop(1, "rgba(63,174,122,.55)");
+  g.addColorStop(0, C_WASH(.14)); g.addColorStop(1, C_WASH(.38));
   ctx.fillStyle = g; ctx.fillRect(0, vy, 240, 106);
   ctx.strokeStyle = "rgba(243,246,249,.35)"; ctx.lineWidth = 1.2;
   for (const x of [-140, -40, 60, 160, 280, 380]){ ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(x, 180); ctx.stroke(); }
   for (const y of [96, 124, 160]){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(240, y); ctx.stroke(); }
   const scored = t > .78;
-  ctx.fillStyle = scored ? C_GOLD : C_WHITE;                   // posts in the distance
+  ctx.fillStyle = scored ? C_ACCENT : C_WHITE;                   // posts in the distance
   ctx.fillRect(104, 28, 3, 50); ctx.fillRect(133, 28, 3, 50); ctx.fillRect(104, 58, 32, 3);
   const kickT = .1, shake = t > kickT && t < kickT + .06 ? Math.sin(t * 300) * 1.5 : 0;
   if (t < kickT){ rugbyBall(ctx, 120, 162, 1, 0); return; }   // on the tee
@@ -1016,7 +1026,7 @@ function drawNetballTop(ctx, t){
   const fall = easeOut(clamp01(t / .7));
   const pos = bezier([34, 168], [70, 60], [cx, cy], fall), r = lerp(26, 13, fall);
   if (t > .62){ netball(ctx, bottom[0], lerp(cy, cy + 10, through), lerp(13, 9, through), 1 - through * .7); }
-  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();   // the ring
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();   // the ring
   if (t <= .62){
     ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(pos[0] + 10 * (1 - fall), pos[1] + 12 * (1 - fall), r * .9, r * .5, 0, 0, Math.PI * 2); ctx.fill();
     netball(ctx, pos[0], pos[1], r, 1);
@@ -1026,20 +1036,20 @@ function drawNetballTop(ctx, t){
 
 /* --- Sport: cricket — the ball comes at you and takes the stumps --------- */
 function drawStumps(ctx, t){
-  ctx.fillStyle = "rgba(201,138,70,.22)";                                  // the pitch
+  ctx.fillStyle = C_WASH(.22);                                             // the pitch
   ctx.beginPath(); ctx.moveTo(108, 40); ctx.lineTo(132, 40); ctx.lineTo(200, 180); ctx.lineTo(40, 180); ctx.fill();
   ctx.strokeStyle = "rgba(243,246,249,.6)"; ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.moveTo(70, 158); ctx.lineTo(170, 158); ctx.stroke();
   const hit = .52, after = clamp01((t - hit) / .48);
   const tilt = t > hit ? easeOut(after) * .5 : 0;
-  ctx.fillStyle = "#e9d6b6";
+  ctx.fillStyle = C_WHITE;
   for (const [x, a] of [[104, -tilt * .4], [120, -tilt], [136, tilt * .3]]){
     ctx.save(); ctx.translate(x, 156); ctx.rotate(a); ctx.fillRect(-3, -70, 6, 70); ctx.restore();
   }
   const bail = (x0, dir, i) => {
-    if (t < hit){ ctx.fillStyle = C_GOLD; ctx.fillRect(x0, 84, 15, 4); return; }
+    if (t < hit){ ctx.fillStyle = C_ACCENT; ctx.fillRect(x0, 84, 15, 4); return; }
     const s = after, x = x0 + dir * s * 70, y = 84 - 70 * s + 110 * s * s;
-    ctx.save(); ctx.translate(x + 7, y + 2); ctx.rotate(dir * s * 9 + i); ctx.fillStyle = C_GOLD; ctx.fillRect(-7, -2, 15, 4); ctx.restore();
+    ctx.save(); ctx.translate(x + 7, y + 2); ctx.rotate(dir * s * 9 + i); ctx.fillStyle = C_ACCENT; ctx.fillRect(-7, -2, 15, 4); ctx.restore();
   };
   bail(104, -1, 0); bail(121, 1, 1);
   if (t < hit){                                                            // the ball: far, bounce, near
@@ -1047,8 +1057,7 @@ function drawStumps(ctx, t){
     const y = u < bounce ? lerp(48, 140, u / bounce) : lerp(140, 112, (u - bounce) / (1 - bounce));
     const r = lerp(2.5, 9, u), x = lerp(118, 124, u);
     ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(x, lerp(50, 150, u), r, r * .35, 0, 0, Math.PI * 2); ctx.fill();
-    const g = ctx.createRadialGradient(x - r * .3, y - r * .3, 1, x, y, r); g.addColorStop(0, "#e2574a"); g.addColorStop(1, "#8e2a22");
-    ctx.fillStyle = g; disc(ctx, [x, y], r);
+    ctx.fillStyle = C_ACCENT; disc(ctx, [x, y], r);
     ctx.strokeStyle = "#f3f6f9"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * .75, -.6, 2.2); ctx.stroke();
   } else {
     ctx.globalAlpha = 1 - after; ctx.strokeStyle = C_WHITE; ctx.lineWidth = 2;
@@ -1060,7 +1069,7 @@ function drawStumps(ctx, t){
 
 /* --- Sport: hockey from above — into the net ----------------------------- */
 function drawHockeyGoal(ctx, t){
-  ctx.fillStyle = "rgba(63,174,122,.32)"; ctx.fillRect(0, 0, 240, 180);
+  ctx.fillStyle = C_WASH(.2); ctx.fillRect(0, 0, 240, 180);
   ctx.strokeStyle = "rgba(243,246,249,.5)"; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(214, 90, 70, Math.PI * .5, Math.PI * 1.5); ctx.stroke();   // the D
   const hit = .45, bulge = t > hit ? Math.sin(clamp01((t - hit) / .3) * Math.PI) * 12 * (1 - clamp01((t - hit - .3) / .4)) : 0;
@@ -1074,7 +1083,7 @@ function drawHockeyGoal(ctx, t){
   if (t < hit) for (let k = 1; k <= 4; k++){ ctx.globalAlpha = .25 - k * .05; ctx.fillStyle = C_WHITE;
     disc(ctx, [lerp(28, 222, Math.max(0, u - k * .05)), lerp(140, 92, Math.max(0, u - k * .05))], 5); }
   ctx.globalAlpha = 1; ctx.fillStyle = C_WHITE; disc(ctx, pos, 5.5);
-  if (t < .12){ ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2;                        // the crack of the hit
+  if (t < .12){ ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 2;                        // the crack of the hit
     for (const a of [2.4, 2.9, 3.4]){ ctx.beginPath(); ctx.moveTo(28 + Math.cos(a) * 9, 140 + Math.sin(a) * 9); ctx.lineTo(28 + Math.cos(a) * 18, 140 + Math.sin(a) * 18); ctx.stroke(); } }
   if (t > hit) for (let i = 0; i < 4; i++) sparkle(ctx, 200 - i * 12, 50 + i * 26, 4, 1 - clamp01((t - hit) / .5));
 }
@@ -1082,7 +1091,7 @@ function drawHockeyGoal(ctx, t){
 /* --- Sport: athletics — POV down the lane, through the finish tape ------- */
 function drawTrack(ctx, t){
   const vx = 120, vy = 50;
-  ctx.fillStyle = "rgba(201,98,70,.45)";
+  ctx.fillStyle = C_WASH(.3);
   ctx.beginPath(); ctx.moveTo(vx - 6, vy); ctx.lineTo(vx + 6, vy); ctx.lineTo(300, 180); ctx.lineTo(-60, 180); ctx.fill();
   ctx.strokeStyle = C_WHITE; ctx.lineWidth = 2;
   for (const x of [-60, 60, 180, 300]){ ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(x, 180); ctx.stroke(); }
@@ -1095,13 +1104,13 @@ function drawTrack(ctx, t){
   ctx.globalAlpha = 1;
   const reach = clamp01(t / .62), dTape = reach * reach, ty = vy + (180 - vy) * dTape * .82, half = lerp(10, 170, dTape);
   if (t < .62){
-    ctx.strokeStyle = C_GOLD; ctx.lineWidth = lerp(1, 6, dTape);
+    ctx.strokeStyle = C_ACCENT; ctx.lineWidth = lerp(1, 6, dTape);
     ctx.beginPath(); ctx.moveTo(vx - half, ty); ctx.lineTo(vx + half, ty); ctx.stroke();
   } else {
     const s = clamp01((t - .62) / .38);
-    ctx.strokeStyle = C_GOLD; ctx.lineWidth = 6;
+    ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 6;
     for (const dir of [-1, 1]){ ctx.beginPath(); ctx.moveTo(vx + dir * 6, 156); ctx.quadraticCurveTo(vx + dir * (40 + 80 * s), 150 + 30 * s, vx + dir * (100 + 90 * s), 170 + 40 * s); ctx.stroke(); }
-    for (let i = 0; i < 7; i++) sparkle(ctx, 30 + i * 30, 60 + Math.sin(i * 2) * 25 + s * 30, 4, 1 - s, i % 2 ? C_GOLD : C_TEAL);
+    for (let i = 0; i < 7; i++) sparkle(ctx, 30 + i * 30, 60 + Math.sin(i * 2) * 25 + s * 30, 4, 1 - s, i % 2 ? C_ACCENT : C_TEAL);
   }
 }
 
@@ -1116,11 +1125,11 @@ function drawViolinSelf(ctx, t){
   ctx.bezierCurveTo(32, 18, 24, 44, 0, 44); ctx.bezierCurveTo(-24, 44, -32, 18, -18, 4);
   ctx.bezierCurveTo(-12, -4, -12, -10, -16, -16); ctx.bezierCurveTo(-26, -28, -22, -46, 0, -46);
   ctx.fill();
-  ctx.fillStyle = "#1c120a"; ctx.fillRect(-3, -96, 6, 60);                 // fingerboard and scroll
+  ctx.fillStyle = C_NIGHT; ctx.fillRect(-3, -96, 6, 60);                 // fingerboard and scroll
   ctx.beginPath(); ctx.arc(0, -100, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "#1c120a"; ctx.lineWidth = 1.6;                        // f-holes
+  ctx.strokeStyle = C_NIGHT; ctx.lineWidth = 1.6;                        // f-holes
   for (const s of [-1, 1]){ ctx.beginPath(); ctx.moveTo(s * 9, -8); ctx.bezierCurveTo(s * 13, 0, s * 5, 6, s * 9, 14); ctx.stroke(); }
-  ctx.fillStyle = "#1c120a"; ctx.fillRect(-9, 18, 18, 3);                  // bridge
+  ctx.fillStyle = C_NIGHT; ctx.fillRect(-9, 18, 18, 3);                  // bridge
   for (let i = 0; i < 4; i++){                                              // strings, vibrating
     const x = -4.5 + i * 3, w = Math.sin(t * 90 + i * 2) * 1.2;
     ctx.strokeStyle = "rgba(243,246,249,.85)"; ctx.lineWidth = .9;
@@ -1132,7 +1141,7 @@ function drawViolinSelf(ctx, t){
   ctx.save(); ctx.translate(118, 112); ctx.rotate(.38); ctx.translate(slide, 0);
   ctx.strokeStyle = C_WOOD_D; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-70, -5); ctx.lineTo(70, -5); ctx.stroke();
   ctx.strokeStyle = "rgba(243,246,249,.9)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-66, 0); ctx.lineTo(66, 0); ctx.stroke();
-  ctx.fillStyle = "#1c120a"; ctx.fillRect(-72, -7, 10, 8);
+  ctx.fillStyle = C_NIGHT; ctx.fillRect(-72, -7, 10, 8);
   ctx.restore();
   [[0, 160, 60, false], [.25, 176, 48, true], [.5, 166, 40, false], [.7, 182, 56, true]].forEach(([d, x, y, dbl]) => {
     const u = clamp01((t - d) / .5); if (u > 0) note(ctx, x + u * 12, y - u * 26, Math.sin(Math.PI * u), dbl);
@@ -1142,7 +1151,8 @@ function drawViolinSelf(ctx, t){
 /* --- Kultuur: piano keys that play themselves --------------------------- */
 function drawPiano(ctx, t){
   const x0 = 22, kw = 14, n = 14, top = 104, h = 64;
-  ctx.fillStyle = "#14141a"; ctx.fillRect(x0 - 6, top - 14, kw * n + 12, h + 20);
+  ctx.fillStyle = C_PANEL; ctx.fillRect(x0 - 6, top - 14, kw * n + 12, h + 20);
+  ctx.strokeStyle = C_WOOD; ctx.lineWidth = 1.5; ctx.strokeRect(x0 - 6, top - 14, kw * n + 12, h + 20);
   const tune = [0, 2, 4, 5, 7, 9, 7, 4];                                   // which white keys, in order
   const step = Math.floor(t * tune.length), pressed = tune[Math.min(step, tune.length - 1)];
   for (let i = 0; i < n; i++){
@@ -1150,12 +1160,12 @@ function drawPiano(ctx, t){
     ctx.fillStyle = down ? "#cfe6ef" : "#f8f8f6";
     ctx.fillRect(x0 + i * kw, top + (down ? 2 : 0), kw - 1.2, h - (down ? 2 : 0));
   }
-  ctx.fillStyle = "#14141a";
+  ctx.fillStyle = C_NIGHT;
   for (let i = 0; i < n - 1; i++){
     if (i % 7 === 2 || i % 7 === 6) continue;                 // no black key after E and B
     ctx.fillRect(x0 + i * kw + kw * .65, top, kw * .7, h * .6);
   }
-  ctx.fillStyle = C_TEAL; ctx.fillRect(x0 + pressed * kw, top + h - 6, kw - 1.2, 4);
+  ctx.fillStyle = C_ACCENT; ctx.fillRect(x0 + pressed * kw, top + h - 6, kw - 1.2, 4);
   tune.forEach((k, i) => {                                                  // a note for each key
     const u = clamp01((t - i / tune.length) / .45);
     if (u > 0 && u < 1) note(ctx, x0 + k * kw + 2, top - 10 - u * 50, Math.sin(Math.PI * u), i % 3 === 1);
@@ -1183,7 +1193,7 @@ function drawCurtains(ctx, t){
   ctx.fillStyle = "rgba(243,246,249,.25)"; ctx.fillRect(30, 160, 180, 4);  // stage edge
   const pop = clamp01((t - .45) / .3);
   if (pop > 0){ const s = .6 + .4 * easeOut(pop);
-    mask(ctx, 104, 104, s, true, C_WHITE); mask(ctx, 138, 112, s, false, C_GOLD); }
+    mask(ctx, 104, 104, s, true, C_WHITE); mask(ctx, 138, 112, s, false, C_ACCENT); }
   for (const side of [-1, 1]){                                             // the curtains
     const w = lerp(122, 26, open);
     ctx.save(); if (side > 0){ ctx.translate(240, 0); ctx.scale(-1, 1); }
@@ -1195,17 +1205,18 @@ function drawCurtains(ctx, t){
     for (let k = 1; k <= 3; k++){ const x = w * k / 4; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 170); ctx.stroke(); }
     ctx.restore();
   }
-  ctx.fillStyle = C_GOLD; ctx.fillRect(0, 0, 240, 8);                     // pelmet
+  ctx.fillStyle = C_ACCENT; ctx.fillRect(0, 0, 240, 8);                     // pelmet
   if (pop > .5) for (let i = 0; i < 4; i++) sparkle(ctx, 80 + i * 26, 50 + (i % 2) * 14, 3.5, Math.sin(Math.PI * (pop - .5) * 2));
 }
 
 /* --- Kultuur: a brush paints a sunset by itself ------------------------- */
 function drawBrushPaint(ctx, t){
   ctx.fillStyle = C_WOOD_D; ctx.fillRect(56, 150, 128, 6); ctx.fillRect(70, 150, 5, 22); ctx.fillRect(165, 150, 5, 22);
-  ctx.fillStyle = "#eef3f7"; ctx.fillRect(58, 30, 124, 118);
+  ctx.fillStyle = C_PANEL; ctx.fillRect(58, 30, 124, 118);
+  ctx.strokeStyle = C_WOOD; ctx.lineWidth = 2; ctx.strokeRect(58, 30, 124, 118);
   const p = clamp01(t / .92);
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 9;                              // sun
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 9;                              // sun
   const sp = clamp01(p / .3);
   if (sp > 0){ ctx.beginPath(); ctx.arc(150, 70, 10, -Math.PI / 2, -Math.PI / 2 + sp * Math.PI * 2); ctx.stroke(); }
   ctx.strokeStyle = C_TEAL; ctx.lineWidth = 7;                              // hills
@@ -1213,7 +1224,7 @@ function drawBrushPaint(ctx, t){
   let tip = sp < 1 ? [150 + Math.cos(-Math.PI / 2 + sp * Math.PI * 2) * 10, 70 + Math.sin(-Math.PI / 2 + sp * Math.PI * 2) * 10] : null;
   const hp = clamp01((p - .3) / .4);
   if (hp > 0) tip = strokeUpTo(ctx, hills, hp);
-  ctx.strokeStyle = C_DEEP; ctx.lineWidth = 6;                              // water
+  ctx.strokeStyle = C_WHITE; ctx.lineWidth = 6;                             // water
   const wp = clamp01((p - .7) / .3);
   if (wp > 0) tip = strokeUpTo(ctx, [[66, 134], [96, 130], [126, 136], [156, 130], [174, 134]], wp);
   ctx.lineCap = "butt";
@@ -1222,7 +1233,7 @@ function drawBrushPaint(ctx, t){
   ctx.save(); ctx.translate(bx, by); ctx.rotate(-.7);
   ctx.fillStyle = C_WOOD; ctx.fillRect(-2.5, -58, 5, 40);
   ctx.fillStyle = "#c9d6df"; ctx.fillRect(-3, -19, 6, 9);
-  ctx.fillStyle = hp > 0 ? (wp > 0 ? C_DEEP : C_TEAL) : C_GOLD;
+  ctx.fillStyle = hp > 0 ? (wp > 0 ? C_WHITE : C_TEAL) : C_ACCENT;
   ctx.beginPath(); ctx.moveTo(-3, -10); ctx.quadraticCurveTo(0, 4, 3, -10); ctx.fill();
   ctx.restore();
 }
@@ -1231,18 +1242,18 @@ function drawBrushPaint(ctx, t){
 function drawDrum(ctx, t){
   const cx = 120, cy = 112;
   ctx.fillStyle = C_DEEP; ctx.fillRect(cx - 56, cy, 112, 36);              // shell
-  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2;
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 2;
   for (let i = 0; i < 6; i++){ const x = cx - 50 + i * 20; ctx.beginPath(); ctx.moveTo(x, cy + 3); ctx.lineTo(x + 10, cy + 33); ctx.stroke(); }
   ctx.fillStyle = "#1d84ab"; ctx.beginPath(); ctx.ellipse(cx, cy + 36, 56, 12, 0, 0, Math.PI); ctx.fill();
   ctx.fillStyle = "#eef3f7"; ctx.beginPath(); ctx.ellipse(cx, cy, 56, 13, 0, 0, Math.PI * 2); ctx.fill();   // head
-  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 3; ctx.stroke();
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 3; ctx.stroke();
   const beat = t * 6, phase = beat % 1, left = Math.floor(beat) % 2 === 0;
   for (const side of [-1, 1]){
     const active = (side < 0) === left, lift = active ? Math.abs(Math.cos(phase * Math.PI)) : 1;
     const ang = side * (.5 + lift * .55);
     ctx.save(); ctx.translate(cx + side * 22, cy - 4); ctx.rotate(ang);
     ctx.fillStyle = C_WOOD; ctx.fillRect(-2.5, -70, 5, 70);
-    ctx.fillStyle = "#f2e2c4"; ctx.beginPath(); ctx.ellipse(0, -2, 4, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C_WHITE; ctx.beginPath(); ctx.ellipse(0, -2, 4, 5, 0, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
     if (active && phase < .35){                                             // the hit
       const r = 10 + phase * 80; ctx.globalAlpha = 1 - phase / .35;
@@ -1257,11 +1268,11 @@ function drawBookFlip(ctx, t){
   ctx.fillStyle = C_DEEP; ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(cx - 84, cy + 2); ctx.lineTo(cx - 84, cy - 64); ctx.lineTo(cx, cy - 56);
   ctx.lineTo(cx + 84, cy - 64); ctx.lineTo(cx + 84, cy + 2); ctx.fill();                       // cover
   const page = (side, lift) => { ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx + side * 78, cy - 2 - lift); ctx.lineTo(cx + side * 78, cy - 64 - lift); ctx.lineTo(cx, cy - 56); ctx.fill(); };
-  ctx.fillStyle = "#f8f6ef"; page(-1, 0); page(1, 0);
+  ctx.fillStyle = "#e3ecf2"; page(-1, 0); page(1, 0);
   ctx.strokeStyle = "rgba(1,33,58,.35)"; ctx.lineWidth = 1.5;
   for (let i = 0; i < 6; i++) for (const s of [-1, 1]){ ctx.beginPath(); ctx.moveTo(cx + s * 12, cy - 46 + i * 8); ctx.lineTo(cx + s * 66, cy - 52 + i * 8); ctx.stroke(); }
   const flips = 3, f = (t * flips) % 1, w = Math.cos(easeInOut(f) * Math.PI);                 // 1 → -1
-  ctx.fillStyle = f < .5 ? "#ffffff" : "#ece8dc";
+  ctx.fillStyle = f < .5 ? C_WHITE : "#cbdbe6";
   ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx + w * 78, cy - 2 - Math.sin(f * Math.PI) * 14);
   ctx.lineTo(cx + w * 78, cy - 64 - Math.sin(f * Math.PI) * 14); ctx.lineTo(cx, cy - 56); ctx.fill();
   ctx.strokeStyle = "rgba(1,33,58,.25)"; ctx.lineWidth = 1; ctx.stroke();
@@ -1271,9 +1282,9 @@ function drawBookFlip(ctx, t){
 /* --- Akademie: chalk writing on the board by itself ---------------------- */
 function drawChalk(ctx, t){
   ctx.fillStyle = C_WOOD_D; ctx.fillRect(18, 26, 204, 116);
-  ctx.fillStyle = "#123a2c"; ctx.fillRect(24, 32, 192, 104);
+  ctx.fillStyle = C_PANEL; ctx.fillRect(24, 32, 192, 104);
   const text = "a² + b² = c²";
-  ctx.font = "600 26px Georgia, serif"; ctx.textBaseline = "middle";
+  ctx.font = "600 26px Lora, Georgia, serif"; ctx.textBaseline = "middle";
   const w = ctx.measureText(text).width, x0 = 120 - w / 2, reveal = clamp01(t / .85);
   ctx.save(); ctx.beginPath(); ctx.rect(x0 - 4, 50, (w + 8) * reveal, 60); ctx.clip();
   ctx.fillStyle = "rgba(243,246,249,.92)"; ctx.fillText(text, x0, 82); ctx.restore();
@@ -1292,7 +1303,7 @@ function drawFlask(ctx, t){
     ctx.quadraticCurveTo(cx, base + 10, cx - 44, base); ctx.lineTo(cx - 9, 84); ctx.closePath(); };
   ctx.save(); shape(); ctx.fillStyle = "rgba(243,246,249,.12)"; ctx.fill(); ctx.clip();
   const mix = clamp01((t - .3) / .5);
-  ctx.fillStyle = mix < .5 ? C_TEAL : C_GOLD; ctx.globalAlpha = .85;
+  ctx.fillStyle = mix < .5 ? C_TEAL : C_ACCENT; ctx.globalAlpha = .85;
   const level = base - 34 - Math.sin(t * 20) * 1.5;
   ctx.beginPath(); ctx.moveTo(cx - 60, level); ctx.quadraticCurveTo(cx, level - 4 + Math.sin(t * 30) * 3, cx + 60, level); ctx.lineTo(cx + 60, base + 20); ctx.lineTo(cx - 60, base + 20); ctx.fill();
   ctx.globalAlpha = 1;
@@ -1315,8 +1326,8 @@ function capShape(ctx, x, y, s, a){
   ctx.fillStyle = C_DEEP; ctx.fillRect(-11, 2, 22, 10);
   ctx.fillStyle = "#1d84ab"; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(24, 0); ctx.lineTo(0, 10); ctx.lineTo(-24, 0); ctx.fill();
   ctx.strokeStyle = C_WHITE; ctx.lineWidth = 1.6; ctx.stroke();
-  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 5); ctx.lineTo(18, 18); ctx.stroke();
-  ctx.fillStyle = C_GOLD; disc(ctx, [18, 20], 3);
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 5); ctx.lineTo(18, 18); ctx.stroke();
+  ctx.fillStyle = C_ACCENT; disc(ctx, [18, 20], 3);
   ctx.restore();
 }
 function drawCaps(ctx, t){
@@ -1327,7 +1338,7 @@ function drawCaps(ctx, t){
   });
   for (let i = 0; i < 14; i++){                                             // confetti
     const u = clamp01((t - .35) / .65), x = 20 + i * 15, y = -10 + u * (90 + (i % 4) * 30);
-    ctx.globalAlpha = Math.sin(Math.PI * u); ctx.fillStyle = [C_GOLD, C_TEAL, C_WHITE][i % 3];
+    ctx.globalAlpha = Math.sin(Math.PI * u); ctx.fillStyle = [C_ACCENT, C_TEAL, C_WHITE][i % 3];
     ctx.save(); ctx.translate(x + Math.sin(u * 6 + i) * 6, y); ctx.rotate(u * 8 + i); ctx.fillRect(-3, -1.5, 6, 3); ctx.restore();
   }
   ctx.globalAlpha = 1;
@@ -1336,13 +1347,14 @@ function drawCaps(ctx, t){
 /* --- Akademie: a pencil marks a test "A+" and circles it ----------------- */
 function drawPencilTest(ctx, t){
   ctx.save(); ctx.translate(120, 92); ctx.rotate(-.06);
-  ctx.fillStyle = "#f8f6ef"; ctx.fillRect(-70, -76, 140, 156);
-  ctx.strokeStyle = "rgba(90,183,214,.45)"; ctx.lineWidth = 1;
+  ctx.fillStyle = C_PANEL; ctx.fillRect(-70, -76, 140, 156);
+  ctx.strokeStyle = C_WOOD; ctx.lineWidth = 1.5; ctx.strokeRect(-70, -76, 140, 156);
+  ctx.strokeStyle = "rgba(173,205,226,.16)"; ctx.lineWidth = 1;
   for (let i = 0; i < 9; i++){ ctx.beginPath(); ctx.moveTo(-58, -40 + i * 13); ctx.lineTo(58, -40 + i * 13); ctx.stroke(); }
-  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 2;
+  ctx.strokeStyle = "rgba(243,246,249,.55)"; ctx.lineWidth = 2;
   for (let i = 0; i < 4; i++){ ctx.beginPath(); ctx.moveTo(-50, -14 + i * 26); ctx.lineTo(-50 + 60 - (i % 2) * 18, -14 + i * 26); ctx.stroke(); }
   ctx.restore();
-  ctx.strokeStyle = "#c0262d"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
   const strokes = [
     [[138, 70], [150, 30], [162, 70]], [[143, 56], [157, 56]],               // A
     [[176, 38], [176, 60]], [[165, 49], [187, 49]],                          // +
@@ -1354,10 +1366,10 @@ function drawPencilTest(ctx, t){
   ctx.lineCap = "butt";
   // the pencil
   ctx.save(); ctx.translate(tip[0], tip[1]); ctx.rotate(-.55);
-  ctx.fillStyle = C_GOLD; ctx.fillRect(-4, -54, 8, 42);
-  ctx.fillStyle = "#f2c9a0"; ctx.beginPath(); ctx.moveTo(-4, -12); ctx.lineTo(4, -12); ctx.lineTo(0, 0); ctx.fill();
-  ctx.fillStyle = "#c0262d"; ctx.beginPath(); ctx.moveTo(-1.6, -4.5); ctx.lineTo(1.6, -4.5); ctx.lineTo(0, 0); ctx.fill();
-  ctx.fillStyle = "#e88aa0"; ctx.fillRect(-4, -60, 8, 6);
+  ctx.fillStyle = C_WOOD; ctx.fillRect(-4, -54, 8, 42);
+  ctx.fillStyle = C_WHITE; ctx.beginPath(); ctx.moveTo(-4, -12); ctx.lineTo(4, -12); ctx.lineTo(0, 0); ctx.fill();
+  ctx.fillStyle = C_ACCENT; ctx.beginPath(); ctx.moveTo(-1.6, -4.5); ctx.lineTo(1.6, -4.5); ctx.lineTo(0, 0); ctx.fill();
+  ctx.fillStyle = "#9db3c6"; ctx.fillRect(-4, -60, 8, 6);
   ctx.restore();
 }
 
@@ -1402,7 +1414,7 @@ function loaderHtml(){
   return `<div class="loader">
     <canvas class="loader-canvas" id="loader-canvas" width="240" height="180" role="img" aria-label="${field}: ${loaderScene.label}"></canvas>
     <div class="loader-fields" aria-hidden="true">${LOADER_FIELDS.map(f =>
-      `<span data-field="${f}" class="${f === field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
+      `<span data-field="${f}" class="${f === field ? "on" : ""}" style="--c:${fieldColour(f)}">${f}</span>`).join("<i></i>")}</div>
     <p class="sr-only" role="status">Laai…</p>
   </div>`;
 }
@@ -1431,6 +1443,7 @@ function startLoader(){
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, 240, 180);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
+    C_ACCENT = fieldColour(LOADER_FIELDS[loaderField]);
     loaderScene.draw(ctx, still ? .5 : t);
     loaderFrame = requestAnimationFrame(frame);
   };
