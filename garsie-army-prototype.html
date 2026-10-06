@@ -1670,8 +1670,9 @@ function monthBody(){
    Real map (Leaflet + OpenStreetMap) with every event's pin. The selected
    event shows its check-in circle. The user's live position comes from the
    browser (needs HTTPS and the user's permission — we only ask after they tap
-   "Deel my ligging"). "Meld aan" only works inside the circle, and a check-in
-   lands in that event's Excel export.
+   "Deel my ligging"). "Meld aan" and QR scans only count inside the circle
+   (the server checks again), and a check-in lands in that event's Excel
+   export. Coming inside the circle shows a notice (see Arrival notice).
    TODO: check-in currently works on any day; in production only allow it
    from shortly before the event starts until it ends.
 ------------------------------------------------------------------------- */
@@ -1705,6 +1706,56 @@ function distanceM(a, b){                   // great-circle distance in metres
   const h = Math.sin(rad(b.lat - a.lat) / 2) ** 2
           + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(rad(b.lng - a.lng) / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+/* --- Arrival notice --------------------------------------------------------
+   When a learner comes inside an event's circle on its day (from an hour
+   before it starts until it ends) and hasn't checked in yet, the phone shows
+   a notification "Jy mag nou aanmeld" (and a toast in the app). Tapping it
+   opens Kaart on that event. Shown by the phone itself, so it also works
+   without internet. Only while the app is open: a web app can't read the
+   location in the background. The location is watched without asking only
+   if the learner already allowed it — we never pop up the browser's question
+   on our own. One notice per event per learner on this phone.
+--------------------------------------------------------------------------- */
+const ARRIVED_KEY = "garsie.arrived";
+function eventWindowOpen(e, now = new Date()){
+  const start = new Date(`${e.date}T${e.start}`), end = new Date(`${e.date}T${e.end || "23:59"}`);
+  return now >= new Date(start.getTime() - 3600e3) && now <= end;
+}
+function arrivalCandidates(){
+  if (!state.user || roleOf() !== "user" || state.preview) return [];
+  return visibleEvents().filter(e => isForUser(e) && !checkinFor(e) && eventWindowOpen(e));
+}
+let arrivalAsked = 0;
+async function maybeWatchArrival(){
+  if (geo.watchId != null || Date.now() - arrivalAsked < 60000 || !arrivalCandidates().length) return;
+  arrivalAsked = Date.now();
+  try {
+    const p = navigator.permissions && await navigator.permissions.query({ name:"geolocation" });
+    if (p && p.state === "granted" && geo.watchId == null) startLocation();
+  } catch {}
+}
+function checkArrival(){
+  if (!(geo.status === "on" && geo.pos)) return;
+  const seen = loadJSON(ARRIVED_KEY) || {};
+  for (const e of arrivalCandidates()){
+    const key = `${state.user.id}:${e.id}`, loc = locationOf(e);
+    if (seen[key] || distanceM(geo.pos, loc) > loc.radius) continue;
+    for (const k in seen) if (seen[k] < toISO(new Date(Date.now() - 14 * 864e5))) delete seen[k];   // forget old ones
+    seen[key] = e.date; saveJSON(ARRIVED_KEY, seen);
+    notifyArrival(e);
+  }
+}
+async function notifyArrival(e){
+  toast("Jy mag nou aanmeld");
+  if (!("Notification" in window) || Notification.permission !== "granted" || !("serviceWorker" in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.showNotification(`Jy is by ${e.title}`, {
+      body:"Jy mag nou aanmeld. Tik hier om aan te meld.", tag:`aankoms-${e.id}`, lang:"af",
+      icon:"icons/icon-192.png", badge:"icons/badge-96.png",
+      data:{ url:new URL(`garsie-army-prototype.html#kaart=${e.id}`, location.href).href } });
+  } catch {}
 }
 function formatDistance(m){ return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0).replace(".", ",")} km`; }
 
@@ -1940,6 +1991,7 @@ function mountMaps(){
 }
 
 function onLocationUpdate(){
+  checkArrival();
   const card = document.getElementById("map-card");
   if (card) card.innerHTML = mapCardHtml();
   updateMeOnMap();
@@ -2179,7 +2231,7 @@ function scanCardHtml(){
   } else if (status === "busy"){
     body = message; button = `<button class="btn-checkin" disabled>Besig…</button>`;
   } else if (status === "idle"){
-    body = "Skandeer die QR-kode by die ingang om aan te meld.";
+    body = "Skandeer die QR-kode by die ingang om aan te meld. Jy moet binne die geleentheid se area wees.";
     button = `<button class="btn-checkin" data-action="start-scan">${icon("qr",16,"#fff")} Begin skandeer</button>`;
   } else {
     body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"var(--ok)") + " " : ""}${esc(message)}</span>`;
@@ -2264,6 +2316,13 @@ async function handleScan(text){
   if (e && checkinFor(e)){ setScan("ok", "Jy is reeds aangemeld."); return; }
   setScan("busy", "Wag vir jou ligging…");
   const pos = await currentPosition();
+  if (!pos){ setScan("error", "Ons kon nie jou ligging kry nie. Skakel jou ligging aan en probeer weer — jy moet by die geleentheid wees om aan te meld."); return; }
+  if (e){
+    const loc = locationOf(e), dist = distanceM(pos, loc);
+    if (dist > loc.radius + Math.min(pos.accuracy, 100)){
+      setScan("error", `Jy is ${formatDistance(dist)} van die geleentheid af. Jy moet binne die area wees om aan te meld.`); return;
+    }
+  }
   await queueCheckin({ eventId:scan.eventId, method: scan.print ? "qr-print" : "qr-live", token:scan.token, pos });
 }
 
@@ -3030,6 +3089,7 @@ function render(){
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
   if (!maybeOfferInstall()) maybeOfferPush();
+  maybeWatchArrival();
   if (state.qrEventId != null) startQrTicker();
 
   tabbarEl.innerHTML = tabs.map(([id, iconName, label]) => {
@@ -3551,6 +3611,7 @@ try { localStorage.removeItem("garsie-theme"); } catch (e) {}
 setInterval(() => {
   const before = toISO(TODAY);
   TODAY = new Date();
+  maybeWatchArrival(); checkArrival();          // an event's window may just have opened
   if (!state.user || state.tab !== "calendar" || state.openEventId || state.qrEventId != null) return;
   const nowLineVisible = state.calView === "week" && sameDay(state.weekStart, mondayOf(TODAY));
   if (nowLineVisible || toISO(TODAY) !== before) render();
@@ -4126,12 +4187,18 @@ async function toggleNotifyNew(){
 
 // A notification (or a shared link) can open one event: #geleentheid=<id>.
 function takeEventFromUrl(){
+  const k = location.hash.match(/kaart=(\d+)/);
+  if (k){ state.pendingMapId = Number(k[1]); history.replaceState(null, "", location.pathname + location.search); return; }
   const m = location.hash.match(/geleentheid=(\d+)/);
   if (!m) return;
   state.pendingEventId = Number(m[1]);
   history.replaceState(null, "", location.pathname + location.search);
 }
 async function openPendingEvent(){
+  if (state.pendingMapId != null && state.user){
+    Object.assign(state, { tab:"map", mapMode:"map", mapEventId:state.pendingMapId, pendingMapId:null, openEventId:null, qrEventId:null, settingsOpen:false });
+    render(); return;
+  }
   if (state.pendingEventId == null || !state.user) return;
   const id = state.pendingEventId;
   state.pendingEventId = null;
