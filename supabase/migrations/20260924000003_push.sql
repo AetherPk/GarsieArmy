@@ -154,7 +154,7 @@ begin
     perform private.push_to(
       array(select s.user_id from public.supports s where s.event_id = old.id),
       jsonb_build_object('title', 'Gekanselleer: ' || old.title,
-                         'body', private.af_when(old.date, old.start_time) || ' gaan nie meer voort nie.',
+                         'body', 'Die geleentheid op ' || private.af_when(old.date, old.start_time) || ' gaan nie meer voort nie.',
                          'url', 'garsie-army-prototype.html',
                          'tag', 'event-' || old.id));
   end if;

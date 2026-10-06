@@ -643,10 +643,11 @@ function luminance(hex){           // WCAG relative luminance, 0 (black) … 1 (
     .map(c => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
-// Department colours show as pins, blocks and chips on white — too light and they vanish.
+// Department colours show as pins, blocks and chips on navy and on white — too light or too dark and they vanish.
 function colourProblem(hex){
   if (!isHexColour(hex)) return "Kies 'n kleur.";
-  if (luminance(hex) > 0.7) return "Hierdie kleur is te lig — dit sal op 'n wit agtergrond verdwyn. Kies 'n donkerder kleur.";
+  if (luminance(hex) > 0.7) return "Hierdie kleur is te lig — dit sal op die ligte agtergrond verdwyn. Kies 'n donkerder kleur.";
+  if (luminance(hex) < 0.08) return "Hierdie kleur is te donker — dit sal op die donkerblou agtergrond verdwyn. Kies 'n ligter kleur.";
   return "";
 }
 
@@ -761,7 +762,7 @@ function consentField(checked){
       <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--shadow-ink);cursor:pointer">
         <input type="checkbox" name="popia" ${checked ? "checked" : ""} style="width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--brand)">
         <span>Ek het die <button type="button" data-action="privacy-open" style="background:none;border:none;padding:0;color:var(--brand-text);font:inherit;text-decoration:underline;cursor:pointer">privaatheidskennisgewing</button>
-        gelees en stem in dat my inligting so gebruik word. As ek jonger as 18 is, het my ouer of voog ook ingestem.</span>
+        gelees en stem in dat my inligting gebruik word soos daarin beskryf. As ek jonger as 18 is, het my ouer of voog ook ingestem.</span>
       </label>
     </div>`;
 }
@@ -777,9 +778,9 @@ const PRIVACY_NOTICE = `
   </ul>
   <p>As jy met Google inteken, kry ons net jou naam en e-posadres van Google.</p>
   <h3>Hoekom</h3>
-  <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor, en om vir jou kennisgewings te stuur.</p>
+  <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
-  <p>Ons kyk net na jou ligging as jy self "Meld aan" druk of 'n QR-kode skandeer. Nooit in die agtergrond nie.</p>
+  <p>Ons gebruik jou ligging net wanneer jy self "Meld aan" druk of 'n QR-kode skandeer, nooit in die agtergrond nie.</p>
   <h3>Wie dit sien</h3>
   <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
@@ -1406,7 +1407,7 @@ function mapCardHtml(){
     status = `<span style="color:var(--brand-text)">Ligging is geblokkeer.</span> Laat dit in jou blaaier se instellings toe en probeer weer.`;
     button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
   } else if (geo.status === "unavailable"){
-    status = "Kon nie jou ligging kry nie. Gaan na buite of skakel jou ligging aan.";
+    status = "Kon nie jou ligging kry nie. Gaan buitentoe of skakel jou ligging aan.";
     button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
   } else {
     status = "Deel jou ligging sodat ons kan sien of jy daar is.";
@@ -1558,7 +1559,7 @@ async function geocodeAddress(){
 
 function useMyLocationForPin(){
   if (!("geolocation" in navigator)){ toast("Jou toestel kan nie sy ligging deel nie"); return; }
-  toast("Kry jou ligging…");
+  toast("Wag vir jou ligging…");
   navigator.geolocation.getCurrentPosition(
     p => setPickerPoint({ lat:p.coords.latitude, lng:p.coords.longitude }, null, 17),
     () => toast("Kon nie jou ligging kry nie"),
@@ -1632,7 +1633,7 @@ function screenQr(){
           style="border:none;font-size:13px;padding:6px 18px;border-radius:15px;background:${state.qrMode===m ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${label}</button>`).join("")}
       </div>
       <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 12px;line-height:1.45">${live
-        ? "Die kode verander elke 30 sekondes. Wys dit by die ingang: 'n foto wat vir 'n vriend aangestuur word, werk binne 'n minuut nie meer nie."
+        ? "Die kode verander elke 30 sekondes. Wys dit by die ingang: 'n foto wat aan 'n vriend aangestuur word, werk ná 'n minuut nie meer nie."
         : "Hierdie kode verander nooit nie, dus beskerm net die liggingtoets dit. Gebruik liewer die lewendige kode as daar 'n foon of tablet by die ingang kan staan."}</p>
       ${live ? "" : `<button class="btn-primary" data-action="print-qr" style="max-width:320px">Druk plakkaat</button>`}
     </div>
@@ -1739,7 +1740,7 @@ async function startScanner(){
   if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)){
     setScan("error", "Hierdie blaaier kan nie die kamera gebruik nie. Skandeer die kode met jou foon se kamera-app."); return;
   }
-  setScan("starting", "Maak die kamera oop…");
+  setScan("starting", "Die kamera word oopgemaak…");
   try {
     scanner.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
   } catch {
@@ -1804,7 +1805,7 @@ async function handleScan(text){
   const e = eventById(scan.eventId);
   if (e && !isForUser(e)){ setScan("error", "Hierdie geleentheid is nie vir jou nie."); return; }
   if (e && checkinFor(e)){ setScan("ok", "Jy is reeds aangemeld."); return; }
-  setScan("busy", "Kry jou ligging…");
+  setScan("busy", "Wag vir jou ligging…");
   const pos = await currentPosition();
   await queueCheckin({ eventId:scan.eventId, method: scan.print ? "qr-print" : "qr-live", token:scan.token, pos });
 }
@@ -2318,7 +2319,7 @@ function formatDateTime(iso){                // ISO -> "2026-09-24 16:40", local
 
 async function exportAttendees(e){
   if (!canAdmin(e)) return;                   // the database refuses non-admins too
-  toast("Berei die Excel-lêer voor…");
+  toast("Die Excel-lêer word voorberei…");
   const { data, error } = await fetchAll(() => sb.rpc("event_attendees", { p_event_id:e.id }).order("email"));
   if (error){ toast(dbMessage(error)); return; }
   const { rows, bold } = attendeeRows(e, data);
@@ -2506,7 +2507,7 @@ function handle(target){
       case "auth-google":    signInWithGoogle(); return;
       case "auth-resend": {
         const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
-        if (wait > 0){ toast(`Wag nog ${wait} sekondes voordat jy weer 'n kode vra.`); return; }
+        if (wait > 0){ toast(`Wag nog ${wait} ${wait === 1 ? "sekonde" : "sekondes"} voordat jy weer 'n kode vra.`); return; }
         sendCode(state.auth.draft, state.auth.mode === "signup").then(err => toast(err || "Nuwe kode gestuur."));
         return;
       }
@@ -2715,7 +2716,7 @@ phoneEl.addEventListener("submit", async ev => {
     const { error } = await sb.from("admins").insert({ email, role, department_id: role === "dept" ? data.department : null });
     busy(false);
     if (error){ showErrors(form, { email: error.code === "23505" ? "Hierdie persoon is reeds 'n admin." : dbMessage(error) }); return; }
-    toast("Admin bygevoeg — hulle kry die regte die volgende keer as hulle inteken.");
+    toast("Admin bygevoeg — die nuwe regte geld sodra die persoon weer inteken.");
     await loadAll(); render();
   }
 });
@@ -3021,7 +3022,7 @@ async function loadAll(){
     const cache = loadJSON(CACHE_KEY);
     if (cache && cache.uid === u.id){
       applyData(cache);
-      if (!state.offline) toast(isNetworkError(err) ? "Geen internet nie — jy sien die laaste gestoorde data." : dbMessage(err));
+      if (!state.offline) toast(isNetworkError(err) ? "Geen internet nie — jy sien die data wat laas gestoor is." : dbMessage(err));
       state.offline = true;
     } else {
       state.fatal = isNetworkError(err) ? "Geen internet nie. Koppel aan die internet en probeer weer." : dbMessage(err);
@@ -3220,11 +3221,11 @@ function openInstallHelp(){
       border:1.5px solid ${guess === id ? "var(--brand)" : "var(--hairline)"};background:var(--surface-2);color:var(--shadow-ink)">${label}</button>`;
   const ask = () => `
       <h2 style="font-size:20px;margin:0 0 6px">Sit die app op jou tuisskerm</h2>
-      <p style="margin:0 0 14px;color:var(--muted)">Dan maak jy dit met een druk oop, bly jy ingeteken, en kry jy kennisgewings. Watter foon het jy?</p>
+      <p style="margin:0 0 14px;color:var(--muted)">Dan maak jy dit met een tik oop, bly jy ingeteken en kry jy kennisgewings. Watter foon het jy?</p>
       <div style="display:flex;gap:10px">${choice("iphone", "iPhone")}${choice("android", "Android")}</div>
       <button class="btn-link" data-close style="width:100%;margin-top:8px">Nie nou nie</button>`;
   const steps = id => `
-      <h2 style="font-size:20px;margin:0 0 2px">${id === "iphone" ? "iPhone" : "Android"}: sit op jou tuisskerm</h2>
+      <h2 style="font-size:20px;margin:0 0 2px">${id === "iphone" ? "iPhone" : "Android"}: sit die app op jou tuisskerm</h2>
       ${INSTALL_STEPS[id]()}
       <button class="btn-primary" data-close style="margin-top:16px">Klaar</button>
       <button class="btn-link" data-back style="width:100%;margin-top:4px">Ander foon</button>`;
@@ -3281,11 +3282,11 @@ function openPushAsk(){
   el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 20px 16px;font-size:14px;line-height:1.45">
       <div style="font-size:40px;text-align:center;line-height:1">🔔</div>
       <h2 style="font-size:21px;margin:10px 0 6px;text-align:center">Moenie iets mis nie</h2>
-      <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Met kennisgewings bly jy op hoogte van alles by die skool.</p>
+      <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Met kennisgewings bly jy op hoogte van alles wat by die skool gebeur.</p>
       <ul style="list-style:none;padding:0;margin:0 0 6px">
-        ${why("⚠️", "Hoor <b>dadelik</b> as 'n wedstryd of geleentheid <b>verskuif of gekanselleer</b> word, voordat jy verniet ry.")}
+        ${why("⚠️", "Hoor <b>dadelik</b> of 'n geleentheid <b>verskuif of gekanselleer</b> is, voordat jy verniet ry.")}
         ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy ondersteun.")}
-        ${why("🆕", "Wees die <b>eerste om te weet</b> van nuwe geleenthede vir jou graad.")}
+        ${why("🆕", "Verneem <b>eerste</b> van nuwe geleenthede vir jou graad.")}
       </ul>
       <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of die app kennisgewings mag stuur: druk <b>Allow</b>.</p>
       <button class="btn-primary" data-yes>Skakel kennisgewings aan</button>
@@ -3373,12 +3374,12 @@ function pushCardHtml(){
       return box("Kennisgewings is geblokkeer. Skakel dit in jou foon se instellings vir hierdie app aan, en maak die app weer oop.");
     case "off":
       return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span>Kry 'n boodskap as 'n geleentheid wat jy ondersteun, verskuif of gekanselleer word, of binnekort begin.</span>
+        <span>Kry 'n boodskap wanneer 'n geleentheid wat jy ondersteun, verskuif of gekanselleer word of binnekort begin.</span>
         ${btn("push-on", p.busy ? "Wag…" : "Skakel kennisgewings aan", true)}</div>`);
     case "on": {
       const wantNew = !!(state.user && state.user.notifyNew);
       return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span>🔔 Kennisgewings is aan op hierdie toestel.</span>
+        <span>🔔 Kennisgewings is op hierdie toestel aan.</span>
         <span style="display:flex;gap:6px;flex-wrap:wrap">${btn("push-test", "Stuur toets")}${btn("push-off", "Skakel af")}</span></div>
         <button data-action="push-new" role="switch" aria-checked="${wantNew}" ${p.busy ? "disabled" : ""}
           style="margin-top:10px;display:flex;align-items:center;gap:10px;background:none;border:none;color:#dfe8ef;font-size:13px;padding:0;cursor:pointer;text-align:left">
@@ -3434,7 +3435,7 @@ async function testPush(){
   const { data, error } = await sb.rpc("push_test");
   if (error) return toast(dbMessage(error));
   if (!data){ state.push.status = "off"; renderPushCard(); return toast("Hierdie toestel is nie meer geregistreer nie. Skakel kennisgewings weer aan."); }
-  toast("Toets gestuur. Dit behoort binne 'n paar sekondes te kom.");
+  toast("Toets gestuur. Dit behoort binne 'n paar sekondes op te daag.");
 }
 
 async function toggleNotifyNew(){
