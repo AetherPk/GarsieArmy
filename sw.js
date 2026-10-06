@@ -6,7 +6,7 @@
    It also receives push notifications (see "Push" at the bottom).
 
    Bump CACHE whenever LIBS change, so phones fetch the new files. */
-const CACHE = "garsie-v4";
+const CACHE = "garsie-v5";
 const APP = "./garsie-army-prototype.html";
 const FILES = ["./manifest.json", "./icons/icon-192.png", "./icons/badge-96.png"];
 // The map library (~1 MB) is saved the first time a map is shown, not at
@@ -76,6 +76,14 @@ self.addEventListener("fetch", ev => {
   if (VECTOR_LIBS.includes(req.url)){
     ev.respondWith(caches.match(req.url).then(hit => hit || fetch(req).then(res => {
       if (res.ok){ const copy = res.clone(); caches.open(CACHE).then(c => c.put(req.url, copy)); }
+      return res;
+    })));
+    return;
+  }
+  // The school typefaces (Google Fonts): keep a copy so the app looks right offline.
+  if (url.hostname === "fonts.googleapis.com" || url.hostname === "fonts.gstatic.com"){
+    ev.respondWith(caches.match(req).then(hit => hit || fetch(req).then(res => {
+      if (res.ok || res.type === "opaque"){ const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); }
       return res;
     })));
     return;

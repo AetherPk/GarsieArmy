@@ -56,8 +56,9 @@
   names. Code comments are English.
 
   BRANDING
-  --brand (#C0262D) and the "GA" icon are placeholders. Replace with the
-  school's official colours and crest (also icons/ and manifest.json).
+  Navy, crest teal and white with Cinzel + Lora, after the school's
+  VLR-inhuldiging poster (see THEME). The crest is drawn in SVG (crest());
+  the home-screen icons in icons/ are cut from the poster.
 ===============================================================================
 -->
 <html lang="af">
@@ -68,7 +69,11 @@
 <!-- Home-screen install. On iPhone notifications only work from the home screen. -->
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-180.png">
-<meta name="theme-color" content="#C0262D">
+<meta name="theme-color" content="#01213a">
+<!-- The school's typefaces (from the poster): Cinzel for headings, Lora for text. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Garsie Army">
 
@@ -90,49 +95,52 @@
 
 <style>
 /* ---------------------------------------------------------------------------
-   THEME TOKENS
-   The whole app is light/dark aware: it follows the device setting, and the
-   sun/moon button (top-right) overrides it and is remembered. Use the
-   --surface / --surface-2 / --hairline / --shadow-ink / --muted tokens for
-   any new UI instead of hard-coded greys. Deliberately NOT themed: the map
-   drawing, the QR screen and the Myne cards (they are always dark).
+   THEME — the school's look (from its VLR-inhuldiging poster)
+   Navy ground, crest teal, white; Cinzel capitals for headings and labels,
+   Lora for reading text. Navy is the default; the sun/moon button switches
+   to the light version and is remembered. Use the tokens below for any new
+   UI instead of hard-coded colours. Deliberately NOT themed: the map
+   drawing, the QR code (black on white) and the Myne cards (always navy).
 --------------------------------------------------------------------------- */
 :root{
-  --brand:#C0262D;          /* primary — school red (PLACEHOLDER) */
-  --brand-ink:#8e1d24;      /* text on light red */
-  --brand-wash:#fde4e4;     /* light red fill */
-  --myne-bg:#1f2a44;        /* "Myne" tab background */
+  color-scheme:dark;
+  --brand:#1d84ab;          /* crest teal — buttons, active states */
+  --brand-text:#5ab7d6;     /* teal for text and icons on the navy */
+  --brand-ink:#0b5f7c;      /* deep teal — the poster's icon column */
+  --brand-wash:rgba(53,156,173,.20);
+  --myne-bg:#011a2e;        /* "Myne" tab background */
 
-  --page:#ececef; --ink:#1d1d1f; --muted:#6e6e73;
-  --btn:#fff; --btn-border:#d2d2d7;
+  --page:#011628; --ink:#f3f6f9; --muted:#9db3c6;
+  --btn:#0a2b47; --btn-border:rgba(173,205,226,.22);
+  --surface:#01213a; --surface-2:#0a3050; --hairline:rgba(173,205,226,.16); --shadow-ink:#f3f6f9;
+  --danger:#ff8a80; --warn:#f2b354; --ok:#5fd18a;
 
-  /* App content surfaces — theme-aware */
-  --surface:#fff; --surface-2:#f2f2f4; --hairline:#e5e5ea; --shadow-ink:#111;
+  --font-display:"Cinzel","Trajan Pro",Georgia,"Times New Roman",serif;
+  --font-body:"Lora",Georgia,"Times New Roman",serif;
 }
-@media (prefers-color-scheme:dark){
-  :root:not([data-theme="light"]){
-    --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
-    --btn:#232326; --btn-border:#3a3a3e;
-    --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
-    --brand-wash:#4a1f23;
-  }
+:root[data-theme="light"]{
+  color-scheme:light;
+  --brand:#16799e; --brand-text:#11688a; --brand-ink:#0b5f7c; --brand-wash:#d9edf4;
+  --page:#e9eef2; --ink:#0d2238; --muted:#566a7d;
+  --btn:#fff; --btn-border:#c9d5df;
+  --surface:#f7f9fb; --surface-2:#e6edf3; --hairline:#d3dde6; --shadow-ink:#0d2238;
+  --danger:#c5221f; --warn:#a15c00; --ok:#1f8a3b;
 }
-:root[data-theme="dark"]{
-  --page:#141416; --ink:#f2f2f7; --muted:#a1a1a6;
-  --btn:#232326; --btn-border:#3a3a3e;
-  --surface:#1c1c1e; --surface-2:#2c2c2e; --hairline:#38383a; --shadow-ink:#f2f2f7;
-  --brand-wash:#4a1f23;
-}
-:root{color-scheme:light}
-:root[data-theme="dark"]{color-scheme:dark}
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){color-scheme:dark} }
 
 *{box-sizing:border-box}
 body{
   margin:0; background:var(--surface); color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  font-family:var(--font-body);
   height:100vh; height:100dvh; overflow:hidden;
 }
+/* Headings in the poster's capitals. Cinzel has no lower case: it sets
+   lower-case letters as small capitals, so titles keep their spelling. */
+h1,h2,.cal-title,.display{font-family:var(--font-display);font-weight:600;letter-spacing:.03em;text-wrap:balance}
+input,select,textarea{font-family:var(--font-body)}
+/* A thin rule with a diamond in the middle, as on the poster. */
+.rule{position:relative;height:1px;background:var(--hairline);margin:14px 0}
+.rule::after{content:"";position:absolute;left:50%;top:-3px;width:7px;height:7px;background:var(--brand-text);transform:translateX(-50%) rotate(45deg)}
+.eyebrow{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--brand-text)}
 button{font-family:inherit;cursor:pointer}
 button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-offset:2px}
 
@@ -146,16 +154,71 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .bottom-bar{max-width:560px;margin:0 auto}
 .mine-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;max-width:1100px;margin:0 auto}
 
+/* Event facts, laid out like the poster: a teal icon column, then a caps
+   label over the value, rows divided by hairlines. */
+.facts{margin-top:16px;border-radius:6px;overflow:hidden;border:.5px solid var(--hairline)}
+.fact{display:grid;grid-template-columns:54px 1fr}
+.fact-icon{background:var(--brand-ink);display:flex;align-items:center;justify-content:center}
+.fact-text{padding:10px 14px;border-bottom:.5px solid var(--hairline);min-width:0}
+.fact:last-child .fact-text{border-bottom:none}
+.fact-text small{display:block;font-family:var(--font-display);font-size:10.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--brand-text)}
+.fact-text b{display:block;font-family:var(--font-display);font-size:15.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-top:2px;overflow-wrap:anywhere}
+
+/* Loading animations (see LOADING ANIMATIONS in the script) */
+.loader{margin:30px auto 0;max-width:300px}
+.loader-stage{height:190px;display:flex;align-items:center;justify-content:center;color:var(--shadow-ink)}
+.loader-svg{width:100%;max-width:260px;height:auto;overflow:visible}
+.loader-fields{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px}
+.loader-fields span{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);transition:color .3s}
+.loader-fields span.on{color:var(--brand-text)}
+.loader-fields i{width:5px;height:5px;background:var(--hairline);transform:rotate(45deg)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){
+  .loader-svg{animation:sc-in .25s ease-out both}
+  .sc-arms{transform-origin:50px 45px;animation:sc-arms 1.4s ease-out both}
+  .sc-rugby-ball{transform-box:fill-box;transform-origin:center;animation:sc-rugby 1.4s cubic-bezier(.3,.6,.4,1) both}
+  .sc-singer{transform-origin:56px 104px;animation:sc-sway 1.4s ease-in-out both}
+  .sc-note{opacity:0;animation:sc-note 1.1s ease-out both}
+  .sc-d1{animation-delay:.25s}.sc-d2{animation-delay:.5s}
+  .sc-page{transform-origin:80px 68px;animation:sc-page 1.4s ease-in-out both}
+  .sc-spark{transform-box:fill-box;transform-origin:center;animation:sc-spark 1.4s ease-out both}
+  .sc-jump{animation:sc-jump 1.4s ease-out both}
+  .sc-netball{animation:sc-netball 1.4s ease-in-out both}
+  .sc-stroke{stroke-dasharray:70;stroke-dashoffset:70;animation:sc-draw 1.1s .15s ease-out both}
+  .sc-brush{transform-origin:42px 52px;animation:sc-brush 1.4s ease-in-out both}
+  .sc-cap{transform-box:fill-box;transform-origin:center;animation:sc-cap 1.4s ease-in-out both}
+}
+@keyframes sc-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes sc-arms{0%{transform:rotate(-40deg)}35%{transform:rotate(6deg)}100%{transform:rotate(0)}}
+@keyframes sc-rugby{0%,24%{transform:translate(-10px,4px) rotate(0)}62%{transform:translate(32px,-26px) rotate(200deg)}100%{transform:translate(62px,-4px) rotate(380deg)}}
+@keyframes sc-sway{0%,100%{transform:rotate(0)}30%{transform:rotate(-4deg)}65%{transform:rotate(3deg)}}
+@keyframes sc-note{0%{opacity:0;transform:translateY(8px)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-26px)}}
+@keyframes sc-page{0%,15%{transform:scaleX(1)}70%,100%{transform:scaleX(-1)}}
+@keyframes sc-spark{0%,55%{opacity:0;transform:scale(.3)}75%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(.8)}}
+@keyframes sc-jump{0%{transform:translateY(0)}30%{transform:translateY(-10px)}60%,100%{transform:translateY(0)}}
+@keyframes sc-netball{0%{transform:translate(0,-10px)}20%{transform:translate(0,-14px)}55%{transform:translate(32px,-28px)}72%{transform:translate(54px,6px);opacity:1}88%{transform:translate(54px,34px);opacity:1}100%{transform:translate(54px,44px);opacity:0}}
+@keyframes sc-draw{to{stroke-dashoffset:0}}
+@keyframes sc-brush{0%,100%{transform:rotate(4deg)}25%{transform:rotate(-8deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-6deg)}}
+@keyframes sc-cap{0%{transform:translateY(16px) rotate(0)}45%{transform:translateY(-34px) rotate(200deg)}100%{transform:translateY(14px) rotate(360deg)}}
+
+/* School crest (drawn in SVG from the poster) */
+.crest{display:block}
+.watermark{position:absolute;right:-90px;top:120px;width:340px;opacity:.06;pointer-events:none}
+:root[data-theme="light"] .watermark{opacity:.07}
+
 /* Sign-in / sign-up screen */
-.auth{position:absolute;inset:0;overflow-y:auto;padding:24px 20px 40px}
+.auth{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:24px 20px 40px;background:radial-gradient(120% 70% at 50% 0%,color-mix(in srgb,var(--brand) 16%,transparent),transparent 70%)}
+.auth-card{position:relative}
 .auth-card{max-width:420px;margin:0 auto}
 .field{display:block;margin-bottom:12px}
-.field span{display:block;font-size:13px;color:var(--muted);margin:0 0 5px 4px}
+.field span{display:block;font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--brand-text);margin:0 0 6px 4px}
+.field.consent span{display:inline;font-family:var(--font-body);font-size:13px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--shadow-ink);margin:0}
 .field input,.field select{width:100%;height:46px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface-2);padding:0 14px;font-size:16px;color:var(--shadow-ink);font-family:inherit;outline:none;-webkit-appearance:none;appearance:none}
 .field select{padding-right:38px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%238e8e93' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center}
 .field input:focus,.field select:focus{border-color:var(--brand);background:var(--surface)}
-.btn-primary{width:100%;height:48px;border-radius:24px;border:none;background:var(--brand);color:#fff;font-size:16px;font-weight:600;margin-top:6px}
-.btn-link{background:none;border:none;color:var(--brand);font-size:14px;padding:8px}
+.btn-primary{width:100%;height:50px;border-radius:25px;border:none;background:var(--brand);color:#fff;font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin-top:6px;box-shadow:0 6px 18px rgba(0,20,40,.35)}
+.btn-primary:disabled{opacity:.6}
+.btn-link{background:none;border:none;color:var(--brand-text);font-size:14px;padding:8px}
 .screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
 
 /* Theme toggle — floats top-right, above every screen. Screen headers keep
@@ -166,7 +229,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 /* Bottom tab bar — persistent across all four tabs */
 .tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:color-mix(in srgb, var(--surface-2) 96%, transparent);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:space-around;z-index:5}
 .tab{display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;color:var(--muted);padding:5px 8px;border-radius:22px;background:none;border:none;min-width:0}
-.tab.is-active{color:var(--brand);background:var(--brand-wash)}
+.tab{font-family:var(--font-display);letter-spacing:.04em}
+.tab.is-active{color:var(--brand-text);background:var(--brand-wash)}
 
 /* Shared list row */
 .row-event{display:flex;gap:10px;align-items:center;padding:10px 0;border-bottom:.5px solid var(--hairline);cursor:pointer}
@@ -176,13 +240,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .chips::-webkit-scrollbar{display:none}
 .chip{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:5px 12px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink)}
 .chip.is-active{color:#fff}
-.chip.on-dark{background:transparent;border-color:#5a6680;color:#e6e6ec}
+.chip.on-dark{background:transparent;border-color:#5a6680;color:#dfe8ef}
 .dot{width:8px;height:8px;border-radius:4px;flex:none}
 
 /* Scrollable admin / form screens */
 .panel{position:absolute;inset:0;overflow-y:auto;padding:10px 16px 110px}
-.panel h1{font-size:30px;font-weight:700;margin:0 0 12px}
-.panel h2{font-size:17px;margin:22px 0 10px}
+.panel h1{font-size:28px;margin:0 0 12px}
+.panel h2{font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--brand-text);margin:24px 0 10px}
 .card{background:var(--surface-2);border-radius:16px;padding:14px}
 .field textarea{width:100%;min-height:76px;border-radius:14px;border:.5px solid var(--hairline);background:var(--surface-2);padding:12px 14px;font-size:16px;color:var(--shadow-ink);font-family:inherit;outline:none;resize:vertical}
 .field textarea:focus{border-color:var(--brand);background:var(--surface)}
@@ -192,9 +256,9 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .list-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:.5px solid var(--hairline)}
 .list-row:last-child{border-bottom:none}
 .mini-btn{flex:none;display:inline-flex;align-items:center;gap:4px;height:30px;padding:0 10px;border-radius:15px;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink);font-size:12px}
-.mini-btn.danger{color:#c0262d}
+.mini-btn.danger{color:var(--danger)}
 .mini-btn:disabled{opacity:.4;cursor:default}
-.toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:#1d1d1f;color:#fff;font-size:14px;padding:10px 16px;border-radius:20px;z-index:20;white-space:nowrap;pointer-events:none}
+.toast{position:absolute;left:50%;bottom:92px;transform:translateX(-50%);background:#0d3a5c;color:#fff;border:.5px solid rgba(173,205,226,.3);box-shadow:0 6px 20px rgba(0,0,0,.35);font-size:14px;padding:10px 16px;border-radius:20px;z-index:20;white-space:nowrap;pointer-events:none}
 
 /* Leaflet maps. "isolation" keeps Leaflet's internal z-indexes (400+) from
    covering the tab bar and theme toggle. */
@@ -206,7 +270,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .me-dot{width:16px;height:16px;border-radius:8px;background:#4285f4;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .btn-checkin{width:100%;height:42px;border-radius:21px;border:none;background:var(--brand);color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-checkin:disabled{background:var(--surface-2);color:var(--muted);cursor:not-allowed}
-.btn-checkin.done{background:var(--surface);color:var(--brand);border:1.5px solid var(--brand)}
+.btn-checkin.done{background:var(--surface);color:var(--brand-text);border:1.5px solid var(--brand)}
 .field input[type=range]{height:auto;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand)}
 .field input[type=checkbox],.field input[type=radio]{width:18px;height:18px;padding:0;border:none;background:none;-webkit-appearance:auto;appearance:auto;accent-color:var(--brand);flex:none;margin:0}
 .check-row{display:flex;flex-wrap:wrap;gap:8px}
@@ -233,15 +297,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 }
 
 /* Form errors */
-:root{--danger:#c5221f}
-:root[data-theme="dark"]{--danger:#ff7b72}
-@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){--danger:#ff7b72} }
 .field-error{color:var(--danger);font-size:12.5px;margin:6px 4px 0;line-height:1.35}
 .field.invalid input:not([type=checkbox]):not([type=radio]):not([type=range]),.field.invalid select,.field.invalid textarea{border-color:var(--danger);box-shadow:0 0 0 1px var(--danger)}
 .counter{display:block;text-align:right;font-size:11px;color:var(--muted);margin:4px 4px 0}
 
 /* Calendar header + month view */
-.cal-title{display:inline-flex;align-items:center;gap:6px;font-size:26px;font-weight:700;background:none;border:none;padding:0;color:var(--shadow-ink);cursor:pointer;font-family:inherit;min-width:0;white-space:nowrap}
+.cal-title{display:inline-flex;align-items:center;gap:6px;font-size:23px;background:none;border:none;padding:0;color:var(--shadow-ink);cursor:pointer;font-family:inherit;min-width:0;white-space:nowrap}
 #date-jump{position:absolute;left:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0;padding:0}
 .monthview{position:absolute;top:128px;left:0;right:0;bottom:86px;overflow:auto;padding:0 12px 12px}
 .month-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;max-width:1100px;margin:0 auto}
@@ -279,7 +340,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <body>
 
 <div class="phone" id="phone">
-  <button id="theme-toggle" aria-label="Wissel tussen lig en donker modus" title="Wissel tema"></button>
+  <button id="theme-toggle" aria-label="Wissel tussen ligte en donker modus" title="Wissel tema"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
   <div class="tabbar" role="tablist" id="tabbar"></div>
@@ -349,6 +410,7 @@ function locationOf(e){ return e.location || CONFIG.schoolLocation; }
 --------------------------------------------------------------------------- */
 const MONTHS = ["Januarie","Februarie","Maart","April","Mei","Junie",
                 "Julie","Augustus","September","Oktober","November","Desember"];
+const MONTHS_SHORT = ["Jan","Feb","Mrt","Apr","Mei","Jun","Jul","Aug","Sep","Okt","Nov","Des"];
 const DAY_SHORT = ["Ma","Di","Wo","Do","Vr","Sa","So"];   // Monday-first
 
 /* ===========================================================================
@@ -429,9 +491,9 @@ function deptById(id){
   const found = DEPARTMENTS.find(d => d.id === id) || { id, name:"Onbekend", colour:"#8e8e93" };
   const d = { ...found, colour: isHexColour(found.colour) ? found.colour : "#8e8e93" };
   return { ...d,
-    wash: `color-mix(in srgb, ${d.colour} 14%, white)`,   // block / badge fill
-    ink:  `color-mix(in srgb, ${d.colour} 72%, black)`,   // text on the wash
-    deep: `color-mix(in srgb, ${d.colour} 70%, black)` }; // Myne card background
+    wash: `color-mix(in srgb, ${d.colour} 26%, var(--surface))`,      // block / badge fill
+    ink:  `color-mix(in srgb, ${d.colour} 40%, var(--shadow-ink))`,   // text on the wash
+    deep: `color-mix(in srgb, ${d.colour} 55%, #011628)` };          // Myne card background
 }
 function deptOf(e){ return deptById(e.department); }
 
@@ -470,7 +532,7 @@ function audienceLabel(e){
   if (!hasAudience(e)) return "";
   const a = e.audience, parts = [];
   const grades = (a.grades || []).map(g => g.replace("Graad ", ""));
-  if (grades.length) parts.push(`Graad ${grades.length > 1 ? grades.slice(0, -1).join(", ") + " & " + grades[grades.length - 1] : grades[0]}`);
+  if (grades.length) parts.push(`Graad ${grades.length > 1 ? grades.slice(0, -1).join(", ") + " en " + grades[grades.length - 1] : grades[0]}`);
   else if (a.learnersOnly) parts.push("Net leerders");
   if (a.gender === "Seun") parts.push("Seuns");
   if (a.gender === "Meisie") parts.push("Meisies");
@@ -631,12 +693,39 @@ function esc(s){
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 }
 
+/* The school crest, drawn after the one on the VLR poster: teal shield with a
+   white border, a navy chevron, the white trowel, and the "Bou en bewaar"
+   ribbon. Each copy gets its own ids so several can sit on one page. */
+let crestCount = 0;
+function crest(size, extraClass){
+  const n = ++crestCount;
+  return `<svg class="crest ${extraClass || ""}" width="${size}" viewBox="0 0 120 140" role="img" aria-label="Wapen van ${esc(CONFIG.school)}">
+    <defs><clipPath id="crest-clip-${n}"><path d="M15 12H105V72C105 99 86 117 60 127C34 117 15 99 15 72Z"/></clipPath>
+      <path id="crest-arc-${n}" d="M18 121C42 135 78 135 102 121"/></defs>
+    <path d="M15 12H105V72C105 99 86 117 60 127C34 117 15 99 15 72Z" fill="#0b6a8a"/>
+    <g clip-path="url(#crest-clip-${n})">
+      <path d="M15 76L60 31L105 76V102L60 57L15 102Z" fill="#06223a"/>
+      <path d="M60 12V31L15 76V12Z" fill="#0e7899"/><path d="M60 12V31L105 76V12Z" fill="#0e7899"/>
+    </g>
+    <path d="M15 12H105V72C105 99 86 117 60 127C34 117 15 99 15 72Z" fill="none" stroke="#fff" stroke-width="3.5"/>
+    <rect x="56.2" y="30" width="7.6" height="24" rx="3.8" fill="#fff"/>
+    <rect x="57.5" y="53" width="5" height="6" fill="#fff"/>
+    <path d="M60 59L71.5 73L60 103L48.5 73Z" fill="#fff"/>
+    <path d="M4 108C28 128 92 128 116 108L119 122C93 143 27 143 1 122Z" fill="#0b6a8a" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>
+    <text font-family="Lora,Georgia,serif" font-size="9.2" font-weight="600" letter-spacing=".6" fill="#fff"><textPath href="#crest-arc-${n}" startOffset="50%" text-anchor="middle">BOU EN BEWAAR</textPath></text>
+  </svg>`;
+}
+
+// Header of the sign-in and profile screens, laid out like the poster.
 const LOGO_HEADER = () => `
-    <div style="text-align:center;margin:18px 0 26px">
-      <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
-      <h1 style="font-size:28px;font-weight:700;margin:12px 0 4px">Garsie Army</h1>
-      <div style="font-size:14px;color:var(--muted)">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
-      ${pendingScan() ? `<div class="card" style="margin-top:14px;font-size:14px;color:var(--shadow-ink)">${icon("qr",16,"var(--brand)")} Teken in om by die geleentheid aan te meld.</div>` : ""}
+    <div class="watermark" aria-hidden="true">${crest(340)}</div>
+    <div style="text-align:center;margin:10px 0 22px;position:relative">
+      <div class="eyebrow" style="color:var(--shadow-ink);font-size:12px;letter-spacing:.22em;line-height:1.6">${esc(CONFIG.school).replace(" ", "<br>")}</div>
+      <div style="display:flex;justify-content:center;margin:10px 0 8px">${crest(92)}</div>
+      <h1 style="font-size:40px;line-height:1;margin:6px 0 0;letter-spacing:.04em">Garsie <span style="color:var(--brand-text)">Army</span></h1>
+      <div class="rule" style="margin:16px 24px 12px"></div>
+      <div style="font-size:15px;color:var(--muted);font-style:italic">Elke ${esc(CONFIG.school)}-geleentheid op een plek.</div>
+      ${pendingScan() ? `<div class="card" style="margin-top:14px;font-size:14px;color:var(--shadow-ink)">${icon("qr",16,"var(--brand-text)")} Teken in om by die geleentheid aan te meld.</div>` : ""}
     </div>`;
 
 // Name / surname / grade / gender — shared by sign-up and "complete your profile".
@@ -671,7 +760,7 @@ function consentField(checked){
   return `<div class="field consent" style="margin:4px 0 12px">
       <label style="display:flex;gap:10px;align-items:flex-start;font-size:13px;line-height:1.45;color:var(--shadow-ink);cursor:pointer">
         <input type="checkbox" name="popia" ${checked ? "checked" : ""} style="width:20px;height:20px;flex:none;margin:1px 0 0;accent-color:var(--brand)">
-        <span>Ek het die <button type="button" data-action="privacy-open" style="background:none;border:none;padding:0;color:var(--brand);font:inherit;text-decoration:underline;cursor:pointer">privaatheidskennisgewing</button>
+        <span>Ek het die <button type="button" data-action="privacy-open" style="background:none;border:none;padding:0;color:var(--brand-text);font:inherit;text-decoration:underline;cursor:pointer">privaatheidskennisgewing</button>
         gelees en stem in dat my inligting so gebruik word. As ek jonger as 18 is, het my ouer of voog ook ingestem.</span>
       </label>
     </div>`;
@@ -684,17 +773,17 @@ const PRIVACY_NOTICE = `
     <li>Jou naam, van, e-posadres, graad en geslag.</li>
     <li>Watter geleenthede jy ondersteun.</li>
     <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
-    <li>As jy kennisgewings aanskakel: jou toestel se push-adres.</li>
+    <li>As jy kennisgewings aanskakel: jou toestel se kennisgewingadres.</li>
   </ul>
   <p>As jy met Google inteken, kry ons net jou naam en e-posadres van Google.</p>
   <h3>Hoekom</h3>
-  <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings uit te wys, en om vir jou kennisgewings te stuur.</p>
+  <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor, en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
   <p>Ons kyk net na jou ligging as jy self "Meld aan" druk of 'n QR-kode skandeer. Nooit in die agtergrond nie.</p>
   <h3>Wie dit sien</h3>
-  <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van wie ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
+  <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat ondersteun of aangemeld het, en kan dit as 'n Excel-lys aflaai. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
-  <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge wat 5 jaar lank nie gebruik is nie.</p>
+  <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
   <h3>Jou regte</h3>
   <p>Jy kan jou rekening self skrap: onderaan <b>Myne</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
@@ -743,7 +832,7 @@ function screenAuth(){
     return `<div class="auth"><div class="auth-card">${LOGO_HEADER()}
       <form data-form="auth-code" novalidate>
         <h2 style="font-size:20px;margin:0 0 6px">Kyk in jou e-pos</h2>
-        <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syfer-kode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur. Kyk ook in jou spam-vouer.</p>
+        <p style="font-size:14px;color:var(--muted);margin:0 0 16px">Ons het 'n 6-syferkode na <b style="color:var(--shadow-ink)">${esc(draft.email) || "jou e-pos"}</b> gestuur. Kyk ook in jou spamvouer.</p>
         <label class="field"><span>Kode</span>
           <input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456" autofocus pattern="[0-9]*"
             style="text-align:center;letter-spacing:8px;font-size:22px;font-weight:600">
@@ -751,7 +840,7 @@ function screenAuth(){
         <button class="btn-primary" type="submit">Bevestig</button>
       </form>
       <div style="display:flex;justify-content:space-between;margin-top:10px">
-        <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand)")} Verander e-pos</button>
+        <button class="btn-link" data-action="auth-back">${icon("left",14,"var(--brand-text)")} Verander e-pos</button>
         <button class="btn-link" data-action="auth-resend">Stuur kode weer</button>
       </div>
     </div></div>`;
@@ -815,11 +904,99 @@ function screenConsent(){
 }
 
 function screenLoading(){
-  return `<div class="auth"><div class="auth-card" style="text-align:center;padding-top:80px">
-    <div style="width:64px;height:64px;border-radius:20px;background:var(--brand);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:26px;font-weight:800">GA</div>
-    <p style="color:var(--muted);margin-top:18px">${state.fatal ? esc(state.fatal) : "Laai…"}</p>
-    ${state.fatal ? `<button class="btn-primary" onclick="location.reload()" style="max-width:240px">Probeer weer</button>` : ""}
+  return `<div class="auth"><div class="auth-card" style="text-align:center;padding-top:7vh">
+    <div style="display:flex;justify-content:center">${crest(64)}</div>
+    <div class="eyebrow" style="margin-top:10px;color:var(--shadow-ink)">Garsie Army</div>
+    ${state.fatal ? `<p style="color:var(--muted);margin:28px 0 18px">${esc(state.fatal)}</p>
+      <button class="btn-primary" onclick="location.reload()" style="max-width:240px">Probeer weer</button>`
+      : loaderHtml()}
   </div></div>`;
+}
+
+/* ---------------------------------------------------------------------------
+   LOADING ANIMATIONS
+   While a screen loads, short scenes (1.4 s each) take turns: Sport,
+   Kultuur, Akademie, Sport, ... — always in that rotation, so the three get
+   equal time and none dominates. Two scenes per field, drawn as simple
+   white pictograms with the school teal for the moving object.
+   Respects "reduce motion": the scenes then stand still.
+--------------------------------------------------------------------------- */
+const SCENE_MS = 1400;
+const FIG = 'stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+const LOADER_SCENES = [
+  { field:"Sport", label:"Rugby", svg:`
+    <g ${FIG}><path d="M50 42L45 66L33 88L24 99M45 66L58 86L57 104"/></g>
+    <circle cx="51" cy="30" r="7.5" fill="currentColor"/>
+    <g class="sc-arms" ${FIG}><path d="M50 45L68 52L83 49M50 45L67 58L81 59"/></g>
+    <g class="sc-rugby-ball"><ellipse cx="88" cy="52" rx="8" ry="5" fill="var(--brand-text)" transform="rotate(-20 88 52)"/></g>` },
+  { field:"Kultuur", label:"Koor", svg:`
+    <g class="sc-singer"><circle cx="56" cy="32" r="7.5" fill="currentColor"/>
+    <g ${FIG}><path d="M56 43V75L47 104M56 75L65 104M56 50L44 62M56 50L68 47L67 38"/></g>
+    <rect x="63" y="29" width="8" height="5" rx="2.5" fill="currentColor"/></g>
+    <g fill="var(--brand-text)" font-family="Georgia,serif" font-size="22">
+      <text class="sc-note" x="80" y="44">♪</text><text class="sc-note sc-d1" x="96" y="34">♫</text><text class="sc-note sc-d2" x="110" y="48">♪</text></g>` },
+  { field:"Akademie", label:"Boeke", svg:`
+    <path d="M80 92L38 84V44L80 52Z" fill="currentColor"/><path d="M80 92L122 84V44L80 52Z" fill="currentColor"/>
+    <g stroke="var(--surface)" stroke-width="2" stroke-linecap="round"><path d="M46 56L72 61M46 64L72 69M46 72L66 76M88 61L114 56M88 69L114 64M88 77L108 73"/></g>
+    <path class="sc-page" d="M80 92L122 84V44L80 52Z" fill="var(--brand-text)"/>
+    <path d="M80 52V92" stroke="var(--surface)" stroke-width="2"/>
+    <path class="sc-spark" d="M128 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="var(--brand-text)"/>` },
+  { field:"Sport", label:"Netbal", svg:`
+    <g stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M134 112V26H124"/></g>
+    <ellipse cx="112" cy="30" rx="12" ry="4" fill="none" stroke="var(--brand-text)" stroke-width="3"/>
+    <g stroke="currentColor" stroke-width="1.5" opacity=".7"><path d="M101 31L105 46M112 34V48M123 31L119 46M105 46H119"/></g>
+    <g class="sc-jump"><circle cx="52" cy="40" r="7.5" fill="currentColor"/>
+    <g ${FIG}><path d="M52 51V76L44 100M52 76L60 100M52 55L58 36L61 26M52 55L48 36L50 26"/></g></g>
+    <circle class="sc-netball" cx="58" cy="18" r="6.5" fill="var(--brand-text)"/>` },
+  { field:"Kultuur", label:"Kuns", svg:`
+    <g stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"><path d="M98 40L84 108M118 40L132 108M108 40V108"/></g>
+    <rect x="82" y="26" width="52" height="42" rx="3" fill="currentColor"/>
+    <path class="sc-stroke" d="M90 56C96 38 104 64 110 46S122 52 126 38" fill="none" stroke="var(--brand-text)" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="42" cy="36" r="7.5" fill="currentColor"/>
+    <g ${FIG}><path d="M42 47V78L34 104M42 78L50 104M42 52L32 66"/></g>
+    <g class="sc-brush" ${FIG}><path d="M42 52L58 50L74 46"/></g>` },
+  { field:"Akademie", label:"Gradeplegtigheid", svg:`
+    <g class="sc-cap"><path d="M80 44L106 55L80 66L54 55Z" fill="currentColor"/>
+      <path d="M67 60V70Q80 77 93 70V60L80 66Z" fill="currentColor"/>
+      <path d="M80 55L100 60V72" fill="none" stroke="var(--brand-text)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="100" cy="74" r="3" fill="var(--brand-text)"/></g>
+    <circle cx="80" cy="88" r="7.5" fill="currentColor"/>
+    <g ${FIG}><path d="M80 99V124M80 103L69 86M80 103L91 86"/></g>
+    <path class="sc-spark" d="M46 34l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5z" fill="var(--brand-text)"/>
+    <path class="sc-spark sc-d1" d="M118 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="var(--brand-text)"/>` }
+];
+let loaderTimer = null;
+let loaderStep = Math.floor(Math.random() * LOADER_SCENES.length);
+function sceneHtml(i){
+  const sc = LOADER_SCENES[i];
+  return `<svg viewBox="0 0 160 124" class="loader-svg" role="img" aria-label="${sc.field}: ${sc.label}">${sc.svg}</svg>`;
+}
+function loaderHtml(){
+  const field = LOADER_SCENES[loaderStep].field;
+  return `<div class="loader">
+    <div class="loader-stage" id="loader-stage">${sceneHtml(loaderStep)}</div>
+    <div class="loader-fields" aria-hidden="true">${["Sport","Kultuur","Akademie"].map(f =>
+      `<span data-field="${f}" class="${f === field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
+    <p class="sr-only" role="status">Laai…</p>
+  </div>`;
+}
+// Called after every render: runs the scene rotation while the loader is on screen.
+function startLoader(){
+  if (loaderTimer || !document.getElementById("loader-stage")) return;
+  state.loaderShownAt = state.loaderShownAt || Date.now();
+  loaderTimer = setInterval(() => {
+    const stage = document.getElementById("loader-stage");
+    if (!stage){ clearInterval(loaderTimer); loaderTimer = null; return; }
+    loaderStep = (loaderStep + 1) % LOADER_SCENES.length;
+    stage.innerHTML = sceneHtml(loaderStep);
+    const field = LOADER_SCENES[loaderStep].field;
+    document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === field));
+  }, SCENE_MS);
+}
+// Let at least one whole scene play before the app replaces the loader.
+function loaderMinimum(){
+  const left = state.loaderShownAt ? SCENE_MS - (Date.now() - state.loaderShownAt) : 0;
+  return left > 0 ? new Promise(r => setTimeout(r, left)) : Promise.resolve();
 }
 
 /* --- 6a. Kalender -------------------------------------------------------
@@ -850,7 +1027,7 @@ function hourWidth(hours){
   return Math.max(CONFIG.hourWidthPx, Math.floor((screenEl.clientWidth - 48) / hours));
 }
 
-function shortDate(d, withYear){ return `${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)}${withYear ? " " + d.getFullYear() : ""}`; }
+function shortDate(d, withYear){ return `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}${withYear ? " " + d.getFullYear() : ""}`; }
 function calendarTitle(){
   const thisYear = TODAY.getFullYear();
   if (state.calView === "month"){
@@ -884,7 +1061,7 @@ function filterChips(onDark = false){
     return `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""}" data-filter="${esc(value)}" style="${style}" aria-pressed="${active}">
       ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? text : colour}"></span>`}${esc(label)}</button>`;
   };
-  return `<div class="chips">${chip("Alles", "Alles", "var(--brand)")}${DEPARTMENTS.map(d => chip(d.id, d.name, deptById(d.id).colour)).join("")}</div>`;
+  return `<div class="chips">${chip("Alles", "Alles", "var(--brand-text)")}${DEPARTMENTS.map(d => chip(d.id, d.name, deptById(d.id).colour)).join("")}</div>`;
 }
 
 // One event as a list row (Soek, and the day list under the month view).
@@ -897,7 +1074,7 @@ function eventRow(e){
     </div>
     <div style="flex:1;min-width:0">
       <div style="font-size:14px;font-weight:600">${esc(e.title)}</div>
-      <div style="font-size:12px;color:var(--muted)">${DAY_SHORT[(day.getDay() + 6) % 7]} ${day.getDate()} ${MONTHS[day.getMonth()].slice(0,3)}${year}, ${e.start}–${e.end} · ${esc(dept.name)}</div>
+      <div style="font-size:12px;color:var(--muted)">${DAY_SHORT[(day.getDay() + 6) % 7]} ${day.getDate()} ${MONTHS_SHORT[day.getMonth()]}${year}, ${e.start}–${e.end} · ${esc(dept.name)}</div>
     </div>
   </div>`;
 }
@@ -908,19 +1085,19 @@ function calendarHeader(){
     : sameDay(state.weekStart, mondayOf(TODAY));
   const unit = state.calView === "month" ? "maand" : "week";
   const navBtn = (dir, label, ic) => `<button data-action="cal-${dir}" aria-label="${label} ${unit}"
-    style="width:32px;height:32px;border-radius:16px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon(ic,16,"var(--brand)")}</button>`;
+    style="width:32px;height:32px;border-radius:16px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon(ic,16,"var(--brand-text)")}</button>`;
   return `<div style="padding:6px 16px 0">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px;padding-right:48px">
       <div style="display:flex;align-items:center;gap:8px;min-width:0">
         <button data-action="cal-today" class="mini-btn" ${onToday ? "disabled" : ""}>Vandag</button>
-        <div role="group" aria-label="Kalender-aansig" style="display:inline-flex;background:var(--hairline);border-radius:16px;padding:3px">
+        <div role="group" aria-label="Kalenderaansig" style="display:inline-flex;background:var(--hairline);border-radius:16px;padding:3px">
           ${[["week","Week"],["month","Maand"]].map(([v, label]) => `<button data-action="cal-view-${v}" aria-pressed="${state.calView === v}"
             style="border:none;font-size:13px;padding:5px 14px;border-radius:13px;background:${state.calView === v ? "var(--surface)" : "transparent"};color:var(--shadow-ink)">${label}</button>`).join("")}
         </div>
       </div>
       <span style="display:flex;gap:2px;flex:none">
-        <button data-tab="search" aria-label="Soek" style="background:none;border:none;padding:4px">${icon("search",20,"var(--brand)")}</button>
-        ${roleOf() !== "user" ? `<button data-action="new-event" aria-label="Skep geleentheid" style="background:none;border:none;padding:4px">${icon("plus",20,"var(--brand)")}</button>` : ""}
+        <button data-tab="search" aria-label="Soek" style="background:none;border:none;padding:4px">${icon("search",20,"var(--brand-text)")}</button>
+        ${roleOf() !== "user" ? `<button data-action="new-event" aria-label="Skep geleentheid" style="background:none;border:none;padding:4px">${icon("plus",20,"var(--brand-text)")}</button>` : ""}
       </span>
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 0;position:relative">
@@ -962,7 +1139,7 @@ function weekBody(){
 
     html += `<div class="weekrow" style="height:${RH}px;border-bottom:.5px solid var(--hairline)">
       <div class="daylabel">
-        <span style="font-size:10px;color:${isToday ? "var(--brand)" : "var(--muted)"}">${DAY_SHORT[i]}</span>
+        <span style="font-size:10px;color:${isToday ? "var(--brand-text)" : "var(--muted)"}">${DAY_SHORT[i]}</span>
         <span style="width:26px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:${isToday ? 700 : 500};${
           isToday ? "background:var(--brand);color:#fff" : isWeekend ? "color:var(--muted)" : ""
         }">${day.getDate()}</span>
@@ -1212,13 +1389,13 @@ function mapCardHtml(){
 
   let status = "", button = "";
   if (mine){
-    status = `<span style="color:var(--brand)">${icon("check",14,"var(--brand)")} Jy is aangemeld om ${formatDateTime(mine.at).slice(11)}</span>`;
-    button = `<button class="btn-checkin done" disabled>${icon("check",16,"var(--brand)")} Aangemeld</button>`;
+    status = `<span style="color:var(--brand-text)">${icon("check",14,"var(--brand-text)")} Jy is aangemeld om ${formatDateTime(mine.at).slice(11)}</span>`;
+    button = `<button class="btn-checkin done" disabled>${icon("check",16,"var(--brand-text)")} Aangemeld</button>`;
   } else if (geo.status === "on" && geo.pos){
     const dist = distanceM(geo.pos, loc);
     const inside = dist <= loc.radius;
     status = inside
-      ? `<span style="color:#1f8a3b">Jy is ${formatDistance(dist)} weg — binne die area</span>`
+      ? `<span style="color:var(--ok)">Jy is ${formatDistance(dist)} weg — binne die area</span>`
       : `Jy is ${formatDistance(dist)} weg — nog ${formatDistance(dist - loc.radius)} tot by die area`;
     status += ` <span style="color:var(--muted)">(±${geo.pos.accuracy} m)</span>`;
     button = `<button class="btn-checkin" data-action="checkin" ${inside ? "" : "disabled"}>${inside ? "Meld aan" : "Kom nader om aan te meld"}</button>`;
@@ -1226,10 +1403,10 @@ function mapCardHtml(){
     status = "Wag vir jou ligging…";
     button = `<button class="btn-checkin" disabled>Meld aan</button>`;
   } else if (geo.status === "denied"){
-    status = `<span style="color:var(--brand)">Ligging is geblokkeer.</span> Laat dit toe in jou blaaier se instellings en probeer weer.`;
+    status = `<span style="color:var(--brand-text)">Ligging is geblokkeer.</span> Laat dit in jou blaaier se instellings toe en probeer weer.`;
     button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
   } else if (geo.status === "unavailable"){
-    status = "Kon nie jou ligging kry nie. Gaan buite of skakel ligging aan.";
+    status = "Kon nie jou ligging kry nie. Gaan na buite of skakel jou ligging aan.";
     button = `<button class="btn-checkin" data-action="start-location">Probeer weer</button>`;
   } else {
     status = "Deel jou ligging sodat ons kan sien of jy daar is.";
@@ -1243,7 +1420,7 @@ function mapCardHtml(){
         ${sorted.map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${esc(x.title)}</option>`).join("")}
       </select>
     </div>
-    <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${e.start} · ${esc(e.venue || loc.address)}</div>
+    <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${e.start} · ${esc(e.venue || loc.address)}</div>
     <div style="font-size:13px;margin-bottom:10px;line-height:1.4">${status}</div>
     ${button}`;
 }
@@ -1334,8 +1511,8 @@ function mountPickerMap(el){
   const form = el.closest("form");
   const lat = Number(form.lat.value), lng = Number(form.lng.value), radius = Number(form.radius.value);
   picker.map = newMap(el, { zoomControl:true }).setView([lat, lng], 16);
-  picker.circle = L.circle([lat, lng], { radius, color:"#C0262D", weight:2, dashArray:"5 4", fillOpacity:.1 }).addTo(picker.map);
-  picker.pin = L.marker([lat, lng], { draggable:true, icon:pinIcon("#C0262D", true), autoPan:true }).addTo(picker.map);
+  picker.circle = L.circle([lat, lng], { radius, color:"#1d84ab", weight:2, dashArray:"5 4", fillOpacity:.1 }).addTo(picker.map);
+  picker.pin = L.marker([lat, lng], { draggable:true, icon:pinIcon("#1d84ab", true), autoPan:true }).addTo(picker.map);
   picker.pin.on("drag", ev => picker.circle.setLatLng(ev.target.getLatLng()));
   picker.pin.on("dragend", ev => setPickerPoint(ev.target.getLatLng()));
   picker.map.on("click", ev => setPickerPoint(ev.latlng));
@@ -1373,14 +1550,14 @@ async function geocodeAddress(){
     const results = await (await fetch(url, { headers:{ "Accept":"application/json" } })).json();
     out.innerHTML = results.length
       ? results.map(r => `<button type="button" data-action="pick-geocode" data-lat="${esc(r.lat)}" data-lng="${esc(r.lon)}" data-label="${esc(r.display_name)}">${esc(r.display_name)}</button>`).join("")
-      : `<div style="font-size:13px;color:var(--muted);margin-top:6px">Niks gevind nie. Probeer 'n straatnaam en voorstad, of sleep die pen.</div>`;
+      : `<div style="font-size:13px;color:var(--muted);margin-top:6px">Niks gevind nie. Probeer 'n straatnaam en voorstad, of sleep die speld.</div>`;
   } catch {
-    out.innerHTML = `<div style="font-size:13px;color:var(--brand);margin-top:6px">Kon nie soek nie. Kyk jou internet, of sleep die pen.</div>`;
+    out.innerHTML = `<div style="font-size:13px;color:var(--brand-text);margin-top:6px">Kon nie soek nie. Kyk of jy aan die internet gekoppel is, of sleep die speld.</div>`;
   }
 }
 
 function useMyLocationForPin(){
-  if (!("geolocation" in navigator)){ toast("Jou toestel deel nie ligging nie"); return; }
+  if (!("geolocation" in navigator)){ toast("Jou toestel kan nie sy ligging deel nie"); return; }
   toast("Kry jou ligging…");
   navigator.geolocation.getCurrentPosition(
     p => setPickerPoint({ lat:p.coords.latitude, lng:p.coords.longitude }, null, 17),
@@ -1440,7 +1617,7 @@ function screenQr(){
   const live = state.qrMode === "live";
   return `<div class="panel"><div class="content" style="text-align:center">
     <div class="no-print" style="text-align:left">
-      <button data-action="close-qr" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
+      <button data-action="close-qr" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
     </div>
     <div class="qr-printable">
       <h1 style="font-size:24px;margin:10px 0 4px">${esc(e.title)}</h1>
@@ -1456,7 +1633,7 @@ function screenQr(){
       </div>
       <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 12px;line-height:1.45">${live
         ? "Die kode verander elke 30 sekondes. Wys dit by die ingang: 'n foto wat vir 'n vriend aangestuur word, werk binne 'n minuut nie meer nie."
-        : "Hierdie kode verander nooit nie, so net die ligging-toets beskerm dit. Gebruik liewer die lewendige kode as daar 'n foon of tablet by die ingang kan staan."}</p>
+        : "Hierdie kode verander nooit nie, dus beskerm net die liggingtoets dit. Gebruik liewer die lewendige kode as daar 'n foon of tablet by die ingang kan staan."}</p>
       ${live ? "" : `<button class="btn-primary" data-action="print-qr" style="max-width:320px">Druk plakkaat</button>`}
     </div>
   </div></div>`;
@@ -1482,7 +1659,7 @@ async function drawQr(){
   const box = document.getElementById("qr-box");
   const e = state.qrEventId != null && eventById(state.qrEventId);
   if (!box || !e) return;
-  if (!window.qrcode){ box.innerHTML = `<p style="color:#c5221f">Die QR-kode kon nie laai nie. Kyk jou internet.</p>`; return; }
+  if (!window.qrcode){ box.innerHTML = `<p style="color:#c5221f">Die QR-kode kon nie laai nie. Kyk of jy aan die internet gekoppel is.</p>`; return; }
   const mode = state.qrMode;
   // Top up the live codes when fewer than 2 minutes are left (and not more than every 5 s).
   const w = currentWindow();
@@ -1536,7 +1713,7 @@ function setScan(status, message){
 function scanCardHtml(){
   const { status, message } = state.scan;
   const waiting = myOutbox().length;
-  const colours = { ok:"#1f8a3b", flagged:"#b26a00", error:"var(--brand)", queued:"var(--shadow-ink)" };
+  const colours = { ok:"var(--ok)", flagged:"var(--warn)", error:"var(--danger)", queued:"var(--shadow-ink)" };
   let body, button;
   if (status === "scanning" || status === "starting"){
     body = message || "Rig die kamera op die QR-kode";
@@ -1547,12 +1724,12 @@ function scanCardHtml(){
     body = "Skandeer die QR-kode by die ingang om aan te meld.";
     button = `<button class="btn-checkin" data-action="start-scan">${icon("qr",16,"#fff")} Begin skandeer</button>`;
   } else {
-    body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"#1f8a3b") + " " : ""}${esc(message)}</span>`;
+    body = `<span style="color:${colours[status] || "inherit"}">${status === "ok" ? icon("check",14,"var(--ok)") + " " : ""}${esc(message)}</span>`;
     button = `<button class="btn-checkin" data-action="start-scan">Skandeer nog een</button>`;
   }
   return `<div style="font-size:14px;margin-bottom:10px;line-height:1.4">${body}</div>
     ${!navigator.onLine ? `<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">Geen internet nie — skanderings word op jou foon gestoor en later gestuur.</div>` : ""}
-    ${waiting ? `<div style="font-size:12px;color:#b26a00;margin:-4px 0 10px">${waiting} aanmelding${waiting > 1 ? "s" : ""} wag om gestuur te word.</div>` : ""}
+    ${waiting ? `<div style="font-size:12px;color:var(--warn);margin:-4px 0 10px">${waiting} aanmelding${waiting > 1 ? "s" : ""} wag om gestuur te word.</div>` : ""}
     ${button}`;
 }
 
@@ -1566,7 +1743,7 @@ async function startScanner(){
   try {
     scanner.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false });
   } catch {
-    setScan("error", "Kon nie die kamera oopmaak nie. Laat kamera-toegang toe, of skandeer met jou foon se kamera-app."); return;
+    setScan("error", "Kon nie die kamera oopmaak nie. Laat kameratoegang toe, of skandeer met jou foon se kamera-app."); return;
   }
   const video = document.getElementById("scan-video");
   if (!video){ stopScanner(); return; }
@@ -1740,11 +1917,11 @@ function screenMine(){
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
   let html = `<div style="position:absolute;inset:0;background:var(--myne-bg);padding:16px 14px 0;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c7cbd6;font-size:13px;min-height:38px;padding-right:52px">
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c4d3df;font-size:13px;min-height:38px;padding-right:52px">
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
       <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        ${isPhone() && !isStandalone() ? `<button data-action="install-help" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Sit op tuisskerm</button>` : ""}
-        <button data-action="signout" style="background:none;border:.5px solid #5a6680;color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
+        ${isPhone() && !isStandalone() ? `<button data-action="install-help" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Sit op tuisskerm</button>` : ""}
+        <button data-action="signout" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
       </span>
     </div>
     <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
@@ -1753,7 +1930,7 @@ function screenMine(){
     <div class="mine-grid">`;
 
   if (!mine.length){
-    html += `<p style="color:#c7cbd6;font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
+    html += `<p style="color:#c4d3df;font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
   }
 
   mine.forEach(e => {
@@ -1763,20 +1940,20 @@ function screenMine(){
       style="cursor:pointer;background:${dept.deep};border-radius:20px;padding:13px 15px;color:#fff;display:flex;justify-content:space-between;gap:8px">
       <div style="min-width:0">
         <div style="font-size:16px;font-weight:600;line-height:1.25">${esc(e.title)}</div>
-        <div style="font-size:12px;color:#e6e6ec">${esc(e.venue)}</div>
-        <div style="font-size:12px;margin-top:16px;color:#e6e6ec">${esc(dept.name)}</div>
+        <div style="font-size:12px;color:#dfe8ef">${esc(e.venue)}</div>
+        <div style="font-size:12px;margin-top:16px;color:#dfe8ef">${esc(dept.name)}</div>
       </div>
       <div style="text-align:right;flex:none">
         <div style="font-size:36px;font-weight:300;line-height:1">${day.getDate()}</div>
-        <div style="font-size:12px">${MONTHS[day.getMonth()].slice(0,3)}</div>
-        <div style="font-size:12px;margin-top:10px;color:#e6e6ec">${e.start}</div>
+        <div style="font-size:12px">${MONTHS_SHORT[day.getMonth()]}</div>
+        <div style="font-size:12px;margin-top:10px;color:#dfe8ef">${e.start}</div>
       </div>
     </div>`;
   });
 
   return html + `</div>
     <div style="max-width:1100px;margin:28px auto 0;text-align:center">
-      <button data-action="delete-account" style="background:none;border:none;color:#8e95a8;font-size:13px;text-decoration:underline;padding:8px">Skrap my rekening</button>
+      <button data-action="delete-account" style="background:none;border:none;color:#8fa6ba;font-size:13px;text-decoration:underline;padding:8px">Skrap my rekening</button>
     </div>
     <div style="height:90px"></div></div>`;
 }
@@ -1796,14 +1973,14 @@ function screenEventDetail(){
 
   const rows = [
     ["calendar", "Datum", `${DAY_SHORT[weekdayIndex]} ${day.getDate()} ${MONTHS[day.getMonth()]} ${day.getFullYear()}`],
-    ["clock",    "Tyd",   `${e.start} - ${e.end}`],
+    ["clock",    "Tyd",   `${e.start}–${e.end}`],
     ["pin",      "Plek",  e.venue]
   ];
 
   const ticketButton = e.ticketUrl
     ? `<a href="${esc(e.ticketUrl)}" target="_blank" rel="noopener"
          style="width:100%;display:flex;align-items:center;justify-content:space-between;border:.5px solid var(--hairline);background:var(--surface);color:var(--shadow-ink);border-radius:14px;padding:11px 14px;margin-bottom:10px;text-decoration:none">
-         <span style="font-size:14px;display:flex;align-items:center;gap:8px">${icon("ticket",18,"var(--brand)")}Koop kaartjies</span>
+         <span style="font-size:14px;display:flex;align-items:center;gap:8px">${icon("ticket",18,"var(--brand-text)")}Koop kaartjies</span>
          <span style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:4px">Quicket ${icon("external",14,"var(--muted)")}</span>
        </a>`
     : "";
@@ -1813,7 +1990,7 @@ function screenEventDetail(){
     <div style="margin-top:14px;border:1.5px dashed ${deptOf(e).colour};border-radius:14px;padding:12px 14px">
       <div style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px">${icon("shield",14,"var(--muted)")} Net vir admins</div>
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:6px;flex-wrap:wrap">
-        <span style="font-size:15px">${(st => `<b>${st.supporters}</b> ondersteun · <b>${st.checkedIn}</b> aangemeld${st.suspicious ? ` · <b style="color:#b26a00">${st.suspicious}</b> verdag` : ""}`)(statsFor(e))}</span>
+        <span style="font-size:15px">${(st => `<b>${st.supporters}</b> ondersteun · <b>${st.checkedIn}</b> aangemeld${st.suspicious ? ` · <b style="color:var(--warn)">${st.suspicious}</b> verdag` : ""}`)(statsFor(e))}</span>
         <span style="display:flex;gap:6px">
           <button class="mini-btn" data-action="edit-event" data-id="${e.id}">${icon("edit",14)} Wysig</button>
           <button class="mini-btn" data-action="show-qr" data-id="${e.id}">${icon("qr",14)} QR</button>
@@ -1824,26 +2001,23 @@ function screenEventDetail(){
 
   return `<div style="position:absolute;inset:0;overflow-y:auto;padding-bottom:${e.ticketUrl ? 220 : 160}px">
   <div class="content" style="padding:8px 18px">
-    <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand)")}</button>
+    <button data-action="back" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
     <h1 style="font-size:26px;font-weight:700;margin:10px 0 6px;line-height:1.15">${esc(e.title)}</h1>
     <span style="font-size:12px;padding:3px 10px;border-radius:10px;background:${deptOf(e).wash};color:${deptOf(e).ink}">${esc(deptOf(e).name)}</span>
     ${hasAudience(e) ? `<span class="audience-badge">${icon("shield",12)} Net vir: ${esc(audienceLabel(e))}</span>` : ""}
 
-    <div style="margin-top:14px;background:var(--surface-2);border-radius:14px;padding:4px 14px">
-      ${rows.map(([ic_, label, value], i) => `
-        <div style="display:flex;align-items:center;gap:10px;padding:10px 0;${i < rows.length-1 ? "border-bottom:.5px solid var(--hairline)" : ""}">
-          ${icon(ic_,18,"var(--brand)")}
-          <span style="font-size:13px;color:var(--muted);width:46px">${label}</span>
-          <span style="font-size:14px">${esc(value)}</span>
-        </div>`).join("")}
+    <div class="facts">
+      ${rows.map(([ic_, label, value]) => `
+        <div class="fact"><span class="fact-icon">${icon(ic_,22,"#fff")}</span>
+          <div class="fact-text"><small>${label}</small><b>${esc(value)}</b></div></div>`).join("")}
     </div>
 
     ${roleOf() === "user" ? `<button data-action="open-map" data-id="${e.id}" class="card" style="margin-top:10px;width:100%;display:flex;align-items:center;gap:10px;border:none;text-align:left;cursor:pointer;color:inherit;padding:12px 14px">
-      ${icon("pin",18,"var(--brand)")}
+      ${icon("pin",18,"var(--brand-text)")}
       <span style="flex:1;font-size:14px">${checkinFor(e) ? "Jy is aangemeld ✓" : "Meld aan by die geleentheid"}</span>
       ${icon("right",16,"var(--muted)")}
     </button>` : ""}
-    ${e.description ? `<div style="font-size:13px;color:var(--muted);margin:14px 0 6px">Bykomende inligting</div>
+    ${e.description ? `<div class="eyebrow" style="margin:18px 0 8px">Bykomende inligting</div>
     <div style="background:var(--surface-2);border-radius:14px;padding:12px 14px;font-size:14px;white-space:pre-wrap">${esc(e.description)}</div>` : ""}
     ${adminCard}
   </div>
@@ -1852,8 +2026,8 @@ function screenEventDetail(){
   <div class="bottom-bar" style="position:absolute;left:18px;right:18px;bottom:90px">
     ${ticketButton}
     <button data-action="toggle-support"
-      style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "var(--surface)" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px">
-      ${isSupported ? icon("check",18,"var(--brand)") + "Jy ondersteun" : "Ek ondersteun"}
+      style="width:100%;height:48px;border-radius:24px;border:${isSupported ? "1.5px solid var(--brand)" : "none"};background:${isSupported ? "var(--surface)" : "var(--brand)"};color:${isSupported ? "var(--brand)" : "#fff"};font-family:var(--font-display);font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 6px 18px rgba(0,20,40,.35)">
+      ${isSupported ? icon("check",18,"var(--brand-text)") + "Jy ondersteun" : "Ek ondersteun"}
     </button>
   </div>`;
 }
@@ -1869,7 +2043,7 @@ function screenCreate(){
   const depts = adminDepartments();
   if (!depts.length){
     return `<div class="panel"><div class="content"><h1>Skep</h1>
-      <p style="color:var(--muted)">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n hoof-admin.</p></div></div>`;
+      <p style="color:var(--muted)">Jy is nog nie aan 'n departement gekoppel nie. Vra 'n Hoof-admin.</p></div></div>`;
   }
   const editing = state.editingId != null ? eventById(state.editingId) : null;
   const e = editing || { title:"", department:depts[0].id, date:toISO(TODAY), start:"15:00", end:"16:00", venue:"", description:"", ticketUrl:"" };
@@ -1899,7 +2073,7 @@ function screenCreate(){
       <label class="field"><span>Plek</span>
         <input name="venue" maxlength="${LIMITS.venue}" placeholder="bv. Hoofveld (opsioneel)" value="${esc(e.venue)}"></label>
 
-      <div class="field"><span>Aanmeld-ligging</span>
+      <div class="field"><span>Aanmeldligging</span>
         <div style="display:flex;gap:8px">
           <input name="address" maxlength="${LIMITS.address}" placeholder="Soek 'n adres…" value="${esc(loc.address)}" style="flex:1;min-width:0"
             onkeydown="if(event.key==='Enter'){event.preventDefault();geocodeAddress()}">
@@ -1908,8 +2082,8 @@ function screenCreate(){
         <div id="geo-results" class="geo-results"></div>
         <div id="pick-map" class="map-inline" style="margin-top:8px"></div>
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px">
-          <small style="color:var(--muted);font-size:12px">Sleep die pen of tik op die kaart om dit te skuif.</small>
-          <button type="button" class="btn-link" data-action="pick-my-location" style="font-size:12px;padding:4px 0;flex:none">${icon("locate",12,"var(--brand)")} Gebruik my ligging</button>
+          <small style="color:var(--muted);font-size:12px">Sleep die speld of tik op die kaart om dit te skuif.</small>
+          <button type="button" class="btn-link" data-action="pick-my-location" style="font-size:12px;padding:4px 0;flex:none">${icon("locate",12,"var(--brand-text)")} Gebruik my ligging</button>
         </div>
         <input type="hidden" name="lat" value="${loc.lat}">
         <input type="hidden" name="lng" value="${loc.lng}">
@@ -1935,7 +2109,7 @@ function screenCreate(){
           </div>
         </div>
       </div>
-      <label class="field"><span>Kaartjie-skakel (opsioneel)</span>
+      <label class="field"><span>Kaartjieskakel (opsioneel)</span>
         <input name="ticketUrl" type="url" inputmode="url" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.url}" placeholder="https://www.quicket.co.za/..." value="${esc(e.ticketUrl || "")}"></label>
       <button class="btn-primary" type="submit">${editing ? "Stoor veranderinge" : "Skep geleentheid"}</button>
       ${editing ? `<button type="button" class="btn-link" data-action="cancel-edit" style="width:100%;margin-top:6px">Kanselleer</button>` : ""}
@@ -1949,11 +2123,11 @@ function screenCreate(){
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
           <div data-event="${ev.id}" role="button" tabindex="0" style="flex:1;min-width:0;cursor:pointer">
             <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ev.title)}</div>
-            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS[d.getMonth()].slice(0,3)} · ${ev.start} · ${statsFor(ev).supporters} ondersteun${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
+            <div style="font-size:12px;color:var(--muted)">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${ev.start} · ${statsFor(ev).supporters} ondersteun${hasAudience(ev) ? ` · <b>${esc(audienceLabel(ev))}</b>` : ""}</div>
           </div>
           <button class="mini-btn" data-action="edit-event" data-id="${ev.id}" aria-label="Wysig">${icon("edit",14)}</button>
           <button class="mini-btn" data-action="show-qr" data-id="${ev.id}" aria-label="Wys QR-kode">${icon("qr",14)}</button>
-          <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel af">${icon("download",14)} Excel</button>
+          <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel-lêer af">${icon("download",14)} Excel</button>
           <button class="mini-btn danger" data-action="delete-event" data-id="${ev.id}" aria-label="Skrap">${icon("trash",14)}</button>
         </div>`;
       }).join("") : `<p style="font-size:14px;color:var(--muted)">Nog geen geleenthede nie.</p>`}
@@ -1989,7 +2163,7 @@ function screenManage(){
             style="width:30px;height:30px;border:none;border-radius:8px;padding:0;background:none;cursor:pointer;flex:none">
           <div style="flex:1;min-width:0">
             <div style="font-size:14px;font-weight:600">${esc(d.name)}</div>
-            <div style="font-size:12px;color:var(--muted)">${eventCount} geleenthede · ${adminCount} admins</div>
+            <div style="font-size:12px;color:var(--muted)">${eventCount} ${eventCount === 1 ? "geleentheid" : "geleenthede"} · ${adminCount} admin${adminCount === 1 ? "" : "s"}</div>
           </div>
           <button class="mini-btn danger" data-action="delete-dept" data-id="${esc(d.id)}" ${inUse ? "disabled title='Skuif of skrap eers sy geleenthede en admins'" : ""}>${icon("trash",14)}</button>
         </div>`;
@@ -2013,7 +2187,7 @@ function screenManage(){
           </div>
           ${a.role === "dept" ? `<label class="field" style="margin:0;width:150px"><select data-admin-dept="${esc(a.email)}" aria-label="Departement vir ${esc(a.email)}" style="height:34px;font-size:14px">${deptOptions(a.department)}</select></label>` : ""}
           <button class="mini-btn danger" data-action="delete-admin" data-email="${esc(a.email)}" aria-label="Verwyder"
-            ${isLastKeyAdmin(a) ? "disabled title='Daar moet altyd minstens een hoof-admin wees'" : ""}>${icon("trash",14)}</button>
+            ${isLastKeyAdmin(a) ? "disabled title='Daar moet altyd minstens een Hoof-admin wees'" : ""}>${icon("trash",14)}</button>
         </div>`).join("")}
     </div>
     <form data-form="admin" class="card" novalidate style="margin-top:10px">
@@ -2132,7 +2306,7 @@ function attendeeRows(e, list){
     suspicious.forEach(p => rows.push([p.name, p.surname, p.grade, p.gender || "", p.email,
       formatDateTime(p.checked_in_at), METHOD_LABELS[p.method] || "GPS", p.flags.join("; ")]));
   } else {
-    rows.push(["Geen nie."]);
+    rows.push(["Geen."]);
   }
   return { rows, bold };
 }
@@ -2189,7 +2363,7 @@ function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
   tabbarEl.style.display = state.user && !state.loading && !state.needsConsent ? "" : "none";
   unmountMaps(); stopScanner(); stopQrTicker();
-  if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); return; }
+  if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); startLoader(); return; }
   if (state.session && state.needsProfile){ screenEl.innerHTML = screenProfile(); return; }
   if (state.session && state.needsConsent){ screenEl.innerHTML = screenConsent(); return; }
   if (!state.user){ screenEl.innerHTML = screenAuth(); return; }
@@ -2332,7 +2506,7 @@ function handle(target){
       case "auth-google":    signInWithGoogle(); return;
       case "auth-resend": {
         const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
-        if (wait > 0){ toast(`Wag nog ${wait} sekondes voor jy weer 'n kode vra.`); return; }
+        if (wait > 0){ toast(`Wag nog ${wait} sekondes voordat jy weer 'n kode vra.`); return; }
         sendCode(state.auth.draft, state.auth.mode === "signup").then(err => toast(err || "Nuwe kode gestuur."));
         return;
       }
@@ -2360,7 +2534,7 @@ function handle(target){
       }
       case "delete-event": {
         const e = eventById(Number(target.dataset.id));
-        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Almal se ondersteuning en aanmeldings daarvoor word ook geskrap. Dit kan nie ontdoen word nie.`)) return;
+        if (!e || !canAdmin(e) || !confirm(`Skrap "${e.title}"? Almal se ondersteuning en aanmeldings daarvoor word ook geskrap. Dit kan nie ongedaan gemaak word nie.`)) return;
         if (state.editingId === e.id) state.editingId = null;
         dbAction(() => sb.from("events").delete().eq("id", e.id), "Geleentheid geskrap");
         return;
@@ -2441,7 +2615,7 @@ phoneEl.addEventListener("submit", async ev => {
     busy(true);
     if (isSignup){
       const { data:taken, error } = await sb.rpc("email_registered", { p_email: email });
-      if (!error && taken){ busy(false); showErrors(form, { email: "Hierdie e-pos is reeds geregistreer. Kies \"Teken in\" hierbo." }); return; }
+      if (!error && taken){ busy(false); showErrors(form, { email: "Hierdie e-posadres is reeds geregistreer. Kies \"Teken in\" hierbo." }); return; }
     }
     const err = await sendCode(v, isSignup);
     busy(false);
@@ -2462,8 +2636,9 @@ phoneEl.addEventListener("submit", async ev => {
     state.session = res.session;
     state.auth = { mode: "signin", step: "details", draft: {} };
     state.tab = "calendar"; state.editingId = null;
-    state.loading = true; render();
+    state.loading = true; state.loaderShownAt = 0; render();
     await loadAll();
+    await loaderMinimum();
     state.loading = false; render();
     processPendingScan();      // a QR opened before signing in
     syncOutbox();
@@ -2540,7 +2715,7 @@ phoneEl.addEventListener("submit", async ev => {
     const { error } = await sb.from("admins").insert({ email, role, department_id: role === "dept" ? data.department : null });
     busy(false);
     if (error){ showErrors(form, { email: error.code === "23505" ? "Hierdie persoon is reeds 'n admin." : dbMessage(error) }); return; }
-    toast("Admin bygevoeg — hulle kry die regte die volgende keer dat hulle inteken.");
+    toast("Admin bygevoeg — hulle kry die regte die volgende keer as hulle inteken.");
     await loadAll(); render();
   }
 });
@@ -2586,7 +2761,7 @@ async function saveEventForm(data){
   const address = cleanText(data.address, LIMITS.address);
   const lat = Number(data.lat), lng = Number(data.lng);
   if (!(Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180)){
-    errors.address = "Kies die plek op die kaart (sleep die pen of soek 'n adres).";
+    errors.address = "Kies die plek op die kaart (sleep die speld of soek 'n adres).";
   }
   const radius = Math.round(Number(data.radius));
   if (!(radius >= CONFIG.radiusMin && radius <= CONFIG.radiusMax)){
@@ -2676,15 +2851,8 @@ phoneEl.addEventListener("keydown", ev => {
   const root = document.documentElement;
   const btn  = document.getElementById("theme-toggle");
 
-  function systemPrefersDark(){
-    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-  }
-  function currentIsDark(){
-    const stored = root.getAttribute("data-theme");
-    if (stored === "dark") return true;
-    if (stored === "light") return false;
-    return systemPrefersDark();
-  }
+  // Navy is the school's look, so it is the default whatever the phone's setting.
+  function currentIsDark(){ return root.getAttribute("data-theme") !== "light"; }
   function paint(){
     btn.innerHTML = icon(currentIsDark() ? "sun" : "moon", 18);
   }
@@ -2696,7 +2864,7 @@ phoneEl.addEventListener("keydown", ev => {
       root.setAttribute("data-theme", saved);
       paint();
     }
-  } catch (e) { /* localStorage unavailable — fall back to system preference */ }
+  } catch (e) { /* localStorage unavailable — stay navy */ }
 
   btn.addEventListener("click", () => {
     const next = currentIsDark() ? "light" : "dark";
@@ -2736,13 +2904,14 @@ function dbMessage(err){
   const m = String((err && (err.message || err.error_description || err)) || "");
   const code = err && err.code;
   if (isNetworkError(err)) return "Geen internet nie. Probeer weer sodra jy aanlyn is.";
-  if (/last_key_admin/.test(m)) return "Daar moet altyd minstens een hoof-admin wees.";
+  if (/last_key_admin/.test(m)) return "Daar moet altyd minstens een Hoof-admin wees.";
   if (code === "23505") return "Dit bestaan reeds.";
   if (code === "23503") return "Dit word nog gebruik en kan nie geskrap word nie.";
   if (code === "23514") return "Een van die waardes word nie toegelaat nie.";
   if (code === "42501" || /row-level security|not_allowed|permission denied/i.test(m)) return "Jy mag dit nie doen nie.";
   if (/rate limit|too many/i.test(m)) return "Te veel versoeke. Wag 'n rukkie en probeer weer.";
-  return "Iets het fout gegaan: " + m;
+  console.warn("Supabase:", m);
+  return "Iets het fout gegaan. Probeer weer.";
 }
 
 // Send the e-mail code. Returns an error message, or "" when it was sent.
@@ -2756,7 +2925,7 @@ async function sendCode(draft, isSignup){
   });
   if (!error){ state.auth.sentAt = Date.now(); return ""; }
   if (!isSignup && /signups? not allowed|user not found|otp_disabled/i.test(error.message + " " + (error.code || ""))){
-    return "Ons ken nie hierdie e-pos nie. Kies \"Registreer\" hierbo.";
+    return "Hierdie e-posadres is nie geregistreer nie. Kies \"Registreer\" hierbo.";
   }
   if (/rate limit|security purposes|seconds/i.test(error.message)) return "Te veel kodes gevra. Wag 'n minuut (of langer) en probeer weer.";
   return dbMessage(error);
@@ -2959,12 +3128,12 @@ const ART = {
   frame: (h, inner) => `<svg viewBox="0 0 280 ${h}" width="100%" style="display:block;max-width:300px;margin:8px auto 4px;border-radius:14px;
       font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" role="img" aria-hidden="true">
       <rect width="280" height="${h}" rx="14" fill="#f2f2f7"/>${inner}</svg>`,
-  ring: (x, y, rx, ry) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry || rx}" fill="none" stroke="#C0262D" stroke-width="3"/>`,
-  row: (y, text, hi, last) => `<rect x="16" y="${y}" width="248" height="34" fill="#fff" ${hi ? 'stroke="#C0262D" stroke-width="3"' : ""}/>
+  ring: (x, y, rx, ry) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry || rx}" fill="none" stroke="#1d84ab" stroke-width="3"/>`,
+  row: (y, text, hi, last) => `<rect x="16" y="${y}" width="248" height="34" fill="#fff" ${hi ? 'stroke="#1d84ab" stroke-width="3"' : ""}/>
       <text x="30" y="${y + 22}" font-size="14" fill="#111">${text}</text>
       ${last ? "" : `<line x1="30" y1="${y + 34}" x2="264" y2="${y + 34}" stroke="#e5e5ea"/>`}`,
-  icon: (x, y, size) => `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * .23}" fill="#C0262D"/>
-      <text x="${x + size / 2}" y="${y + size * .64}" font-size="${size * .4}" font-weight="700" fill="#fff" text-anchor="middle">GA</text>`
+  icon: (x, y, size) => `<rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${size * .23}" fill="#01213a"/>
+      <path transform="translate(${x + size * .22} ${y + size * .14}) scale(${size / 90})" d="M0 0H50V30C50 44 40 53 25 58C10 53 0 44 0 30Z" fill="#0b6a8a" stroke="#fff" stroke-width="4"/>`
 };
 const IPHONE_ART = {
   more: ART.frame(96, `
@@ -3028,9 +3197,9 @@ const INSTALL_STEPS = {
     ${step(4, "Leave <b>Open as Web App</b> on, then tap <b>Add</b> at the top right.", IPHONE_ART.confirm)}
     ${step(5, "Open <b>Garsie Army</b> from your <b>Home Screen</b> and sign in once more (the Home Screen app is separate from Safari).", IPHONE_ART.home)}`,
   android: () => `
-    ${installEvent ? `<p style="margin:0 0 6px">Quickest way: tap the button, then <b>Install</b>.</p>
-      <button class="btn-primary" data-install style="margin:0 0 6px">Install Garsie Army</button>
-      <p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Or do it yourself:</p>` : ""}
+    ${installEvent ? `<p style="margin:0 0 6px">Vinnigste manier: tik op die knoppie, dan <b>Install</b>.</p>
+      <button class="btn-primary" data-install style="margin:0 0 6px">Installeer Garsie Army</button>
+      <p style="margin:6px 0 0;font-size:12px;color:var(--muted)">Of doen dit self:</p>` : ""}
     <p style="margin:0 0 4px;color:var(--muted)">Use <b>Chrome</b>. If you opened this from WhatsApp or Instagram, first tap <b>⋮</b> → <b>Open in Chrome</b>.</p>
     ${step(1, "Tap the <b>⋮</b> (three dots) at the <b>top right</b> of Chrome.", ANDROID_ART.dots)}
     ${step(2, "Tap <b>Add to Home screen</b> (on some phones: <b>Install app</b>).", ANDROID_ART.menu)}
@@ -3055,7 +3224,7 @@ function openInstallHelp(){
       <div style="display:flex;gap:10px">${choice("iphone", "iPhone")}${choice("android", "Android")}</div>
       <button class="btn-link" data-close style="width:100%;margin-top:8px">Nie nou nie</button>`;
   const steps = id => `
-      <h2 style="font-size:20px;margin:0 0 2px">${id === "iphone" ? "iPhone" : "Android"}: Add to Home Screen</h2>
+      <h2 style="font-size:20px;margin:0 0 2px">${id === "iphone" ? "iPhone" : "Android"}: sit op jou tuisskerm</h2>
       ${INSTALL_STEPS[id]()}
       <button class="btn-primary" data-close style="margin-top:16px">Klaar</button>
       <button class="btn-link" data-back style="width:100%;margin-top:4px">Ander foon</button>`;
@@ -3112,13 +3281,13 @@ function openPushAsk(){
   el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:480px;width:100%;max-height:88vh;overflow-y:auto;padding:22px 20px 16px;font-size:14px;line-height:1.45">
       <div style="font-size:40px;text-align:center;line-height:1">🔔</div>
       <h2 style="font-size:21px;margin:10px 0 6px;text-align:center">Moenie iets mis nie</h2>
-      <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Kennisgewings is dié manier om op hoogte te bly van alles by die skool.</p>
+      <p style="margin:0 0 14px;text-align:center;color:var(--muted)">Met kennisgewings bly jy op hoogte van alles by die skool.</p>
       <ul style="list-style:none;padding:0;margin:0 0 6px">
-        ${why("⚠️", "Hoor <b>dadelik</b> as 'n wedstryd of geleentheid <b>verskuif of gekanselleer</b> word, voor jy verniet ry.")}
+        ${why("⚠️", "Hoor <b>dadelik</b> as 'n wedstryd of geleentheid <b>verskuif of gekanselleer</b> word, voordat jy verniet ry.")}
         ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy ondersteun.")}
         ${why("🆕", "Wees die <b>eerste om te weet</b> van nuwe geleenthede vir jou graad.")}
       </ul>
-      <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of dit mag: druk <b>Allow</b>.</p>
+      <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of die app kennisgewings mag stuur: druk <b>Allow</b>.</p>
       <button class="btn-primary" data-yes>Skakel kennisgewings aan</button>
       <button class="btn-link" data-close style="width:100%;margin-top:6px;color:var(--muted)">Nie nou nie</button>
     </div>`;
@@ -3127,7 +3296,7 @@ function openPushAsk(){
     if (ev.target.closest("[data-yes]")){
       await enablePush();
       if (state.push.status === "on") close();
-      else if (state.push.status === "blocked"){ close(); toast("Kennisgewings is geblokkeer. Skakel dit aan in jou foon se instellings."); }
+      else if (state.push.status === "blocked"){ close(); toast("Kennisgewings is geblokkeer. Skakel dit in jou foon se instellings aan."); }
       return;
     }
     if (ev.target === el || ev.target.closest("[data-close]")){ saveJSON(PUSH_ASKED_KEY, Date.now()); close(); }
@@ -3188,23 +3357,23 @@ function pushCardHtml(){
   const p = state.push;
   if (p.status === "unknown"){ setTimeout(checkPush, 0); return ""; }
   if (p.status === "checking") return "";
-  const box = inner => `<div style="background:rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;margin-bottom:12px;color:#e6e6ec;font-size:13px;line-height:1.4">${inner}</div>`;
+  const box = inner => `<div style="background:rgba(255,255,255,.08);border-radius:16px;padding:12px 14px;margin-bottom:12px;color:#dfe8ef;font-size:13px;line-height:1.4">${inner}</div>`;
   const btn = (action, label, filled) => `<button data-action="${action}" ${p.busy ? "disabled" : ""}
       style="border-radius:16px;padding:6px 14px;font-size:13px;font-weight:600;cursor:pointer;
-             ${filled ? "background:var(--brand);color:#fff;border:none" : "background:none;color:#fff;border:.5px solid #5a6680"}">${label}</button>`;
+             ${filled ? "background:var(--brand);color:#fff;border:none" : "background:none;color:#fff;border:.5px solid rgba(173,205,226,.35)"}">${label}</button>`;
   switch (p.status){
     case "unsupported":
       return box("Hierdie blaaier kan nie kennisgewings wys nie.");
     case "install":
       return box(`<b style="color:#fff">Wil jy kennisgewings kry?</b><br>
-        Op 'n iPhone moet die app eers op jou tuisskerm wees: druk <b>Deel</b> (die vierkant met die pyltjie),
-        dan <b>Voeg by tuisskerm</b>. Maak die app van daar af oop en kom terug na hierdie blad.
+        Op 'n iPhone moet die app eers op jou tuisskerm wees: druk onderaan op <b>···</b> en dan <b>Share</b> (by ouer iPhones: die vierkant met die pyltjie),
+        dan <b>Add to Home Screen</b>. Maak die app van daar af oop en kom terug na hierdie blad.
         <div style="margin-top:8px">${btn("install-help", "Wys my hoe", true)}</div>`);
     case "blocked":
-      return box("Kennisgewings is geblokkeer. Skakel dit aan in jou foon se instellings vir hierdie app, en maak die app weer oop.");
+      return box("Kennisgewings is geblokkeer. Skakel dit in jou foon se instellings vir hierdie app aan, en maak die app weer oop.");
     case "off":
       return box(`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-        <span>Kry 'n boodskap as 'n geleentheid wat jy ondersteun verskuif, gekanselleer word of binnekort begin.</span>
+        <span>Kry 'n boodskap as 'n geleentheid wat jy ondersteun, verskuif of gekanselleer word, of binnekort begin.</span>
         ${btn("push-on", p.busy ? "Wag…" : "Skakel kennisgewings aan", true)}</div>`);
     case "on": {
       const wantNew = !!(state.user && state.user.notifyNew);
@@ -3212,10 +3381,10 @@ function pushCardHtml(){
         <span>🔔 Kennisgewings is aan op hierdie toestel.</span>
         <span style="display:flex;gap:6px;flex-wrap:wrap">${btn("push-test", "Stuur toets")}${btn("push-off", "Skakel af")}</span></div>
         <button data-action="push-new" role="switch" aria-checked="${wantNew}" ${p.busy ? "disabled" : ""}
-          style="margin-top:10px;display:flex;align-items:center;gap:10px;background:none;border:none;color:#e6e6ec;font-size:13px;padding:0;cursor:pointer;text-align:left">
-          <span style="width:36px;height:22px;border-radius:11px;flex:none;position:relative;background:${wantNew ? "var(--brand)" : "#5a6680"}">
+          style="margin-top:10px;display:flex;align-items:center;gap:10px;background:none;border:none;color:#dfe8ef;font-size:13px;padding:0;cursor:pointer;text-align:left">
+          <span style="width:36px;height:22px;border-radius:11px;flex:none;position:relative;background:${wantNew ? "var(--brand)" : "rgba(173,205,226,.35)"}">
             <span style="position:absolute;top:2px;${wantNew ? "right" : "left"}:2px;width:18px;height:18px;border-radius:50%;background:#fff"></span></span>
-          Ook as daar 'n nuwe geleentheid vir my is
+          Ook as daar 'n nuwe geleentheid vir jou is
         </button>`);
     }
   }
@@ -3264,7 +3433,7 @@ async function disablePush(){
 async function testPush(){
   const { data, error } = await sb.rpc("push_test");
   if (error) return toast(dbMessage(error));
-  if (!data){ state.push.status = "off"; renderPushCard(); return toast("Hierdie toestel is nie meer geregistreer nie. Skakel weer aan."); }
+  if (!data){ state.push.status = "off"; renderPushCard(); return toast("Hierdie toestel is nie meer geregistreer nie. Skakel kennisgewings weer aan."); }
   toast("Toets gestuur. Dit behoort binne 'n paar sekondes te kom.");
 }
 
@@ -3364,12 +3533,13 @@ async function init(){
   takeScanFromUrl();
   takeEventFromUrl();
   if (!sb){
-    state.fatal = "Die app kon nie laai nie. Kyk jou internet en probeer weer.";
+    state.fatal = "Die app kon nie laai nie. Kyk of jy aan die internet gekoppel is en probeer weer.";
     render(); return;
   }
   const { data } = await sb.auth.getSession();
   state.session = data.session;
   if (state.session) await loadAll();
+  await loaderMinimum();
   state.loading = false;
   render();
   if (state.user){ processPendingScan(); openPendingEvent(); syncOutbox(); }

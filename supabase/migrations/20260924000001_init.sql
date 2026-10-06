@@ -185,7 +185,7 @@ $$
 begin
   if old.role = 'key' and (tg_op = 'DELETE' or new.role <> 'key')
      and (select count(*) from public.admins where role = 'key') <= 1 then
-    raise exception 'last_key_admin' using hint = 'Daar moet altyd minstens een hoof-admin wees.';
+    raise exception 'last_key_admin' using hint = 'Daar moet altyd minstens een Hoof-admin wees.';
   end if;
   return coalesce(new, old);
 end $$;
@@ -319,7 +319,7 @@ begin
       if age > 2 or age < -1 then flags := array_append(flags, 'QR-kode was ouer as ''n minuut (moontlik aangestuur)'); end if;
     end if;
   elsif p_method <> 'gps' then
-    return jsonb_build_object('status','error','message','Onbekende aanmeld-metode.');
+    return jsonb_build_object('status','error','message','Onbekende aanmeldmetode.');
   end if;
 
   if p_lat is null or p_lng is null then
