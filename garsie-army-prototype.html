@@ -16,7 +16,7 @@
   Search "screenAuth".
 
   ROLES (from the admins table, managed in Bestuur — never picked by the user)
-    Gebruiker          supporter: Kalender, Kaart, Soek, Ondersteun
+    Gebruiker          supporter: Kalender, Kaart, Soek, My program
     Departement-admin  + "Skep": create / edit / export events of ONE department
     Hoof-admin         + "Bestuur": departments and who is admin of what,
                        and can create / edit / export events of ANY department
@@ -37,7 +37,7 @@
     Kaart     OpenFreeMap map with each event's pin and check-in circle.
               "Meld aan" unlocks inside the circle. QR scans work offline.
     Soek      Search and filter by department.
-    Ondersteun Events you support, notifications, "Skrap my rekening".
+    My program Events you support, notifications, "Skrap my rekening".
 
   BACKEND
   Supabase (project "garsie-army"). Schema, security rules, push
@@ -48,7 +48,7 @@
   DATA KEPT
   At most 5 years: events (with their supports and check-ins) are deleted
   5 years after the event, accounts 5 years after their last sign-in.
-  People can delete their own account on Ondersteun. The privacy notice is in the
+  People can delete their own account on My program. The privacy notice is in the
   app (PRIVACY_NOTICE) and at privacy.html — keep the two in step.
 
   LANGUAGE
@@ -100,7 +100,7 @@
    Lora for reading text. Navy only (no light/dark switch). Use the tokens
    below for any new
    UI instead of hard-coded colours. Deliberately NOT themed: the map
-   drawing, the QR code (black on white) and the Ondersteun cards (always navy).
+   drawing, the QR code (black on white) and the My program cards (always navy).
 --------------------------------------------------------------------------- */
 :root{
   color-scheme:dark;
@@ -108,7 +108,7 @@
   --brand-text:#5ab7d6;     /* teal for text and icons on the navy */
   --brand-ink:#0b5f7c;      /* deep teal — the poster's icon column */
   --brand-wash:rgba(53,156,173,.20);
-  --myne-bg:#011a2e;        /* "Ondersteun" tab background */
+  --myne-bg:#011a2e;        /* "My program" tab background */
 
   --page:#011628; --ink:#f3f6f9; --muted:#9db3c6;
   --btn:#0a2b47; --btn-border:rgba(173,205,226,.22);
@@ -157,41 +157,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .fact-text b{display:block;font-family:var(--font-display);font-size:15.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin-top:2px;overflow-wrap:anywhere}
 
 /* Loading animations (see LOADING ANIMATIONS in the script) */
-.loader{margin:30px auto 0;max-width:300px}
-.loader-stage{height:190px;display:flex;align-items:center;justify-content:center;color:var(--shadow-ink)}
-.loader-svg{width:100%;max-width:260px;height:auto;overflow:visible}
+.loader{margin:30px auto 0;max-width:320px}
+.loader-canvas{display:block;width:100%;max-width:300px;height:auto;aspect-ratio:4/3;margin:0 auto}
 .loader-fields{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:6px}
 .loader-fields span{font-family:var(--font-display);font-size:11px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);transition:color .3s}
 .loader-fields span.on{color:var(--brand-text)}
 .loader-fields i{width:5px;height:5px;background:var(--hairline);transform:rotate(45deg)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-@media (prefers-reduced-motion:no-preference){
-  .loader-svg{animation:sc-in .25s ease-out both}
-  .sc-arms{transform-origin:50px 45px;animation:sc-arms 1.4s ease-out both}
-  .sc-rugby-ball{transform-box:fill-box;transform-origin:center;animation:sc-rugby 1.4s cubic-bezier(.3,.6,.4,1) both}
-  .sc-singer{transform-origin:56px 104px;animation:sc-sway 1.4s ease-in-out both}
-  .sc-note{opacity:0;animation:sc-note 1.1s ease-out both}
-  .sc-d1{animation-delay:.25s}.sc-d2{animation-delay:.5s}
-  .sc-page{transform-origin:80px 68px;animation:sc-page 1.4s ease-in-out both}
-  .sc-spark{transform-box:fill-box;transform-origin:center;animation:sc-spark 1.4s ease-out both}
-  .sc-jump{animation:sc-jump 1.4s ease-out both}
-  .sc-netball{animation:sc-netball 1.4s ease-in-out both}
-  .sc-stroke{stroke-dasharray:70;stroke-dashoffset:70;animation:sc-draw 1.1s .15s ease-out both}
-  .sc-brush{transform-origin:42px 52px;animation:sc-brush 1.4s ease-in-out both}
-  .sc-cap{transform-box:fill-box;transform-origin:center;animation:sc-cap 1.4s ease-in-out both}
-}
-@keyframes sc-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-@keyframes sc-arms{0%{transform:rotate(-40deg)}35%{transform:rotate(6deg)}100%{transform:rotate(0)}}
-@keyframes sc-rugby{0%,24%{transform:translate(-10px,4px) rotate(0)}62%{transform:translate(32px,-26px) rotate(200deg)}100%{transform:translate(62px,-4px) rotate(380deg)}}
-@keyframes sc-sway{0%,100%{transform:rotate(0)}30%{transform:rotate(-4deg)}65%{transform:rotate(3deg)}}
-@keyframes sc-note{0%{opacity:0;transform:translateY(8px)}30%{opacity:1}100%{opacity:0;transform:translate(6px,-26px)}}
-@keyframes sc-page{0%,15%{transform:scaleX(1)}70%,100%{transform:scaleX(-1)}}
-@keyframes sc-spark{0%,55%{opacity:0;transform:scale(.3)}75%{opacity:1;transform:scale(1.1)}100%{opacity:0;transform:scale(.8)}}
-@keyframes sc-jump{0%{transform:translateY(0)}30%{transform:translateY(-10px)}60%,100%{transform:translateY(0)}}
-@keyframes sc-netball{0%{transform:translate(0,-10px)}20%{transform:translate(0,-14px)}55%{transform:translate(32px,-28px)}72%{transform:translate(54px,6px);opacity:1}88%{transform:translate(54px,34px);opacity:1}100%{transform:translate(54px,44px);opacity:0}}
-@keyframes sc-draw{to{stroke-dashoffset:0}}
-@keyframes sc-brush{0%,100%{transform:rotate(4deg)}25%{transform:rotate(-8deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-6deg)}}
-@keyframes sc-cap{0%{transform:translateY(16px) rotate(0)}45%{transform:translateY(-34px) rotate(200deg)}100%{transform:translateY(14px) rotate(360deg)}}
 
 /* Month sections (see MONTH GROUPS in the script) */
 .mgroup{border-bottom:.5px solid var(--hairline)}
@@ -492,7 +464,7 @@ function deptById(id){
   return { ...d,
     wash: `color-mix(in srgb, ${d.colour} 26%, var(--surface))`,      // block / badge fill
     ink:  `color-mix(in srgb, ${d.colour} 40%, var(--shadow-ink))`,   // text on the wash
-    deep: `color-mix(in srgb, ${d.colour} 55%, #011628)` };          // Ondersteun card background
+    deep: `color-mix(in srgb, ${d.colour} 55%, #011628)` };          // My program card background
 }
 function deptOf(e){ return deptById(e.department); }
 
@@ -785,7 +757,7 @@ const PRIVACY_NOTICE = `
   <h3>Waar en hoe lank</h3>
   <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
   <h3>Jou regte</h3>
-  <p>Jy kan jou rekening self skrap: onderaan <b>Ondersteun</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
+  <p>Jy kan jou rekening self skrap: onderaan <b>My program</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
   <p>Dan moet jou ouer of voog ook instem voordat jy die app gebruik.</p>`;
 function openPrivacy(){
@@ -915,84 +887,286 @@ function screenLoading(){
 
 /* ---------------------------------------------------------------------------
    LOADING ANIMATIONS
-   While a screen loads, short scenes (1.4 s each) take turns: Sport,
+   While a screen loads, short scenes (1.6 s each) take turns: Sport,
    Kultuur, Akademie, Sport, ... — always in that rotation, so the three get
-   equal time and none dominates. Two scenes per field, drawn as simple
-   white pictograms with the school teal for the moving object.
-   Respects "reduce motion": the scenes then stand still.
+   equal time and none dominates. Two scenes per field.
+   The figures are solid silhouettes (white on the navy, accents in crest
+   teal) drawn on a canvas from a simple skeleton: each scene gives a few
+   key poses and the frames in between are eased. Coordinates are in a
+   240 × 180 box; the ground is at y = 166.
+   With "reduce motion" each scene shows one still frame instead.
 --------------------------------------------------------------------------- */
-const SCENE_MS = 1400;
-const FIG = 'stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" fill="none"';
-const LOADER_SCENES = [
-  { field:"Sport", label:"Rugby", svg:`
-    <g ${FIG}><path d="M50 42L45 66L33 88L24 99M45 66L58 86L57 104"/></g>
-    <circle cx="51" cy="30" r="7.5" fill="currentColor"/>
-    <g class="sc-arms" ${FIG}><path d="M50 45L68 52L83 49M50 45L67 58L81 59"/></g>
-    <g class="sc-rugby-ball"><ellipse cx="88" cy="52" rx="8" ry="5" fill="var(--brand-text)" transform="rotate(-20 88 52)"/></g>` },
-  { field:"Kultuur", label:"Koor", svg:`
-    <g class="sc-singer"><circle cx="56" cy="32" r="7.5" fill="currentColor"/>
-    <g ${FIG}><path d="M56 43V75L47 104M56 75L65 104M56 50L44 62M56 50L68 47L67 38"/></g>
-    <rect x="63" y="29" width="8" height="5" rx="2.5" fill="currentColor"/></g>
-    <g fill="var(--brand-text)" font-family="Georgia,serif" font-size="22">
-      <text class="sc-note" x="80" y="44">♪</text><text class="sc-note sc-d1" x="96" y="34">♫</text><text class="sc-note sc-d2" x="110" y="48">♪</text></g>` },
-  { field:"Akademie", label:"Boeke", svg:`
-    <path d="M80 92L38 84V44L80 52Z" fill="currentColor"/><path d="M80 92L122 84V44L80 52Z" fill="currentColor"/>
-    <g stroke="var(--surface)" stroke-width="2" stroke-linecap="round"><path d="M46 56L72 61M46 64L72 69M46 72L66 76M88 61L114 56M88 69L114 64M88 77L108 73"/></g>
-    <path class="sc-page" d="M80 92L122 84V44L80 52Z" fill="var(--brand-text)"/>
-    <path d="M80 52V92" stroke="var(--surface)" stroke-width="2"/>
-    <path class="sc-spark" d="M128 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z" fill="var(--brand-text)"/>` },
-  { field:"Sport", label:"Netbal", svg:`
-    <g stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M134 112V26H124"/></g>
-    <ellipse cx="112" cy="30" rx="12" ry="4" fill="none" stroke="var(--brand-text)" stroke-width="3"/>
-    <g stroke="currentColor" stroke-width="1.5" opacity=".7"><path d="M101 31L105 46M112 34V48M123 31L119 46M105 46H119"/></g>
-    <g class="sc-jump"><circle cx="52" cy="40" r="7.5" fill="currentColor"/>
-    <g ${FIG}><path d="M52 51V76L44 100M52 76L60 100M52 55L58 36L61 26M52 55L48 36L50 26"/></g></g>
-    <circle class="sc-netball" cx="58" cy="18" r="6.5" fill="var(--brand-text)"/>` },
-  { field:"Kultuur", label:"Kuns", svg:`
-    <g stroke="currentColor" stroke-width="4" stroke-linecap="round" fill="none"><path d="M98 40L84 108M118 40L132 108M108 40V108"/></g>
-    <rect x="82" y="26" width="52" height="42" rx="3" fill="currentColor"/>
-    <path class="sc-stroke" d="M90 56C96 38 104 64 110 46S122 52 126 38" fill="none" stroke="var(--brand-text)" stroke-width="4" stroke-linecap="round"/>
-    <circle cx="42" cy="36" r="7.5" fill="currentColor"/>
-    <g ${FIG}><path d="M42 47V78L34 104M42 78L50 104M42 52L32 66"/></g>
-    <g class="sc-brush" ${FIG}><path d="M42 52L58 50L74 46"/></g>` },
-  { field:"Akademie", label:"Gradeplegtigheid", svg:`
-    <g class="sc-cap"><path d="M80 44L106 55L80 66L54 55Z" fill="currentColor"/>
-      <path d="M67 60V70Q80 77 93 70V60L80 66Z" fill="currentColor"/>
-      <path d="M80 55L100 60V72" fill="none" stroke="var(--brand-text)" stroke-width="2.5" stroke-linecap="round"/>
-      <circle cx="100" cy="74" r="3" fill="var(--brand-text)"/></g>
-    <circle cx="80" cy="88" r="7.5" fill="currentColor"/>
-    <g ${FIG}><path d="M80 99V124M80 103L69 86M80 103L91 86"/></g>
-    <path class="sc-spark" d="M46 34l2.5 6 6 2.5-6 2.5-2.5 6-2.5-6-6-2.5 6-2.5z" fill="var(--brand-text)"/>
-    <path class="sc-spark sc-d1" d="M118 26l2 5 5 2-5 2-2 5-2-5-5-2 5-2z" fill="var(--brand-text)"/>` }
-];
-let loaderTimer = null;
-let loaderStep = Math.floor(Math.random() * LOADER_SCENES.length);
-function sceneHtml(i){
-  const sc = LOADER_SCENES[i];
-  return `<svg viewBox="0 0 160 124" class="loader-svg" role="img" aria-label="${sc.field}: ${sc.label}">${sc.svg}</svg>`;
+const SCENE_MS = 1600;
+const SIL = "#f3f6f9", SIL_FAR = "rgba(243,246,249,.55)", SIL_ACCENT = "#5ab7d6";
+const clamp01 = x => Math.max(0, Math.min(1, x));
+const lerp = (a, b, t) => a + (b - a) * t;
+const easeInOut = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
+const lerpPt = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+const bezier = (a, c, b, t) => [lerp(lerp(a[0], c[0], t), lerp(c[0], b[0], t), t), lerp(lerp(a[1], c[1], t), lerp(c[1], b[1], t), t)];
+
+// Pose at time t from key poses [[time, {joint:[x,y]}], ...].
+function poseAt(keys, t){
+  let i = 0;
+  while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
+  const [t0, a] = keys[i], [t1, b] = keys[i + 1];
+  const u = easeInOut(clamp01((t - t0) / (t1 - t0)));
+  const out = {};
+  for (const k in a) out[k] = lerpPt(a[k], b[k], u);
+  return out;
 }
+function disc(ctx, p, r){ ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill(); }
+// A tapered limb from a (width w1) to b (width w2), with round ends.
+function limb(ctx, a, b, w1, w2){
+  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+  ctx.beginPath();
+  ctx.moveTo(a[0] + nx * w1 / 2, a[1] + ny * w1 / 2); ctx.lineTo(b[0] + nx * w2 / 2, b[1] + ny * w2 / 2);
+  ctx.lineTo(b[0] - nx * w2 / 2, b[1] - ny * w2 / 2); ctx.lineTo(a[0] - nx * w1 / 2, a[1] - ny * w1 / 2);
+  ctx.fill();
+  disc(ctx, a, w1 / 2); disc(ctx, b, w2 / 2);
+}
+// Joints: head, neck, hip, lElbow, lHand, rElbow, rHand, lKnee, lFoot, rKnee, rFoot.
+// "l" is the far side (drawn dimmer, behind the body), "r" the near side.
+function silhouette(ctx, p, facing = 1, extra){
+  const sh = [p.neck[0], p.neck[1] + 4];
+  const foot = (f) => limb(ctx, f, [f[0] + 7 * facing, f[1] + 1], 5.5, 3.5);
+  ctx.fillStyle = SIL_FAR;
+  limb(ctx, p.hip, p.lKnee, 11, 8); limb(ctx, p.lKnee, p.lFoot, 8, 5.5); foot(p.lFoot);
+  limb(ctx, sh, p.lElbow, 7, 6); limb(ctx, p.lElbow, p.lHand, 6, 4.5); disc(ctx, p.lHand, 3.6);
+  ctx.fillStyle = SIL;
+  if (extra) extra(ctx, p);
+  limb(ctx, sh, p.hip, 18, 13);
+  limb(ctx, p.neck, lerpPt(p.neck, p.head, .6), 6.5, 6.5);
+  disc(ctx, p.head, 8.5);
+  limb(ctx, p.hip, p.rKnee, 12, 8.5); limb(ctx, p.rKnee, p.rFoot, 8.5, 6); foot(p.rFoot);
+  limb(ctx, sh, p.rElbow, 7.5, 6.5); limb(ctx, p.rElbow, p.rHand, 6.5, 5); disc(ctx, p.rHand, 4);
+}
+function shadow(ctx, x, w = 30, a = .1){
+  ctx.fillStyle = `rgba(243,246,249,${a})`;
+  ctx.beginPath(); ctx.ellipse(x, 167, w, 3.5, 0, 0, Math.PI * 2); ctx.fill();
+}
+function note(ctx, x, y, a, double){
+  ctx.globalAlpha = a; ctx.fillStyle = SIL_ACCENT; ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.2;
+  ctx.beginPath(); ctx.ellipse(x, y, 4.6, 3.4, -.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x + 4, y - 1); ctx.lineTo(x + 4, y - 17);
+  if (double){ ctx.lineTo(x + 15, y - 20); ctx.lineTo(x + 15, y - 4); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(x + 11, y - 3, 4.6, 3.4, -.4, 0, Math.PI * 2); ctx.fill(); }
+  else { ctx.quadraticCurveTo(x + 11, y - 13, x + 9, y - 6); ctx.stroke(); }
+  ctx.globalAlpha = 1;
+}
+
+/* --- Sport: rugby pass (the player swings the ball across and lets it go) */
+const RUGBY = [
+  [0,   { head:[90,52], neck:[93,63], hip:[86,104], lElbow:[84,84], lHand:[74,98], rElbow:[90,86], rHand:[78,101],
+          lKnee:[101,130], lFoot:[97,160], rKnee:[74,128], rFoot:[57,141] }],
+  [.42, { head:[110,49], neck:[107,60], hip:[90,101], lElbow:[125,70], lHand:[145,72], rElbow:[123,76], rHand:[143,79],
+          lKnee:[106,128], lFoot:[114,160], rKnee:[72,124], rFoot:[54,108] }],
+  [1,   { head:[115,52], neck:[111,63], hip:[93,102], lElbow:[128,80], lHand:[144,92], rElbow:[126,84], rHand:[140,97],
+          lKnee:[108,129], lFoot:[116,160], rKnee:[74,126], rFoot:[56,112] }]
+];
+function drawRugby(ctx, t){
+  shadow(ctx, 92, 34);
+  silhouette(ctx, poseAt(RUGBY, t), 1);
+  const hold = p => lerpPt(p.lHand, p.rHand, .5);
+  const release = hold(poseAt(RUGBY, .42));
+  const ballAt = s => s < .42 ? hold(poseAt(RUGBY, s)) : bezier(release, [196, 8], [236, 58], (s - .42) / .58);
+  for (let k = 3; k >= 0; k--){                       // a short trail behind the flying ball
+    const s = t - k * .035;
+    if (k && s < .44) continue;
+    const [x, y] = ballAt(Math.max(0, s));
+    ctx.save(); ctx.globalAlpha = k ? .18 / k : 1; ctx.translate(x, y); ctx.rotate(-.5 + t * 9);
+    ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(0, 0, 9.5, 6, 0, 0, Math.PI * 2); ctx.fill();
+    if (!k){ ctx.strokeStyle = "rgba(1,33,58,.55)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(5, 0); ctx.stroke(); }
+    ctx.restore();
+  }
+}
+
+/* --- Sport: netball shot (bend, rise on the toes, ball through the ring) */
+const NETBALL = [
+  [0,   { head:[96,64], neck:[96,75], hip:[93,113], lElbow:[103,62], lHand:[106,46], rElbow:[100,64], rHand:[102,48],
+          lKnee:[105,138], lFoot:[99,163], rKnee:[85,139], rFoot:[88,163] }],
+  [.38, { head:[99,45], neck:[99,56], hip:[96,96], lElbow:[105,38], lHand:[110,22], rElbow:[102,40], rHand:[106,24],
+          lKnee:[100,127], lFoot:[102,158], rKnee:[93,128], rFoot:[93,158] }],
+  [1,   { head:[100,47], neck:[99,58], hip:[96,98], lElbow:[110,40], lHand:[122,30], rElbow:[107,43], rHand:[119,34],
+          lKnee:[100,129], lFoot:[102,163], rKnee:[93,130], rFoot:[93,163] }]
+];
+function drawNetball(ctx, t){
+  // post, ring and net
+  ctx.fillStyle = SIL; ctx.fillRect(206, 46, 4, 120);
+  ctx.fillRect(188, 46, 20, 3);
+  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.ellipse(184, 50, 13, 3.6, 0, 0, Math.PI * 2); ctx.stroke();
+  const sway = t > .78 && t < .95 ? Math.sin((t - .78) * 40) * 2 : 0;
+  ctx.strokeStyle = "rgba(243,246,249,.55)"; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (const x of [-11, -4, 4, 11]){ ctx.moveTo(184 + x, 51); ctx.lineTo(184 + x * .45 + sway, 70); }
+  ctx.moveTo(176 + sway, 62); ctx.lineTo(192 + sway, 62); ctx.stroke();
+  shadow(ctx, 96, 26);
+  silhouette(ctx, poseAt(NETBALL, t), 1);
+  const top = s => { const p = poseAt(NETBALL, s); const m = lerpPt(p.lHand, p.rHand, .5); return [m[0], m[1] - 7]; };
+  let pos, alpha = 1;
+  if (t < .38) pos = top(t);
+  else if (t < .8) pos = bezier(top(.38), [150, -26], [184, 42], (t - .38) / .42);
+  else { const u = (t - .8) / .2; pos = [184, lerp(42, 92, u)]; alpha = 1 - u * .8; }
+  ctx.globalAlpha = alpha; ctx.fillStyle = SIL_ACCENT; disc(ctx, pos, 7.5);
+  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(pos[0], pos[1], 7.5, .6, 2.6); ctx.stroke();
+  ctx.globalAlpha = 1;
+  // the front of the ring over the ball
+  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(184, 50, 13, 3.6, 0, 0, Math.PI); ctx.stroke();
+}
+
+/* --- Kultuur: ballet leap (grand jeté across the stage) */
+const LEAP = [
+  [0,   { head:[3,-52], neck:[2,-41], hip:[0,0], lElbow:[13,-34], lHand:[22,-42], rElbow:[-10,-33], rHand:[-20,-39],
+          lKnee:[9,25], lFoot:[16,52], rKnee:[-7,27], rFoot:[-13,53] }],
+  [.5,  { head:[7,-54], neck:[5,-43], hip:[0,0], lElbow:[19,-54], lHand:[31,-64], rElbow:[-15,-47], rHand:[-30,-55],
+          lKnee:[25,7], lFoot:[52,9], rKnee:[-25,10], rFoot:[-52,3] }],
+  [1,   { head:[5,-52], neck:[4,-41], hip:[0,0], lElbow:[16,-38], lHand:[27,-46], rElbow:[-9,-35], rHand:[-19,-44],
+          lKnee:[8,26], lFoot:[12,53], rKnee:[-8,25], rFoot:[-17,50] }]
+];
+function drawLeap(ctx, t){
+  const x = lerp(64, 172, easeInOut(t)), y = 112 - 46 * Math.sin(Math.PI * t);
+  shadow(ctx, x, 26 - 10 * Math.sin(Math.PI * t), .1);
+  const p = poseAt(LEAP, t), at = {};
+  for (const k in p) at[k] = [p[k][0] + x, p[k][1] + y];
+  silhouette(ctx, at, 1, (c, q) => {                   // a small tutu in teal
+    c.fillStyle = SIL_ACCENT; c.beginPath(); c.ellipse(q.hip[0], q.hip[1] - 2, 17, 5, -.05, 0, Math.PI * 2); c.fill();
+    c.fillStyle = SIL;
+  });
+  for (let i = 0; i < 3; i++){                          // sparkle trail
+    const s = t - .12 * (i + 1);
+    if (s < 0) continue;
+    const sx = lerp(64, 172, easeInOut(s)) - 30, sy = 112 - 46 * Math.sin(Math.PI * s) - 30;
+    ctx.globalAlpha = .5 - i * .15; ctx.fillStyle = SIL_ACCENT; disc(ctx, [sx, sy], 2.2 - i * .5); ctx.globalAlpha = 1;
+  }
+}
+
+/* --- Kultuur: violinist (bowing, notes rising) */
+function drawViolin(ctx, t){
+  const bow = (Math.sin(t * Math.PI * 4) + 1) / 2;    // two bows in a scene
+  const rHand = lerpPt([96, 88], [124, 74], bow);
+  const p = { head:[108,48], neck:[106,60], hip:[102,106], lElbow:[124,76], lHand:[142,64],
+              rElbow:lerpPt([88, 92], [104, 92], bow), rHand,
+              lKnee:[108,134], lFoot:[110,163], rKnee:[98,134], rFoot:[95,163] };
+  shadow(ctx, 103, 24);
+  silhouette(ctx, p, 1, (c) => {
+    // violin under the chin, pointing forward
+    c.save(); c.translate(124, 66); c.rotate(-.42);
+    c.fillStyle = SIL_ACCENT; c.beginPath(); c.ellipse(0, 0, 13, 7.5, 0, 0, Math.PI * 2); c.fill();
+    c.fillRect(10, -1.6, 22, 3.2); c.restore();
+    c.fillStyle = SIL;
+  });
+  // the bow, held in the near hand, across the strings
+  ctx.strokeStyle = SIL; ctx.lineWidth = 2; ctx.beginPath();
+  ctx.moveTo(rHand[0] - 6, rHand[1] + 10); ctx.lineTo(rHand[0] + 34, rHand[1] - 24); ctx.stroke();
+  [[0, 148, 44, false], [.3, 162, 36, true], [.6, 152, 30, false]].forEach(([d, x, y, dbl]) => {
+    const u = clamp01((t - d) / .6);
+    if (u > 0) note(ctx, x + u * 10, y - u * 26, Math.sin(Math.PI * u), dbl);
+  });
+}
+
+/* --- Akademie: graduate throwing the cap */
+const GRAD = [
+  [0,   { head:[120,58], neck:[120,70], hip:[120,111], lElbow:[110,94], lHand:[117,82], rElbow:[130,94], rHand:[123,82],
+          lKnee:[116,138], lFoot:[113,164], rKnee:[124,138], rFoot:[127,164] }],
+  [.3,  { head:[120,55], neck:[120,67], hip:[120,108], lElbow:[107,47], lHand:[101,29], rElbow:[133,47], rHand:[139,29],
+          lKnee:[116,136], lFoot:[113,162], rKnee:[124,136], rFoot:[127,162] }],
+  [1,   { head:[120,57], neck:[120,69], hip:[120,110], lElbow:[106,51], lHand:[99,34], rElbow:[134,51], rHand:[141,34],
+          lKnee:[116,137], lFoot:[113,164], rKnee:[124,137], rFoot:[127,164] }]
+];
+function drawGraduate(ctx, t){
+  // Drawn a little smaller (about the feet) so the cap has room to fly.
+  ctx.save(); ctx.translate(120, 166); ctx.scale(.84, .84); ctx.translate(-120, -166);
+  shadow(ctx, 120, 26);
+  silhouette(ctx, poseAt(GRAD, t), 1, (c, q) => {     // the gown
+    c.beginPath(); c.moveTo(q.neck[0] - 11, q.neck[1] + 2); c.lineTo(q.neck[0] + 11, q.neck[1] + 2);
+    c.lineTo(q.hip[0] + 21, 150); c.lineTo(q.hip[0] - 21, 150); c.fill();
+  });
+  const u = clamp01((t - .28) / .72);
+  const cx = 120 + Math.sin(u * Math.PI) * 6, cy = (t < .28 ? lerp(78, 30, t / .28) : 30 - 170 * u * (1 - u));
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(u * Math.PI * 4);
+  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(19, 0); ctx.lineTo(0, 9); ctx.lineTo(-19, 0); ctx.fill();
+  ctx.fillRect(-9, 2, 18, 8);
+  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 4); ctx.lineTo(15, 15); ctx.stroke();
+  ctx.fillStyle = SIL_ACCENT; disc(ctx, [15, 16], 2.6);
+  ctx.restore();
+  if (u > .3) [[78, 40], [164, 30], [60, 74], [178, 68]].forEach(([x, y], i) => {   // confetti
+    const a = clamp01((u - .3 - i * .08) * 3) * (1 - u);
+    ctx.globalAlpha = a; ctx.fillStyle = i % 2 ? SIL : SIL_ACCENT;
+    ctx.save(); ctx.translate(x, y + u * 18); ctx.rotate(u * 6 + i); ctx.fillRect(-3, -1.5, 6, 3); ctx.restore();
+  });
+  ctx.globalAlpha = 1;
+  ctx.restore();
+}
+
+/* --- Akademie: writing on the board (a graph appears under the chalk) */
+function drawBoard(ctx, t){
+  ctx.fillStyle = "rgba(243,246,249,.07)"; ctx.fillRect(122, 26, 106, 76);
+  ctx.strokeStyle = SIL; ctx.lineWidth = 3; ctx.strokeRect(122, 26, 106, 76);
+  ctx.strokeStyle = "rgba(243,246,249,.5)"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(134, 92); ctx.lineTo(218, 92); ctx.moveTo(140, 96); ctx.lineTo(140, 34); ctx.stroke();
+  const prog = clamp01(t / .85), curve = s => [142 + s * 72, 90 - 52 * (s * s)];
+  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath();
+  for (let i = 0; i <= 40 * prog; i++){ const [x, y] = curve(i / 40); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke();
+  // The writer walks along the board with the chalk, so the arm keeps its length.
+  const tip = curve(prog), dx = Math.max(0, tip[0] - 146), step = Math.sin(dx / 6) * 3;
+  const sh = [98 + dx, 74];
+  const mid = lerpPt(sh, tip, .5), elbow = [mid[0] - 3, mid[1] + 11];       // simple elbow below the line
+  const p = { head:[96 + dx,58], neck:[98 + dx,70], hip:[95 + dx,112], lElbow:[90 + dx,94], lHand:[95 + dx,112], rElbow:elbow, rHand:tip,
+              lKnee:[99 + dx + step,139], lFoot:[101 + dx + step * 2,164], rKnee:[90 + dx - step,139], rFoot:[89 + dx - step * 2,164] };
+  shadow(ctx, 96 + dx, 24);
+  silhouette(ctx, p, 1);
+}
+
+const LOADER_SCENES = [
+  { field:"Sport",    label:"Rugby",     draw:drawRugby },
+  { field:"Kultuur",  label:"Ballet",    draw:drawLeap },
+  { field:"Akademie", label:"Gradeplegtigheid", draw:drawGraduate },
+  { field:"Sport",    label:"Netbal",    draw:drawNetball },
+  { field:"Kultuur",  label:"Viool",     draw:drawViolin },
+  { field:"Akademie", label:"Wiskunde",  draw:drawBoard }
+];
+let loaderStep = Math.floor(Math.random() * LOADER_SCENES.length);
+let loaderFrame = null, loaderSceneStart = 0;
+
 function loaderHtml(){
-  const field = LOADER_SCENES[loaderStep].field;
+  const sc = LOADER_SCENES[loaderStep];
   return `<div class="loader">
-    <div class="loader-stage" id="loader-stage">${sceneHtml(loaderStep)}</div>
+    <canvas class="loader-canvas" id="loader-canvas" width="240" height="180" role="img" aria-label="${sc.field}: ${sc.label}"></canvas>
     <div class="loader-fields" aria-hidden="true">${["Sport","Kultuur","Akademie"].map(f =>
-      `<span data-field="${f}" class="${f === field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
+      `<span data-field="${f}" class="${f === sc.field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
     <p class="sr-only" role="status">Laai…</p>
   </div>`;
 }
-// Called after every render: runs the scene rotation while the loader is on screen.
+// Called after every render: plays the scenes while the loader is on screen.
 function startLoader(){
-  if (loaderTimer || !document.getElementById("loader-stage")) return;
+  const canvas = document.getElementById("loader-canvas");
+  if (!canvas || loaderFrame) return;
   state.loaderShownAt = state.loaderShownAt || Date.now();
-  loaderTimer = setInterval(() => {
-    const stage = document.getElementById("loader-stage");
-    if (!stage){ clearInterval(loaderTimer); loaderTimer = null; return; }
-    loaderStep = (loaderStep + 1) % LOADER_SCENES.length;
-    stage.innerHTML = sceneHtml(loaderStep);
-    const field = LOADER_SCENES[loaderStep].field;
-    document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === field));
-  }, SCENE_MS);
+  const still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const dpr = Math.min(window.devicePixelRatio || 1, 3);
+  loaderSceneStart = performance.now();
+  const frame = now => {
+    const cv = document.getElementById("loader-canvas");
+    if (!cv){ loaderFrame = null; return; }
+    if (cv.width !== 240 * dpr){ cv.width = 240 * dpr; cv.height = 180 * dpr; }
+    let t = (now - loaderSceneStart) / SCENE_MS;
+    if (t >= 1){                                       // next field's turn
+      loaderStep = (loaderStep + 1) % LOADER_SCENES.length;
+      loaderSceneStart = now; t = 0;
+      const sc = LOADER_SCENES[loaderStep];
+      cv.setAttribute("aria-label", `${sc.field}: ${sc.label}`);
+      document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === sc.field));
+    }
+    const ctx = cv.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, 240, 180);
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    LOADER_SCENES[loaderStep].draw(ctx, still ? .5 : t);
+    loaderFrame = requestAnimationFrame(frame);
+  };
+  loaderFrame = requestAnimationFrame(frame);
 }
+
 // Let at least one whole scene play before the app replaces the loader.
 function loaderMinimum(){
   const left = state.loaderShownAt ? SCENE_MS - (Date.now() - state.loaderShownAt) : 0;
@@ -1868,7 +2042,8 @@ function processPendingScan(){
 }
 
 /* --- 6c. Soek -----------------------------------------------------------
-   Client-side filter over the loaded events, shown in month sections
+   Search by name, department, place or date (any combination of words),
+   over the loaded events, shown in month sections
    (see MONTH GROUPS) so a long list stays easy to handle.
 ------------------------------------------------------------------------- */
 function screenSearch(){
@@ -1876,7 +2051,7 @@ function screenSearch(){
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
     <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:14px;height:42px;padding:0 12px">
       ${icon("search",18,"var(--muted)")}
-      <input id="searchbox" type="search" maxlength="${LIMITS.search}" autocomplete="off" value="${esc(state.query)}" placeholder="Rugby, koor, debat" aria-label="Soek geleenthede"
+      <input id="searchbox" type="search" maxlength="${LIMITS.search}" autocomplete="off" value="${esc(state.query)}" placeholder="Naam, plek of datum, bv. 12 Okt" aria-label="Soek op naam, plek of datum"
         style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:var(--shadow-ink)">
       ${icon("mic",18,"var(--muted)")}
     </div>
@@ -1887,7 +2062,7 @@ function screenSearch(){
 
 /* ---------------------------------------------------------------------------
    MONTH GROUPS
-   Lists that can hold hundreds of events (Soek, Skep, Ondersteun) are folded
+   Lists that can hold hundreds of events (Soek, Skep, My program) are folded
    into one section per month, so nobody scrolls past a whole year. Coming
    months first (soonest on top), then the past under "Verby" (latest on
    top). The current or next month starts open, the rest stay shut until
@@ -1931,13 +2106,29 @@ document.addEventListener("toggle", ev => {
   if (d instanceof HTMLDetailsElement && d.dataset.group) openGroups.set(d.dataset.group, d.open);
 }, true);
 
+// Everything a search can match for one event: its name, department, place
+// and address, and its date written the ways people type it — "12 Okt",
+// "12 Oktober", "Oktober", "Saterdag", "Sa", "12/10". A number on its own
+// means the day ("12") or the year ("2026"), so "10" doesn't find 12 Oct.
+function searchText(e){
+  const d = toDate(e.date), wd = (d.getDay() + 6) % 7;
+  return [e.title, deptOf(e).name, e.venue, e.location && e.location.address,
+          DAY_LONG[wd], DAY_SHORT[wd], MONTHS[d.getMonth()],
+          `${d.getDate()} ${MONTHS[d.getMonth()]}`, `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}`,
+          `${d.getDate()}/${d.getMonth() + 1}`].join(" · ").toLowerCase();
+}
+function matchesWord(e, text, w){
+  if (/^\d{1,2}$/.test(w)) return toDate(e.date).getDate() === Number(w);
+  if (/^\d{4}$/.test(w))   return toDate(e.date).getFullYear() === Number(w);
+  return text.includes(w);
+}
 function searchResults(){
   const q = cleanText(state.query, LIMITS.search).toLowerCase();
+  const words = q.split(/\s+/).filter(Boolean);
+  // Every word must match somewhere, so "rugby oktober" or "saal 12 okt" narrows it down.
   const matches = visibleEvents()
     .filter(passesFilter)
-    .filter(e => !q || e.title.toLowerCase().includes(q)
-                    || deptOf(e).name.toLowerCase().includes(q)
-                    || (e.venue || "").toLowerCase().includes(q));
+    .filter(e => { const text = searchText(e); return words.every(w => matchesWord(e, text, w)); });
   if (!matches.length){
     return `<p style="font-size:14px;color:var(--muted)">${q ? "Geen resultate nie. Probeer 'n ander woord." : "Daar is nog geen geleenthede nie."}</p>`;
   }
@@ -1964,7 +2155,7 @@ function screenMine(){
         <button data-action="signout" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
       </span>
     </div>
-    <h1 style="font-size:30px;color:#fff;margin:6px auto 10px;max-width:1100px">Wat ek ondersteun</h1>
+    <h1 style="font-size:30px;color:#fff;margin:6px auto 10px;max-width:1100px">My program</h1>
     <div id="push-card" style="max-width:1100px;margin:0 auto">${pushCardHtml()}</div>
     <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
     <div style="max-width:1100px;margin:0 auto">`;
@@ -2388,7 +2579,7 @@ const SCREENS = { manage:screenManage, create:screenCreate, calendar:screenCalen
 // Tabs per role. Admin tabs go in front: Bestuur (Hoof-admin), then Skep.
 function tabsForRole(){
   const calendar = ["calendar","calendar","Kalender"], map = ["map","pin","Kaart"],
-        search = ["search","search","Soek"], mine = ["mine","heart","Ondersteun"];
+        search = ["search","search","Soek"], mine = ["mine","heart","My program"];
   const role = roleOf();
   // Admins don't check in, so they get no Kaart tab (pins are set in Skep).
   if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], calendar, search, mine];
@@ -3116,7 +3307,7 @@ function isPhone(){ return isIos() || isAndroid() || matchMedia("(pointer:coarse
    what they'll see. Why it matters: on iPhone notifications only work from the
    home screen, and Safari forgets a website's sign-in after 7 days without
    use. Asked once (bump the key to ask everyone again); the "Sit op
-   tuisskerm" button on Ondersteun opens it any time.
+   tuisskerm" button on My program opens it any time.
    The steps use the English button names: that's what most phones show. */
 const INSTALL_KEY = "garsie.installAsked.v2";
 let installEvent = null;          // Android/Chrome: lets us show the real "Install" prompt
@@ -3300,7 +3491,7 @@ function openPushAsk(){
       <ul style="list-style:none;padding:0;margin:0 0 6px">
         ${why("⚠️", "Hoor <b>dadelik</b> of 'n geleentheid <b>verskuif of gekanselleer</b> is, voordat jy verniet ry.")}
         ${why("⏰", "Kry 'n <b>herinnering 'n uur voor</b> 'n geleentheid wat jy ondersteun.")}
-        ${why("🆕", "Verneem <b>eerste</b> van nuwe geleenthede vir jou graad.")}
+        ${why("🆕", "Hoor <b>eerste</b> van nuwe geleenthede vir jou graad.")}
       </ul>
       <p style="margin:0 0 12px;font-size:13px;color:var(--muted);text-align:center">Jou foon vra dan of die app kennisgewings mag stuur: druk <b>Allow</b>.</p>
       <button class="btn-primary" data-yes>Skakel kennisgewings aan</button>
