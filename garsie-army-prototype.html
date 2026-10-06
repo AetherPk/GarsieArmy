@@ -905,62 +905,26 @@ function screenLoading(){
    Kultuur, Akademie, Sport, ... — always in that rotation, so the three get
    equal time and none dominates. Five scenes per field; one can't repeat
    until three others of its field have played (see pickScene).
-   The figures are solid silhouettes (white on the navy, accents in crest
-   teal) drawn on a canvas from a simple skeleton: each scene gives a few
-   key poses and the frames in between are eased. Coordinates are in a
-   240 × 180 box; the ground is at y = 166.
+   No people: points of view and objects that move by themselves.
    With "reduce motion" each scene shows one still frame instead.
 --------------------------------------------------------------------------- */
 const SCENE_MS = 1600;
-const SIL = "#f3f6f9", SIL_FAR = "rgba(243,246,249,.55)", SIL_ACCENT = "#5ab7d6";
 const clamp01 = x => Math.max(0, Math.min(1, x));
 const lerp = (a, b, t) => a + (b - a) * t;
 const easeInOut = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
-const lerpPt = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
-const bezier = (a, c, b, t) => [lerp(lerp(a[0], c[0], t), lerp(c[0], b[0], t), t), lerp(lerp(a[1], c[1], t), lerp(c[1], b[1], t), t)];
 
-// Pose at time t from key poses [[time, {joint:[x,y]}], ...].
-function poseAt(keys, t){
-  let i = 0;
-  while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
-  const [t0, a] = keys[i], [t1, b] = keys[i + 1];
-  const u = easeInOut(clamp01((t - t0) / (t1 - t0)));
-  const out = {};
-  for (const k in a) out[k] = lerpPt(a[k], b[k], u);
-  return out;
-}
+/* ---------------------------------------------------------------------------
+   LOADING ANIMATIONS — scenes
+   No people: each scene is a point of view or an object that moves by
+   itself (a kick over the posts, a violin that plays itself, chalk that
+   writes on its own). Drawn on a 240 × 180 canvas in the app's colours:
+   white, crest teal and gold, with a few natural tones (wood, leather).
+--------------------------------------------------------------------------- */
+const C_WHITE = "#f3f6f9", C_TEAL = "#5ab7d6", C_DEEP = "#0b6a8a", C_GOLD = "#e0b64f", C_WOOD = "#c98a46", C_WOOD_D = "#8a5426", C_FAINT = "rgba(243,246,249,.18)";
+const easeOut = t => 1 - (1 - t) ** 3;
 function disc(ctx, p, r){ ctx.beginPath(); ctx.arc(p[0], p[1], r, 0, Math.PI * 2); ctx.fill(); }
-// A tapered limb from a (width w1) to b (width w2), with round ends.
-function limb(ctx, a, b, w1, w2){
-  const dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
-  ctx.beginPath();
-  ctx.moveTo(a[0] + nx * w1 / 2, a[1] + ny * w1 / 2); ctx.lineTo(b[0] + nx * w2 / 2, b[1] + ny * w2 / 2);
-  ctx.lineTo(b[0] - nx * w2 / 2, b[1] - ny * w2 / 2); ctx.lineTo(a[0] - nx * w1 / 2, a[1] - ny * w1 / 2);
-  ctx.fill();
-  disc(ctx, a, w1 / 2); disc(ctx, b, w2 / 2);
-}
-// Joints: head, neck, hip, lElbow, lHand, rElbow, rHand, lKnee, lFoot, rKnee, rFoot.
-// "l" is the far side (drawn dimmer, behind the body), "r" the near side.
-function silhouette(ctx, p, facing = 1, extra){
-  const sh = [p.neck[0], p.neck[1] + 4];
-  const foot = (f) => limb(ctx, f, [f[0] + 7 * facing, f[1] + 1], 5.5, 3.5);
-  ctx.fillStyle = SIL_FAR;
-  limb(ctx, p.hip, p.lKnee, 11, 8); limb(ctx, p.lKnee, p.lFoot, 8, 5.5); foot(p.lFoot);
-  limb(ctx, sh, p.lElbow, 7, 6); limb(ctx, p.lElbow, p.lHand, 6, 4.5); disc(ctx, p.lHand, 3.6);
-  ctx.fillStyle = SIL;
-  if (extra) extra(ctx, p);
-  limb(ctx, sh, p.hip, 18, 13);
-  limb(ctx, p.neck, lerpPt(p.neck, p.head, .6), 6.5, 6.5);
-  disc(ctx, p.head, 8.5);
-  limb(ctx, p.hip, p.rKnee, 12, 8.5); limb(ctx, p.rKnee, p.rFoot, 8.5, 6); foot(p.rFoot);
-  limb(ctx, sh, p.rElbow, 7.5, 6.5); limb(ctx, p.rElbow, p.rHand, 6.5, 5); disc(ctx, p.rHand, 4);
-}
-function shadow(ctx, x, w = 30, a = .1){
-  ctx.fillStyle = `rgba(243,246,249,${a})`;
-  ctx.beginPath(); ctx.ellipse(x, 167, w, 3.5, 0, 0, Math.PI * 2); ctx.fill();
-}
 function note(ctx, x, y, a, double){
-  ctx.globalAlpha = a; ctx.fillStyle = SIL_ACCENT; ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.2;
+  ctx.globalAlpha = a; ctx.fillStyle = C_TEAL; ctx.strokeStyle = C_TEAL; ctx.lineWidth = 2.2;
   ctx.beginPath(); ctx.ellipse(x, y, 4.6, 3.4, -.4, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.moveTo(x + 4, y - 1); ctx.lineTo(x + 4, y - 17);
   if (double){ ctx.lineTo(x + 15, y - 20); ctx.lineTo(x + 15, y - 4); ctx.stroke();
@@ -968,534 +932,433 @@ function note(ctx, x, y, a, double){
   else { ctx.quadraticCurveTo(x + 11, y - 13, x + 9, y - 6); ctx.stroke(); }
   ctx.globalAlpha = 1;
 }
+function sparkle(ctx, x, y, r, a, colour){
+  ctx.globalAlpha = a; ctx.fillStyle = colour || C_GOLD; ctx.beginPath();
+  ctx.moveTo(x, y - r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y); ctx.quadraticCurveTo(x, y, x, y - r); ctx.fill(); ctx.globalAlpha = 1;
+}
+// Draw a polyline only up to fraction p of its length; returns the tip.
+function strokeUpTo(ctx, pts, p){
+  const segs = []; let total = 0;
+  for (let i = 1; i < pts.length; i++){ const l = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]); segs.push(l); total += l; }
+  let left = total * clamp01(p), tip = pts[0];
+  ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length && left > 0; i++){
+    const f = Math.min(1, left / segs[i - 1]);
+    tip = lerpPt(pts[i - 1], pts[i], f); ctx.lineTo(tip[0], tip[1]); left -= segs[i - 1];
+  }
+  ctx.stroke();
+  return tip;
+}
+const lerpPt = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+const bezier = (a, c, b, t) => [lerp(lerp(a[0], c[0], t), lerp(c[0], b[0], t), t), lerp(lerp(a[1], c[1], t), lerp(c[1], b[1], t), t)];
 
-/* --- Puppet: a natural-looking figure ---------------------------------------
-   Instead of rounded sticks, the body is built from shaped parts — a chest
-   and back with a curve, a thigh with the quadriceps, a calf, a boot, an
-   upper arm with the biceps, a head with a jaw — each hung on its joint like
-   a cut-out puppet. A pose gives every part's angle (degrees; limbs from
-   straight down, + = forward; torso from straight up, + = leaning forward).
-   Frames run through the key poses on a smooth curve (Catmull-Rom), so the
-   movement doesn't stop and start at every key pose.
---------------------------------------------------------------------------- */
-const BONE = { torso:47, thigh:38, shin:37, upper:29, fore:26 };
-let puppetOutline = false;     // near arm and leg get a thin navy edge, so they read in front of the body
-function bodyPart(ctx, part){
+/* --- Sport: POV kick over the posts ------------------------------------- */
+function rugbyBall(ctx, x, y, s, spin){
+  const ry = Math.max(.18, Math.abs(Math.cos(spin)));          // end over end
+  ctx.save(); ctx.translate(x, y); ctx.rotate(-.35);
+  const g = ctx.createLinearGradient(0, -14 * s, 0, 14 * s);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#c9d6df");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(0, 0, 24 * s, 15 * s * ry, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = C_TEAL; ctx.lineWidth = 3 * s;
+  ctx.beginPath(); ctx.ellipse(0, 0, 13 * s, 15 * s * ry, 0, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(0, 0, 13 * s, 15 * s * ry, 0, Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+  ctx.restore();
+}
+function drawKick(ctx, t){
+  const vx = 120, vy = 74;                                     // vanishing point
+  const g = ctx.createLinearGradient(0, vy, 0, 180);
+  g.addColorStop(0, "rgba(63,174,122,.25)"); g.addColorStop(1, "rgba(63,174,122,.55)");
+  ctx.fillStyle = g; ctx.fillRect(0, vy, 240, 106);
+  ctx.strokeStyle = "rgba(243,246,249,.35)"; ctx.lineWidth = 1.2;
+  for (const x of [-140, -40, 60, 160, 280, 380]){ ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(x, 180); ctx.stroke(); }
+  for (const y of [96, 124, 160]){ ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(240, y); ctx.stroke(); }
+  const scored = t > .78;
+  ctx.fillStyle = scored ? C_GOLD : C_WHITE;                   // posts in the distance
+  ctx.fillRect(104, 28, 3, 50); ctx.fillRect(133, 28, 3, 50); ctx.fillRect(104, 58, 32, 3);
+  const kickT = .1, shake = t > kickT && t < kickT + .06 ? Math.sin(t * 300) * 1.5 : 0;
+  if (t < kickT){ rugbyBall(ctx, 120, 162, 1, 0); return; }   // on the tee
+  const u = easeOut((t - kickT) / (1 - kickT));
+  const flight = s => bezier([120, 160], [120, 0], [120, 46], s);
+  for (let k = 3; k >= 1; k--){                                // trail
+    const s = Math.max(0, u - k * .05), p = flight(s);
+    ctx.globalAlpha = .12; rugbyBall(ctx, p[0], p[1], lerp(1, .16, s), s * 18); ctx.globalAlpha = 1;
+  }
+  const p = flight(u);
+  rugbyBall(ctx, p[0] + shake, p[1], lerp(1, .16, u), u * 18);
+  if (scored) for (let i = 0; i < 6; i++){ const a = i / 6 * Math.PI * 2, r = 14 + (t - .78) * 120;
+    sparkle(ctx, 120 + Math.cos(a) * r, 46 + Math.sin(a) * r * .6, 4, 1 - (t - .78) / .22); }
+}
+
+/* --- Sport: netball from above, straight through the ring ---------------- */
+function netball(ctx, x, y, r, a){
+  ctx.globalAlpha = a;
+  const g = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r);
+  g.addColorStop(0, "#ffffff"); g.addColorStop(1, "#b9c7d1");
+  ctx.fillStyle = g; disc(ctx, [x, y], r);
+  ctx.strokeStyle = C_TEAL; ctx.lineWidth = Math.max(1, r * .12);
+  ctx.beginPath(); ctx.arc(x, y, r * .98, -1.1, .6); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x - r * .9, y + r * .6, r * 1.1, -1.3, -.1); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+function drawNetballTop(ctx, t){
+  ctx.fillStyle = "rgba(90,183,214,.10)"; ctx.fillRect(0, 0, 240, 180);
+  ctx.strokeStyle = "rgba(243,246,249,.25)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(120, 90, 70, 0, Math.PI * 2); ctx.stroke();       // court circle
+  const cx = 120, cy = 90, R = 34;
+  const through = clamp01((t - .62) / .3), sway = Math.sin(through * Math.PI * 3) * (1 - through) * 6;
+  const bottom = [cx + sway, cy + 6];                                       // bottom of the net, seen from above
+  ctx.strokeStyle = "rgba(243,246,249,.6)"; ctx.lineWidth = 1;
+  for (let i = 0; i < 12; i++){ const a = i / 12 * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.lineTo(bottom[0] + Math.cos(a) * 12, bottom[1] + Math.sin(a) * 12); ctx.stroke(); }
+  ctx.beginPath(); ctx.arc(bottom[0], bottom[1], 12, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc((cx + bottom[0]) / 2, (cy + bottom[1]) / 2, 23, 0, Math.PI * 2); ctx.stroke();
+  const fall = easeOut(clamp01(t / .7));
+  const pos = bezier([34, 168], [70, 60], [cx, cy], fall), r = lerp(26, 13, fall);
+  if (t > .62){ netball(ctx, bottom[0], lerp(cy, cy + 10, through), lerp(13, 9, through), 1 - through * .7); }
+  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.stroke();   // the ring
+  if (t <= .62){
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(pos[0] + 10 * (1 - fall), pos[1] + 12 * (1 - fall), r * .9, r * .5, 0, 0, Math.PI * 2); ctx.fill();
+    netball(ctx, pos[0], pos[1], r, 1);
+  }
+  if (t > .62 && t < .85) for (let i = 0; i < 5; i++){ const a = i * 1.25; sparkle(ctx, cx + Math.cos(a) * (R + 10 + through * 30), cy + Math.sin(a) * (R + 10 + through * 30), 3.5, 1 - through); }
+}
+
+/* --- Sport: cricket — the ball comes at you and takes the stumps --------- */
+function drawStumps(ctx, t){
+  ctx.fillStyle = "rgba(201,138,70,.22)";                                  // the pitch
+  ctx.beginPath(); ctx.moveTo(108, 40); ctx.lineTo(132, 40); ctx.lineTo(200, 180); ctx.lineTo(40, 180); ctx.fill();
+  ctx.strokeStyle = "rgba(243,246,249,.6)"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(70, 158); ctx.lineTo(170, 158); ctx.stroke();
+  const hit = .52, after = clamp01((t - hit) / .48);
+  const tilt = t > hit ? easeOut(after) * .5 : 0;
+  ctx.fillStyle = "#e9d6b6";
+  for (const [x, a] of [[104, -tilt * .4], [120, -tilt], [136, tilt * .3]]){
+    ctx.save(); ctx.translate(x, 156); ctx.rotate(a); ctx.fillRect(-3, -70, 6, 70); ctx.restore();
+  }
+  const bail = (x0, dir, i) => {
+    if (t < hit){ ctx.fillStyle = C_GOLD; ctx.fillRect(x0, 84, 15, 4); return; }
+    const s = after, x = x0 + dir * s * 70, y = 84 - 70 * s + 110 * s * s;
+    ctx.save(); ctx.translate(x + 7, y + 2); ctx.rotate(dir * s * 9 + i); ctx.fillStyle = C_GOLD; ctx.fillRect(-7, -2, 15, 4); ctx.restore();
+  };
+  bail(104, -1, 0); bail(121, 1, 1);
+  if (t < hit){                                                            // the ball: far, bounce, near
+    const u = t / hit, bounce = .55;
+    const y = u < bounce ? lerp(48, 140, u / bounce) : lerp(140, 112, (u - bounce) / (1 - bounce));
+    const r = lerp(2.5, 9, u), x = lerp(118, 124, u);
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(x, lerp(50, 150, u), r, r * .35, 0, 0, Math.PI * 2); ctx.fill();
+    const g = ctx.createRadialGradient(x - r * .3, y - r * .3, 1, x, y, r); g.addColorStop(0, "#e2574a"); g.addColorStop(1, "#8e2a22");
+    ctx.fillStyle = g; disc(ctx, [x, y], r);
+    ctx.strokeStyle = "#f3f6f9"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r * .75, -.6, 2.2); ctx.stroke();
+  } else {
+    ctx.globalAlpha = 1 - after; ctx.strokeStyle = C_WHITE; ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++){ const a = i / 8 * Math.PI * 2, r1 = 8 + after * 30;
+      ctx.beginPath(); ctx.moveTo(122 + Math.cos(a) * r1, 112 + Math.sin(a) * r1); ctx.lineTo(122 + Math.cos(a) * (r1 + 7), 112 + Math.sin(a) * (r1 + 7)); ctx.stroke(); }
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* --- Sport: hockey from above — into the net ----------------------------- */
+function drawHockeyGoal(ctx, t){
+  ctx.fillStyle = "rgba(63,174,122,.32)"; ctx.fillRect(0, 0, 240, 180);
+  ctx.strokeStyle = "rgba(243,246,249,.5)"; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(214, 90, 70, Math.PI * .5, Math.PI * 1.5); ctx.stroke();   // the D
+  const hit = .45, bulge = t > hit ? Math.sin(clamp01((t - hit) / .3) * Math.PI) * 12 * (1 - clamp01((t - hit - .3) / .4)) : 0;
+  ctx.strokeStyle = "rgba(243,246,249,.55)"; ctx.lineWidth = 1;                       // the net, bulging
+  for (let i = 0; i <= 6; i++){ const y = 66 + i * 8, d = bulge * Math.sin(i / 6 * Math.PI);
+    ctx.beginPath(); ctx.moveTo(214, y); ctx.quadraticCurveTo(226 + d, y, 236 + d * .5, y); ctx.stroke(); }
+  for (const x of [220, 228]){ ctx.beginPath(); ctx.moveTo(x, 66); ctx.quadraticCurveTo(x + bulge, 90, x, 114); ctx.stroke(); }
+  ctx.fillStyle = C_WHITE; ctx.fillRect(212, 64, 4, 52);                             // goal mouth
+  const u = easeOut(clamp01(t / hit));
+  const pos = t < hit ? [lerp(28, 222, u), lerp(140, 92, u)] : [222 + bulge * .8, 92];
+  if (t < hit) for (let k = 1; k <= 4; k++){ ctx.globalAlpha = .25 - k * .05; ctx.fillStyle = C_WHITE;
+    disc(ctx, [lerp(28, 222, Math.max(0, u - k * .05)), lerp(140, 92, Math.max(0, u - k * .05))], 5); }
+  ctx.globalAlpha = 1; ctx.fillStyle = C_WHITE; disc(ctx, pos, 5.5);
+  if (t < .12){ ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2;                        // the crack of the hit
+    for (const a of [2.4, 2.9, 3.4]){ ctx.beginPath(); ctx.moveTo(28 + Math.cos(a) * 9, 140 + Math.sin(a) * 9); ctx.lineTo(28 + Math.cos(a) * 18, 140 + Math.sin(a) * 18); ctx.stroke(); } }
+  if (t > hit) for (let i = 0; i < 4; i++) sparkle(ctx, 200 - i * 12, 50 + i * 26, 4, 1 - clamp01((t - hit) / .5));
+}
+
+/* --- Sport: athletics — POV down the lane, through the finish tape ------- */
+function drawTrack(ctx, t){
+  const vx = 120, vy = 50;
+  ctx.fillStyle = "rgba(201,98,70,.45)";
+  ctx.beginPath(); ctx.moveTo(vx - 6, vy); ctx.lineTo(vx + 6, vy); ctx.lineTo(300, 180); ctx.lineTo(-60, 180); ctx.fill();
+  ctx.strokeStyle = C_WHITE; ctx.lineWidth = 2;
+  for (const x of [-60, 60, 180, 300]){ ctx.beginPath(); ctx.moveTo(vx, vy); ctx.lineTo(x, 180); ctx.stroke(); }
+  // dashes rushing at you
+  for (let i = 0; i < 6; i++){
+    const d = (i / 6 + t * 1.6) % 1, y = vy + (180 - vy) * d * d;
+    ctx.globalAlpha = d; ctx.fillStyle = C_WHITE;
+    for (const x of [0, 240]){ const xx = lerp(vx, x === 0 ? 0 : 240, d * d); ctx.fillRect(xx - 1, y, 2, 6 * d); }
+  }
+  ctx.globalAlpha = 1;
+  const reach = clamp01(t / .62), dTape = reach * reach, ty = vy + (180 - vy) * dTape * .82, half = lerp(10, 170, dTape);
+  if (t < .62){
+    ctx.strokeStyle = C_GOLD; ctx.lineWidth = lerp(1, 6, dTape);
+    ctx.beginPath(); ctx.moveTo(vx - half, ty); ctx.lineTo(vx + half, ty); ctx.stroke();
+  } else {
+    const s = clamp01((t - .62) / .38);
+    ctx.strokeStyle = C_GOLD; ctx.lineWidth = 6;
+    for (const dir of [-1, 1]){ ctx.beginPath(); ctx.moveTo(vx + dir * 6, 156); ctx.quadraticCurveTo(vx + dir * (40 + 80 * s), 150 + 30 * s, vx + dir * (100 + 90 * s), 170 + 40 * s); ctx.stroke(); }
+    for (let i = 0; i < 7; i++) sparkle(ctx, 30 + i * 30, 60 + Math.sin(i * 2) * 25 + s * 30, 4, 1 - s, i % 2 ? C_GOLD : C_TEAL);
+  }
+}
+
+/* --- Kultuur: a violin that plays itself -------------------------------- */
+function drawViolinSelf(ctx, t){
+  ctx.save(); ctx.translate(112, 98); ctx.rotate(-.5);
+  const g = ctx.createLinearGradient(-30, 0, 30, 0); g.addColorStop(0, C_WOOD_D); g.addColorStop(.5, C_WOOD); g.addColorStop(1, C_WOOD_D);
+  ctx.fillStyle = g;                                                        // the body: two bouts and a waist
   ctx.beginPath();
-  switch (part){
-    case "torso":     // hip at 0,0, shoulders at 0,-47, chest to +x
-      ctx.moveTo(-8, 4);
-      ctx.bezierCurveTo(-11, -10, -13, -28, -11, -41);
-      ctx.bezierCurveTo(-9, -49, 5, -51, 10, -46);
-      ctx.bezierCurveTo(15, -38, 14, -23, 10, -12);
-      ctx.bezierCurveTo(8, -5, 9, 1, 6, 6);
-      ctx.bezierCurveTo(1, 9, -5, 8, -8, 4); break;
-    case "shorts":    // over the top of the thigh
-      ctx.moveTo(-9, -4); ctx.lineTo(9, -4); ctx.lineTo(11, 15); ctx.lineTo(-8, 17); break;
-    case "head":      // neck base at 0,0, head up, face to +x
-      ctx.moveTo(-4, 3); ctx.lineTo(-4, -6);
-      ctx.bezierCurveTo(-10, -9, -11, -22, -3, -26);
-      ctx.bezierCurveTo(5, -29, 11, -23, 11, -16);
-      ctx.lineTo(13, -12); ctx.lineTo(10.5, -10.5);
-      ctx.bezierCurveTo(10.5, -6, 8, -4, 5, -4);
-      ctx.lineTo(5, 3); break;
-    case "thigh":     // hip at 0,0 to knee at 0,38; quadriceps on +x
-      ctx.moveTo(-8, -2);
-      ctx.bezierCurveTo(-11, 9, -9, 26, -5.5, 38.5);
-      ctx.lineTo(5.5, 38.5);
-      ctx.bezierCurveTo(10, 27, 12, 10, 8.5, -2); break;
-    case "shin":      // knee at 0,0 to ankle at 0,37; calf on -x
-      ctx.moveTo(-5.5, 0);
-      ctx.bezierCurveTo(-10.5, 7, -9, 19, -3.6, 35);
-      ctx.lineTo(3, 35);
-      ctx.bezierCurveTo(4.6, 22, 5.6, 9, 5.5, 0); break;
-    case "boot":      // in the shin's frame, at the ankle, toes to +x
-      ctx.moveTo(-4.2, 31); ctx.lineTo(-4.6, 39.5);
-      ctx.bezierCurveTo(2, 41.5, 11, 41.5, 16, 39.5);
-      ctx.bezierCurveTo(16.5, 36, 12, 34, 4.5, 32); break;
-    case "upper":     // shoulder at 0,0 to elbow at 0,29; biceps on +x
-      ctx.moveTo(-5.5, -2);
-      ctx.bezierCurveTo(-7, 9, -5.6, 21, -3.8, 29.5);
-      ctx.lineTo(3.8, 29.5);
-      ctx.bezierCurveTo(7.4, 20, 7.6, 7, 5.5, -2); break;
-    case "fore":      // elbow at 0,0 to wrist at 0,26
-      ctx.moveTo(-3.9, 0);
-      ctx.bezierCurveTo(-5, 9, -3.6, 18, -2.7, 26);
-      ctx.lineTo(2.7, 26);
-      ctx.bezierCurveTo(4.6, 16, 5, 7, 3.9, 0); break;
-    case "hand":
-      ctx.ellipse(.6, 29.5, 3.7, 5, 0, 0, Math.PI * 2); break;
+  ctx.moveTo(0, -46);
+  ctx.bezierCurveTo(22, -46, 26, -28, 16, -16); ctx.bezierCurveTo(12, -10, 12, -4, 18, 4);
+  ctx.bezierCurveTo(32, 18, 24, 44, 0, 44); ctx.bezierCurveTo(-24, 44, -32, 18, -18, 4);
+  ctx.bezierCurveTo(-12, -4, -12, -10, -16, -16); ctx.bezierCurveTo(-26, -28, -22, -46, 0, -46);
+  ctx.fill();
+  ctx.fillStyle = "#1c120a"; ctx.fillRect(-3, -96, 6, 60);                 // fingerboard and scroll
+  ctx.beginPath(); ctx.arc(0, -100, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = "#1c120a"; ctx.lineWidth = 1.6;                        // f-holes
+  for (const s of [-1, 1]){ ctx.beginPath(); ctx.moveTo(s * 9, -8); ctx.bezierCurveTo(s * 13, 0, s * 5, 6, s * 9, 14); ctx.stroke(); }
+  ctx.fillStyle = "#1c120a"; ctx.fillRect(-9, 18, 18, 3);                  // bridge
+  for (let i = 0; i < 4; i++){                                              // strings, vibrating
+    const x = -4.5 + i * 3, w = Math.sin(t * 90 + i * 2) * 1.2;
+    ctx.strokeStyle = "rgba(243,246,249,.85)"; ctx.lineWidth = .9;
+    ctx.beginPath(); ctx.moveTo(x * .6, -94); ctx.quadraticCurveTo(x + w, -30, x * 1.4, 19); ctx.stroke();
   }
-  ctx.closePath(); ctx.fill();
-  if (puppetOutline){ ctx.strokeStyle = "#01213a"; ctx.lineWidth = 1.3; ctx.stroke(); ctx.fill(); }
-}
-const RAD = Math.PI / 180;
-// Where a two-part limb ends, for holding things.
-function limbEnd(origin, a1, a2, L1, L2){
-  return [origin[0] + Math.sin(a1 * RAD) * L1 + Math.sin(a2 * RAD) * L2,
-          origin[1] + Math.cos(a1 * RAD) * L1 + Math.cos(a2 * RAD) * L2];
-}
-function drawLimb(ctx, origin, a1, a2, L1, upperPart, lowerPart, endPart, jointR){
-  ctx.save();
-  ctx.translate(origin[0], origin[1]); ctx.rotate(-a1 * RAD);
-  bodyPart(ctx, upperPart);
-  ctx.translate(0, L1); ctx.rotate(-(a2 - a1) * RAD);
-  disc(ctx, [0, 0], jointR);
-  bodyPart(ctx, lowerPart); bodyPart(ctx, endPart);
   ctx.restore();
-}
-// Draws the figure and returns where its hands are.
-function drawPuppet(ctx, q){
-  const hip = [q.x, q.y];
-  const sh = [hip[0] + Math.sin(q.lean * RAD) * BONE.torso, hip[1] - Math.cos(q.lean * RAD) * BONE.torso];
-  const farSh = [sh[0] - 3, sh[1] + 2], farHip = [hip[0] - 2, hip[1]];
-  ctx.fillStyle = SIL_FAR;                                     // far side, behind the body
-  drawLimb(ctx, farSh, q.farUpper, q.farFore, BONE.upper, "upper", "fore", "hand", 3.9);
-  drawLimb(ctx, farHip, q.farThigh, q.farShin, BONE.thigh, "thigh", "shin", "boot", 5.5);
-  ctx.fillStyle = SIL;
-  puppetOutline = true;
-  drawLimb(ctx, hip, q.nearThigh, q.nearShin, BONE.thigh, "thigh", "shin", "boot", 5.6);
-  puppetOutline = false;
-  ctx.save(); ctx.translate(hip[0], hip[1]); ctx.rotate(q.lean * RAD);
-  bodyPart(ctx, "torso");
-  ctx.save(); ctx.rotate(-q.nearThigh * RAD); bodyPart(ctx, "shorts"); ctx.restore();
-  ctx.translate(0, -BONE.torso); ctx.rotate((q.head || 0) * RAD); bodyPart(ctx, "head");
+  // the bow, sliding across the strings by itself
+  const slide = Math.sin(t * Math.PI * 4) * 30;
+  ctx.save(); ctx.translate(118, 112); ctx.rotate(.38); ctx.translate(slide, 0);
+  ctx.strokeStyle = C_WOOD_D; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(-70, -5); ctx.lineTo(70, -5); ctx.stroke();
+  ctx.strokeStyle = "rgba(243,246,249,.9)"; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-66, 0); ctx.lineTo(66, 0); ctx.stroke();
+  ctx.fillStyle = "#1c120a"; ctx.fillRect(-72, -7, 10, 8);
   ctx.restore();
-  puppetOutline = true;
-  drawLimb(ctx, sh, q.nearUpper, q.nearFore, BONE.upper, "upper", "fore", "hand", 4);
-  puppetOutline = false;
-  disc(ctx, sh, 5.6);                                          // round shoulder over the joint
-  return { near: limbEnd(sh, q.nearUpper, q.nearFore, BONE.upper, 29.5),
-           far:  limbEnd(farSh, q.farUpper, q.farFore, BONE.upper, 29.5) };
-}
-// Smooth value through key poses: [[time, {prop:value}], ...].
-function splinePose(keys, t){
-  let i = 0;
-  while (i < keys.length - 2 && t > keys[i + 1][0]) i++;
-  const [t1, k1] = keys[i], [t2, k2] = keys[i + 1];
-  const k0 = keys[Math.max(0, i - 1)][1], k3 = keys[Math.min(keys.length - 1, i + 2)][1];
-  const u = clamp01((t - t1) / (t2 - t1)), u2 = u * u, u3 = u2 * u;
-  const out = {};
-  for (const p in k1){
-    const p0 = k0[p], p1 = k1[p], p2 = k2[p], p3 = k3[p];
-    out[p] = .5 * (2 * p1 + (-p0 + p2) * u + (2 * p0 - 5 * p1 + 4 * p2 - p3) * u2 + (-p0 + 3 * p1 - 3 * p2 + p3) * u3);
-  }
-  return out;
+  [[0, 160, 60, false], [.25, 176, 48, true], [.5, 166, 40, false], [.7, 182, 56, true]].forEach(([d, x, y, dbl]) => {
+    const u = clamp01((t - d) / .5); if (u > 0) note(ctx, x + u * 12, y - u * 26, Math.sin(Math.PI * u), dbl);
+  });
 }
 
-/* --- Sport: rugby pass ---------------------------------------------------
-   Start like the green player in the reference (running, ball low at the
-   hip), one more stride while swinging the ball back, then the pass like
-   the black silhouette (leaning hard forward, both arms straight out after
-   the ball, back foot kicked up high) and the follow-through. */
-const RUGBY_PASS = [
-  [0,    { x:50,  y:96, lean:19, head:-4, nearThigh:40,  nearShin:-4,  farThigh:-20, farShin:-80,
-           nearUpper:-6,  nearFore:62,  farUpper:4,   farFore:70 }],
-  [.22,  { x:68,  y:91, lean:18, head:-3, nearThigh:6,   nearShin:-48, farThigh:12,  farShin:-18,
-           nearUpper:-30, nearFore:20,  farUpper:-22, farFore:28 }],
-  [.42,  { x:84,  y:96, lean:22, head:0,  nearThigh:-24, nearShin:-80, farThigh:33,  farShin:6,
-           nearUpper:-52, nearFore:-16, farUpper:-45, farFore:-9 }],
-  [.58,  { x:96,  y:98, lean:35, head:9,  nearThigh:-28, nearShin:-100, farThigh:30, farShin:12,
-           nearUpper:80,  nearFore:93,  farUpper:72,  farFore:87 }],
-  [.78,  { x:104, y:97, lean:33, head:7,  nearThigh:-24, nearShin:-94, farThigh:27,  farShin:10,
-           nearUpper:97,  nearFore:112, farUpper:89,  farFore:104 }],
-  [1,    { x:112, y:93, lean:24, head:2,  nearThigh:10,  nearShin:-50, farThigh:-2,  farShin:-20,
-           nearUpper:52,  nearFore:76,  farUpper:43,  farFore:70 }]
-];
-const RELEASE = .58;
-function drawRugby(ctx, t){
-  const q = splinePose(RUGBY_PASS, t);
-  // the shadow sits under whichever foot is lower
-  shadow(ctx, q.x + 6, 30, .12);
-  const hands = drawPuppet(ctx, q);
-  const holdAt = s => { const h = drawPuppetHands(splinePose(RUGBY_PASS, s)); return [(h.near[0] + h.far[0]) / 2 + 2, (h.near[1] + h.far[1]) / 2 - 2]; };
-  const release = holdAt(RELEASE);
-  const ballAt = s => s < RELEASE ? holdAt(s) : bezier(release, [208, 14], [254, 40], (s - RELEASE) / (1 - RELEASE));
-  const spin = t < RELEASE ? -.4 : -.4 + (t - RELEASE) * 22;
-  for (let k = 4; k >= 0; k--){                       // a short trail behind the flying ball
-    const s = t - k * .03;
-    if (k && s < RELEASE + .02) continue;
-    const [x, y] = ballAt(Math.max(0, s));
-    ctx.save(); ctx.globalAlpha = k ? .16 / k : 1; ctx.translate(x, y); ctx.rotate(spin - k * .5);
-    ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(0, 0, 10.5, 6.6, 0, 0, Math.PI * 2); ctx.fill();
-    if (!k){ ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1.1;
-      ctx.beginPath(); ctx.moveTo(-6, 0); ctx.lineTo(6, 0); for (const x2 of [-3, 0, 3]){ ctx.moveTo(x2, -1.8); ctx.lineTo(x2, 1.8); } ctx.stroke(); }
+/* --- Kultuur: piano keys that play themselves --------------------------- */
+function drawPiano(ctx, t){
+  const x0 = 22, kw = 14, n = 14, top = 104, h = 64;
+  ctx.fillStyle = "#14141a"; ctx.fillRect(x0 - 6, top - 14, kw * n + 12, h + 20);
+  const tune = [0, 2, 4, 5, 7, 9, 7, 4];                                   // which white keys, in order
+  const step = Math.floor(t * tune.length), pressed = tune[Math.min(step, tune.length - 1)];
+  for (let i = 0; i < n; i++){
+    const down = i === pressed;
+    ctx.fillStyle = down ? "#cfe6ef" : "#f8f8f6";
+    ctx.fillRect(x0 + i * kw, top + (down ? 2 : 0), kw - 1.2, h - (down ? 2 : 0));
+  }
+  ctx.fillStyle = "#14141a";
+  for (let i = 0; i < n - 1; i++){
+    if (i % 7 === 2 || i % 7 === 6) continue;                 // no black key after E and B
+    ctx.fillRect(x0 + i * kw + kw * .65, top, kw * .7, h * .6);
+  }
+  ctx.fillStyle = C_TEAL; ctx.fillRect(x0 + pressed * kw, top + h - 6, kw - 1.2, 4);
+  tune.forEach((k, i) => {                                                  // a note for each key
+    const u = clamp01((t - i / tune.length) / .45);
+    if (u > 0 && u < 1) note(ctx, x0 + k * kw + 2, top - 10 - u * 50, Math.sin(Math.PI * u), i % 3 === 1);
+  });
+}
+
+/* --- Kultuur: curtains open on a spotlight and the drama masks ---------- */
+function mask(ctx, x, y, s, happy, colour){
+  ctx.save(); ctx.translate(x, y); ctx.scale(s, s);
+  ctx.fillStyle = colour; ctx.beginPath();
+  ctx.moveTo(-16, -16); ctx.bezierCurveTo(-16, -26, 16, -26, 16, -16); ctx.bezierCurveTo(18, 6, 8, 22, 0, 22); ctx.bezierCurveTo(-8, 22, -18, 6, -16, -16); ctx.fill();
+  ctx.fillStyle = "#01213a";
+  for (const sx of [-1, 1]){ ctx.beginPath(); ctx.ellipse(sx * 7, -8, 4.5, happy ? 3 : 2.4, sx * (happy ? .3 : -.3), 0, Math.PI * 2); ctx.fill(); }
+  ctx.strokeStyle = "#01213a"; ctx.lineWidth = 3; ctx.beginPath();
+  happy ? ctx.arc(0, 4, 8, .2, Math.PI - .2) : ctx.arc(0, 14, 8, Math.PI + .3, -.3); ctx.stroke();
+  ctx.restore();
+}
+function drawCurtains(ctx, t){
+  const open = easeInOut(clamp01(t / .55));
+  const g = ctx.createLinearGradient(120, 0, 120, 170);
+  g.addColorStop(0, "rgba(243,246,249,.22)"); g.addColorStop(1, "rgba(243,246,249,.02)");
+  ctx.globalAlpha = open; ctx.fillStyle = g;
+  ctx.beginPath(); ctx.moveTo(110, 0); ctx.lineTo(130, 0); ctx.lineTo(176, 166); ctx.lineTo(64, 166); ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = "rgba(243,246,249,.25)"; ctx.fillRect(30, 160, 180, 4);  // stage edge
+  const pop = clamp01((t - .45) / .3);
+  if (pop > 0){ const s = .6 + .4 * easeOut(pop);
+    mask(ctx, 104, 104, s, true, C_WHITE); mask(ctx, 138, 112, s, false, C_GOLD); }
+  for (const side of [-1, 1]){                                             // the curtains
+    const w = lerp(122, 26, open);
+    ctx.save(); if (side > 0){ ctx.translate(240, 0); ctx.scale(-1, 1); }
+    const cg = ctx.createLinearGradient(0, 0, w, 0); cg.addColorStop(0, "#0b6a8a"); cg.addColorStop(1, "#1d84ab");
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(w, 0);
+    for (let y = 0; y < 170; y += 24) ctx.quadraticCurveTo(w - 7, y + 12, w, y + 24);
+    ctx.lineTo(0, 170); ctx.fill();
+    ctx.strokeStyle = "rgba(1,33,58,.35)"; ctx.lineWidth = 2;
+    for (let k = 1; k <= 3; k++){ const x = w * k / 4; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 170); ctx.stroke(); }
     ctx.restore();
   }
-  // the near hand goes over the ball while it is held
-  if (t < RELEASE){ ctx.fillStyle = SIL; ctx.beginPath(); ctx.ellipse(hands.near[0], hands.near[1], 3.7, 5, 0, 0, Math.PI * 2); ctx.fill(); }
-}
-// Hand positions of a pose without drawing it.
-function drawPuppetHands(q){
-  const hip = [q.x, q.y];
-  const sh = [hip[0] + Math.sin(q.lean * RAD) * BONE.torso, hip[1] - Math.cos(q.lean * RAD) * BONE.torso];
-  return { near: limbEnd(sh, q.nearUpper, q.nearFore, BONE.upper, 29.5),
-           far:  limbEnd([sh[0] - 3, sh[1] + 2], q.farUpper, q.farFore, BONE.upper, 29.5) };
+  ctx.fillStyle = C_GOLD; ctx.fillRect(0, 0, 240, 8);                     // pelmet
+  if (pop > .5) for (let i = 0; i < 4; i++) sparkle(ctx, 80 + i * 26, 50 + (i % 2) * 14, 3.5, Math.sin(Math.PI * (pop - .5) * 2));
 }
 
-/* --- Sport: netball shot (bend, rise on the toes, ball through the ring) */
-const NETBALL = [
-  [0,   { head:[96,64], neck:[96,75], hip:[93,113], lElbow:[103,62], lHand:[106,46], rElbow:[100,64], rHand:[102,48],
-          lKnee:[105,138], lFoot:[99,163], rKnee:[85,139], rFoot:[88,163] }],
-  [.38, { head:[99,45], neck:[99,56], hip:[96,96], lElbow:[105,38], lHand:[110,22], rElbow:[102,40], rHand:[106,24],
-          lKnee:[100,127], lFoot:[102,158], rKnee:[93,128], rFoot:[93,158] }],
-  [1,   { head:[100,47], neck:[99,58], hip:[96,98], lElbow:[110,40], lHand:[122,30], rElbow:[107,43], rHand:[119,34],
-          lKnee:[100,129], lFoot:[102,163], rKnee:[93,130], rFoot:[93,163] }]
-];
-function drawNetball(ctx, t){
-  // post, ring and net
-  ctx.fillStyle = SIL; ctx.fillRect(206, 46, 4, 120);
-  ctx.fillRect(188, 46, 20, 3);
-  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.5;
-  ctx.beginPath(); ctx.ellipse(184, 50, 13, 3.6, 0, 0, Math.PI * 2); ctx.stroke();
-  const sway = t > .78 && t < .95 ? Math.sin((t - .78) * 40) * 2 : 0;
-  ctx.strokeStyle = "rgba(243,246,249,.55)"; ctx.lineWidth = 1.2; ctx.beginPath();
-  for (const x of [-11, -4, 4, 11]){ ctx.moveTo(184 + x, 51); ctx.lineTo(184 + x * .45 + sway, 70); }
-  ctx.moveTo(176 + sway, 62); ctx.lineTo(192 + sway, 62); ctx.stroke();
-  shadow(ctx, 96, 26);
-  silhouette(ctx, poseAt(NETBALL, t), 1);
-  const top = s => { const p = poseAt(NETBALL, s); const m = lerpPt(p.lHand, p.rHand, .5); return [m[0], m[1] - 7]; };
-  let pos, alpha = 1;
-  if (t < .38) pos = top(t);
-  else if (t < .8) pos = bezier(top(.38), [150, -26], [184, 42], (t - .38) / .42);
-  else { const u = (t - .8) / .2; pos = [184, lerp(42, 92, u)]; alpha = 1 - u * .8; }
-  ctx.globalAlpha = alpha; ctx.fillStyle = SIL_ACCENT; disc(ctx, pos, 7.5);
-  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(pos[0], pos[1], 7.5, .6, 2.6); ctx.stroke();
-  ctx.globalAlpha = 1;
-  // the front of the ring over the ball
-  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.ellipse(184, 50, 13, 3.6, 0, 0, Math.PI); ctx.stroke();
+/* --- Kultuur: a brush paints a sunset by itself ------------------------- */
+function drawBrushPaint(ctx, t){
+  ctx.fillStyle = C_WOOD_D; ctx.fillRect(56, 150, 128, 6); ctx.fillRect(70, 150, 5, 22); ctx.fillRect(165, 150, 5, 22);
+  ctx.fillStyle = "#eef3f7"; ctx.fillRect(58, 30, 124, 118);
+  const p = clamp01(t / .92);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 9;                              // sun
+  const sp = clamp01(p / .3);
+  if (sp > 0){ ctx.beginPath(); ctx.arc(150, 70, 10, -Math.PI / 2, -Math.PI / 2 + sp * Math.PI * 2); ctx.stroke(); }
+  ctx.strokeStyle = C_TEAL; ctx.lineWidth = 7;                              // hills
+  const hills = [[66, 118], [86, 96], [104, 112], [124, 90], [144, 110], [160, 98], [174, 112]];
+  let tip = sp < 1 ? [150 + Math.cos(-Math.PI / 2 + sp * Math.PI * 2) * 10, 70 + Math.sin(-Math.PI / 2 + sp * Math.PI * 2) * 10] : null;
+  const hp = clamp01((p - .3) / .4);
+  if (hp > 0) tip = strokeUpTo(ctx, hills, hp);
+  ctx.strokeStyle = C_DEEP; ctx.lineWidth = 6;                              // water
+  const wp = clamp01((p - .7) / .3);
+  if (wp > 0) tip = strokeUpTo(ctx, [[66, 134], [96, 130], [126, 136], [156, 130], [174, 134]], wp);
+  ctx.lineCap = "butt";
+  // the brush, at the tip of the paint
+  const [bx, by] = tip || [150, 60];
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(-.7);
+  ctx.fillStyle = C_WOOD; ctx.fillRect(-2.5, -58, 5, 40);
+  ctx.fillStyle = "#c9d6df"; ctx.fillRect(-3, -19, 6, 9);
+  ctx.fillStyle = hp > 0 ? (wp > 0 ? C_DEEP : C_TEAL) : C_GOLD;
+  ctx.beginPath(); ctx.moveTo(-3, -10); ctx.quadraticCurveTo(0, 4, 3, -10); ctx.fill();
+  ctx.restore();
 }
 
-/* --- Kultuur: ballet leap (grand jeté across the stage) */
-const LEAP = [
-  [0,   { head:[3,-52], neck:[2,-41], hip:[0,0], lElbow:[13,-34], lHand:[22,-42], rElbow:[-10,-33], rHand:[-20,-39],
-          lKnee:[9,25], lFoot:[16,52], rKnee:[-7,27], rFoot:[-13,53] }],
-  [.5,  { head:[7,-54], neck:[5,-43], hip:[0,0], lElbow:[19,-54], lHand:[31,-64], rElbow:[-15,-47], rHand:[-30,-55],
-          lKnee:[25,7], lFoot:[52,9], rKnee:[-25,10], rFoot:[-52,3] }],
-  [1,   { head:[5,-52], neck:[4,-41], hip:[0,0], lElbow:[16,-38], lHand:[27,-46], rElbow:[-9,-35], rHand:[-19,-44],
-          lKnee:[8,26], lFoot:[12,53], rKnee:[-8,25], rFoot:[-17,50] }]
-];
-function drawLeap(ctx, t){
-  const x = lerp(64, 172, easeInOut(t)), y = 112 - 46 * Math.sin(Math.PI * t);
-  shadow(ctx, x, 26 - 10 * Math.sin(Math.PI * t), .1);
-  const p = poseAt(LEAP, t), at = {};
-  for (const k in p) at[k] = [p[k][0] + x, p[k][1] + y];
-  silhouette(ctx, at, 1, (c, q) => {                   // a small tutu in teal
-    c.fillStyle = SIL_ACCENT; c.beginPath(); c.ellipse(q.hip[0], q.hip[1] - 2, 17, 5, -.05, 0, Math.PI * 2); c.fill();
-    c.fillStyle = SIL;
-  });
-  for (let i = 0; i < 3; i++){                          // sparkle trail
-    const s = t - .12 * (i + 1);
-    if (s < 0) continue;
-    const sx = lerp(64, 172, easeInOut(s)) - 30, sy = 112 - 46 * Math.sin(Math.PI * s) - 30;
-    ctx.globalAlpha = .5 - i * .15; ctx.fillStyle = SIL_ACCENT; disc(ctx, [sx, sy], 2.2 - i * .5); ctx.globalAlpha = 1;
+/* --- Kultuur: a drum played by its own sticks --------------------------- */
+function drawDrum(ctx, t){
+  const cx = 120, cy = 112;
+  ctx.fillStyle = C_DEEP; ctx.fillRect(cx - 56, cy, 112, 36);              // shell
+  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2;
+  for (let i = 0; i < 6; i++){ const x = cx - 50 + i * 20; ctx.beginPath(); ctx.moveTo(x, cy + 3); ctx.lineTo(x + 10, cy + 33); ctx.stroke(); }
+  ctx.fillStyle = "#1d84ab"; ctx.beginPath(); ctx.ellipse(cx, cy + 36, 56, 12, 0, 0, Math.PI); ctx.fill();
+  ctx.fillStyle = "#eef3f7"; ctx.beginPath(); ctx.ellipse(cx, cy, 56, 13, 0, 0, Math.PI * 2); ctx.fill();   // head
+  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 3; ctx.stroke();
+  const beat = t * 6, phase = beat % 1, left = Math.floor(beat) % 2 === 0;
+  for (const side of [-1, 1]){
+    const active = (side < 0) === left, lift = active ? Math.abs(Math.cos(phase * Math.PI)) : 1;
+    const ang = side * (.5 + lift * .55);
+    ctx.save(); ctx.translate(cx + side * 22, cy - 4); ctx.rotate(ang);
+    ctx.fillStyle = C_WOOD; ctx.fillRect(-2.5, -70, 5, 70);
+    ctx.fillStyle = "#f2e2c4"; ctx.beginPath(); ctx.ellipse(0, -2, 4, 5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    if (active && phase < .35){                                             // the hit
+      const r = 10 + phase * 80; ctx.globalAlpha = 1 - phase / .35;
+      ctx.strokeStyle = C_TEAL; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(cx + side * 22, cy, r, r * .25, 0, 0, Math.PI * 2); ctx.stroke(); ctx.globalAlpha = 1;
+    }
   }
 }
 
-/* --- Kultuur: violinist (bowing, notes rising) */
-function drawViolin(ctx, t){
-  const bow = (Math.sin(t * Math.PI * 4) + 1) / 2;    // two bows in a scene
-  const rHand = lerpPt([96, 88], [124, 74], bow);
-  const p = { head:[108,48], neck:[106,60], hip:[102,106], lElbow:[124,76], lHand:[142,64],
-              rElbow:lerpPt([88, 92], [104, 92], bow), rHand,
-              lKnee:[108,134], lFoot:[110,163], rKnee:[98,134], rFoot:[95,163] };
-  shadow(ctx, 103, 24);
-  silhouette(ctx, p, 1, (c) => {
-    // violin under the chin, pointing forward
-    c.save(); c.translate(124, 66); c.rotate(-.42);
-    c.fillStyle = SIL_ACCENT; c.beginPath(); c.ellipse(0, 0, 13, 7.5, 0, 0, Math.PI * 2); c.fill();
-    c.fillRect(10, -1.6, 22, 3.2); c.restore();
-    c.fillStyle = SIL;
-  });
-  // the bow, held in the near hand, across the strings
-  ctx.strokeStyle = SIL; ctx.lineWidth = 2; ctx.beginPath();
-  ctx.moveTo(rHand[0] - 6, rHand[1] + 10); ctx.lineTo(rHand[0] + 34, rHand[1] - 24); ctx.stroke();
-  [[0, 148, 44, false], [.3, 162, 36, true], [.6, 152, 30, false]].forEach(([d, x, y, dbl]) => {
-    const u = clamp01((t - d) / .6);
-    if (u > 0) note(ctx, x + u * 10, y - u * 26, Math.sin(Math.PI * u), dbl);
-  });
+/* --- Akademie: a book turning its own pages ------------------------------ */
+function drawBookFlip(ctx, t){
+  const cx = 120, cy = 116;
+  ctx.fillStyle = C_DEEP; ctx.beginPath(); ctx.moveTo(cx, cy + 10); ctx.lineTo(cx - 84, cy + 2); ctx.lineTo(cx - 84, cy - 64); ctx.lineTo(cx, cy - 56);
+  ctx.lineTo(cx + 84, cy - 64); ctx.lineTo(cx + 84, cy + 2); ctx.fill();                       // cover
+  const page = (side, lift) => { ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx + side * 78, cy - 2 - lift); ctx.lineTo(cx + side * 78, cy - 64 - lift); ctx.lineTo(cx, cy - 56); ctx.fill(); };
+  ctx.fillStyle = "#f8f6ef"; page(-1, 0); page(1, 0);
+  ctx.strokeStyle = "rgba(1,33,58,.35)"; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 6; i++) for (const s of [-1, 1]){ ctx.beginPath(); ctx.moveTo(cx + s * 12, cy - 46 + i * 8); ctx.lineTo(cx + s * 66, cy - 52 + i * 8); ctx.stroke(); }
+  const flips = 3, f = (t * flips) % 1, w = Math.cos(easeInOut(f) * Math.PI);                 // 1 → -1
+  ctx.fillStyle = f < .5 ? "#ffffff" : "#ece8dc";
+  ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx + w * 78, cy - 2 - Math.sin(f * Math.PI) * 14);
+  ctx.lineTo(cx + w * 78, cy - 64 - Math.sin(f * Math.PI) * 14); ctx.lineTo(cx, cy - 56); ctx.fill();
+  ctx.strokeStyle = "rgba(1,33,58,.25)"; ctx.lineWidth = 1; ctx.stroke();
+  for (let i = 0; i < 4; i++){ const u = clamp01((t - i * .2) / .5); if (u > 0 && u < 1) sparkle(ctx, cx - 50 + i * 34, cy - 70 - u * 30, 3.5, Math.sin(Math.PI * u)); }
 }
 
-/* --- Akademie: graduate throwing the cap */
-const GRAD = [
-  [0,   { head:[120,58], neck:[120,70], hip:[120,111], lElbow:[110,94], lHand:[117,82], rElbow:[130,94], rHand:[123,82],
-          lKnee:[116,138], lFoot:[113,164], rKnee:[124,138], rFoot:[127,164] }],
-  [.3,  { head:[120,55], neck:[120,67], hip:[120,108], lElbow:[107,47], lHand:[101,29], rElbow:[133,47], rHand:[139,29],
-          lKnee:[116,136], lFoot:[113,162], rKnee:[124,136], rFoot:[127,162] }],
-  [1,   { head:[120,57], neck:[120,69], hip:[120,110], lElbow:[106,51], lHand:[99,34], rElbow:[134,51], rHand:[141,34],
-          lKnee:[116,137], lFoot:[113,164], rKnee:[124,137], rFoot:[127,164] }]
-];
-function drawGraduate(ctx, t){
-  // Drawn a little smaller (about the feet) so the cap has room to fly.
-  ctx.save(); ctx.translate(120, 166); ctx.scale(.84, .84); ctx.translate(-120, -166);
-  shadow(ctx, 120, 26);
-  silhouette(ctx, poseAt(GRAD, t), 1, (c, q) => {     // the gown
-    c.beginPath(); c.moveTo(q.neck[0] - 11, q.neck[1] + 2); c.lineTo(q.neck[0] + 11, q.neck[1] + 2);
-    c.lineTo(q.hip[0] + 21, 150); c.lineTo(q.hip[0] - 21, 150); c.fill();
-  });
-  const u = clamp01((t - .28) / .72);
-  const cx = 120 + Math.sin(u * Math.PI) * 6, cy = (t < .28 ? lerp(78, 30, t / .28) : 30 - 170 * u * (1 - u));
-  ctx.save(); ctx.translate(cx, cy); ctx.rotate(u * Math.PI * 4);
-  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(0, -9); ctx.lineTo(19, 0); ctx.lineTo(0, 9); ctx.lineTo(-19, 0); ctx.fill();
-  ctx.fillRect(-9, 2, 18, 8);
-  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(15, 4); ctx.lineTo(15, 15); ctx.stroke();
-  ctx.fillStyle = SIL_ACCENT; disc(ctx, [15, 16], 2.6);
-  ctx.restore();
-  if (u > .3) [[78, 40], [164, 30], [60, 74], [178, 68]].forEach(([x, y], i) => {   // confetti
-    const a = clamp01((u - .3 - i * .08) * 3) * (1 - u);
-    ctx.globalAlpha = a; ctx.fillStyle = i % 2 ? SIL : SIL_ACCENT;
-    ctx.save(); ctx.translate(x, y + u * 18); ctx.rotate(u * 6 + i); ctx.fillRect(-3, -1.5, 6, 3); ctx.restore();
-  });
+/* --- Akademie: chalk writing on the board by itself ---------------------- */
+function drawChalk(ctx, t){
+  ctx.fillStyle = C_WOOD_D; ctx.fillRect(18, 26, 204, 116);
+  ctx.fillStyle = "#123a2c"; ctx.fillRect(24, 32, 192, 104);
+  const text = "a² + b² = c²";
+  ctx.font = "600 26px Georgia, serif"; ctx.textBaseline = "middle";
+  const w = ctx.measureText(text).width, x0 = 120 - w / 2, reveal = clamp01(t / .85);
+  ctx.save(); ctx.beginPath(); ctx.rect(x0 - 4, 50, (w + 8) * reveal, 60); ctx.clip();
+  ctx.fillStyle = "rgba(243,246,249,.92)"; ctx.fillText(text, x0, 82); ctx.restore();
+  // the chalk at the writing edge, bobbing with the letters
+  const cx = x0 + w * reveal, cy = 82 + Math.sin(t * 60) * 7;
+  ctx.save(); ctx.translate(cx + 6, cy - 6); ctx.rotate(-.8);
+  ctx.fillStyle = C_WHITE; ctx.fillRect(-3, -16, 6, 20); ctx.restore();
+  if (t > .85) for (let i = 0; i < 4; i++) sparkle(ctx, 60 + i * 40, 46 + (i % 2) * 74, 4, Math.sin(Math.PI * clamp01((t - .85) / .15)));
+  ctx.fillStyle = C_WOOD; ctx.fillRect(40, 142, 160, 5);
+}
+
+/* --- Akademie: a flask that bubbles and changes colour ------------------ */
+function drawFlask(ctx, t){
+  const cx = 120, base = 150;
+  const shape = () => { ctx.beginPath(); ctx.moveTo(cx - 9, 46); ctx.lineTo(cx + 9, 46); ctx.lineTo(cx + 9, 84); ctx.lineTo(cx + 44, base);
+    ctx.quadraticCurveTo(cx, base + 10, cx - 44, base); ctx.lineTo(cx - 9, 84); ctx.closePath(); };
+  ctx.save(); shape(); ctx.fillStyle = "rgba(243,246,249,.12)"; ctx.fill(); ctx.clip();
+  const mix = clamp01((t - .3) / .5);
+  ctx.fillStyle = mix < .5 ? C_TEAL : C_GOLD; ctx.globalAlpha = .85;
+  const level = base - 34 - Math.sin(t * 20) * 1.5;
+  ctx.beginPath(); ctx.moveTo(cx - 60, level); ctx.quadraticCurveTo(cx, level - 4 + Math.sin(t * 30) * 3, cx + 60, level); ctx.lineTo(cx + 60, base + 20); ctx.lineTo(cx - 60, base + 20); ctx.fill();
   ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-/* --- Akademie: writing on the board (a graph appears under the chalk) */
-function drawBoard(ctx, t){
-  ctx.fillStyle = "rgba(243,246,249,.07)"; ctx.fillRect(122, 26, 106, 76);
-  ctx.strokeStyle = SIL; ctx.lineWidth = 3; ctx.strokeRect(122, 26, 106, 76);
-  ctx.strokeStyle = "rgba(243,246,249,.5)"; ctx.lineWidth = 1.5;
-  ctx.beginPath(); ctx.moveTo(134, 92); ctx.lineTo(218, 92); ctx.moveTo(140, 96); ctx.lineTo(140, 34); ctx.stroke();
-  const prog = clamp01(t / .85), curve = s => [142 + s * 72, 90 - 52 * (s * s)];
-  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath();
-  for (let i = 0; i <= 40 * prog; i++){ const [x, y] = curve(i / 40); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-  ctx.stroke();
-  // The writer walks along the board with the chalk, so the arm keeps its length.
-  const tip = curve(prog), dx = Math.max(0, tip[0] - 146), step = Math.sin(dx / 6) * 3;
-  const sh = [98 + dx, 74];
-  const mid = lerpPt(sh, tip, .5), elbow = [mid[0] - 3, mid[1] + 11];       // simple elbow below the line
-  const p = { head:[96 + dx,58], neck:[98 + dx,70], hip:[95 + dx,112], lElbow:[90 + dx,94], lHand:[95 + dx,112], rElbow:elbow, rHand:tip,
-              lKnee:[99 + dx + step,139], lFoot:[101 + dx + step * 2,164], rKnee:[90 + dx - step,139], rFoot:[89 + dx - step * 2,164] };
-  shadow(ctx, 96 + dx, 24);
-  silhouette(ctx, p, 1);
-}
-
-/* --- Sport: hurdles (athletics) — the runner clears a hurdle */
-const HURDLE = [
-  [0,   { head:[8,-52], neck:[6,-41], hip:[0,0], lElbow:[13,-27], lHand:[22,-17], rElbow:[-10,-26], rHand:[-17,-14],
-          lKnee:[13,24], lFoot:[6,52], rKnee:[-9,25], rFoot:[-25,40] }],
-  [.5,  { head:[17,-47], neck:[12,-37], hip:[0,0], lElbow:[27,-30], lHand:[41,-27], rElbow:[-9,-26], rHand:[-19,-15],
-          lKnee:[-20,-2], lFoot:[-36,11], rKnee:[25,-4], rFoot:[51,-6] }],
-  [1,   { head:[8,-52], neck:[6,-41], hip:[0,0], lElbow:[-10,-26], lHand:[-17,-14], rElbow:[13,-27], rHand:[22,-17],
-          lKnee:[-9,25], lFoot:[-25,40], rKnee:[13,24], rFoot:[6,52] }]
-];
-function drawHurdles(ctx, t){
-  ctx.fillStyle = SIL;                                 // the hurdle
-  ctx.fillRect(122, 128, 4, 38); ctx.fillRect(140, 128, 4, 38);
-  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(116, 124, 34, 6);
-  const x = lerp(46, 200, t), lift = t > .25 && t < .75 ? Math.sin(Math.PI * (t - .25) / .5) : 0;
-  const y = 109 - 24 * lift;
-  shadow(ctx, x, 24 - 8 * lift, .1);
-  const p = poseAt(HURDLE, t), at = {};
-  for (const k in p) at[k] = [p[k][0] + x, p[k][1] + y];
-  silhouette(ctx, at, 1);
-  ctx.strokeStyle = "rgba(90,183,214,.45)"; ctx.lineWidth = 2;           // speed lines
-  for (let i = 0; i < 3; i++){ ctx.beginPath(); ctx.moveTo(x - 34 - i * 6, y - 30 + i * 14); ctx.lineTo(x - 52 - i * 6, y - 30 + i * 14); ctx.stroke(); }
-}
-
-/* --- Sport: cricket — the batter drives the ball away */
-const BAT = [
-  [0,   { head:[104,54], neck:[103,65], hip:[98,106], lElbow:[94,80], lHand:[87,70], rElbow:[100,83], rHand:[91,73],
-          lKnee:[112,134], lFoot:[118,164], rKnee:[89,134], rFoot:[83,164], bat:[70,46] }],
-  [.5,  { head:[109,55], neck:[107,66], hip:[100,106], lElbow:[115,88], lHand:[121,100], rElbow:[111,90], rHand:[119,103],
-          lKnee:[114,134], lFoot:[120,164], rKnee:[90,135], rFoot:[84,164], bat:[150,124] }],
-  [1,   { head:[110,54], neck:[108,65], hip:[100,106], lElbow:[118,66], lHand:[127,53], rElbow:[115,68], rHand:[124,56],
-          lKnee:[114,134], lFoot:[120,164], rKnee:[92,135], rFoot:[88,164], bat:[110,28] }]
-];
-function drawCricket(ctx, t){
-  ctx.fillStyle = SIL;                                 // stumps behind the batter
-  for (const x of [64, 70, 76]) ctx.fillRect(x, 128, 3, 38);
-  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(63, 126, 15, 2.5);
-  shadow(ctx, 102, 28);
-  const p = poseAt(BAT, t);
-  silhouette(ctx, p, 1, (c, q) => {                    // the bat, gripped in both hands
-    const grip = lerpPt(q.lHand, q.rHand, .5);
-    c.fillStyle = SIL; limb(c, grip, lerpPt(grip, q.bat, .35), 3.5, 4); limb(c, lerpPt(grip, q.bat, .35), q.bat, 8, 9);
-  });
-  let ball;
-  if (t < .5){
-    const u = t / .5;
-    ball = u < .6 ? lerpPt([238, 112], [184, 158], u / .6) : lerpPt([184, 158], [150, 122], (u - .6) / .4);
-  } else ball = bezier([150, 122], [200, 40], [240, 18], (t - .5) / .5);
-  ctx.fillStyle = SIL_ACCENT; disc(ctx, ball, 4.5);
-  if (t > .5 && t < .62){ ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2;   // the crack of the hit
-    for (const a of [-.9, -.4, .1]){ ctx.beginPath(); ctx.moveTo(150 + Math.cos(a) * 9, 122 + Math.sin(a) * 9); ctx.lineTo(150 + Math.cos(a) * 16, 122 + Math.sin(a) * 16); ctx.stroke(); } }
-}
-
-/* --- Sport: hockey — a hit along the turf */
-const HOCKEY = [
-  [0,   { head:[96,66], neck:[98,77], hip:[88,110], lElbow:[90,94], lHand:[82,86], rElbow:[96,96], rHand:[88,90],
-          lKnee:[104,136], lFoot:[110,164], rKnee:[80,138], rFoot:[74,164], stick:[60,62] }],
-  [.45, { head:[105,67], neck:[104,78], hip:[92,110], lElbow:[108,98], lHand:[114,108], rElbow:[104,100], rHand:[110,113],
-          lKnee:[106,136], lFoot:[112,164], rKnee:[82,138], rFoot:[76,164], stick:[138,160] }],
-  [1,   { head:[108,66], neck:[106,77], hip:[93,110], lElbow:[116,86], lHand:[128,80], rElbow:[112,88], rHand:[124,84],
-          lKnee:[106,136], lFoot:[112,164], rKnee:[84,138], rFoot:[78,164], stick:[160,62] }]
-];
-function drawHockey(ctx, t){
-  ctx.fillStyle = "rgba(90,183,214,.12)"; ctx.fillRect(0, 166, 240, 4);   // the turf
-  shadow(ctx, 94, 28);
-  const p = poseAt(HOCKEY, t);
-  silhouette(ctx, p, 1, (c, q) => {
-    const grip = lerpPt(q.lHand, q.rHand, .5), dir = Math.atan2(q.stick[1] - grip[1], q.stick[0] - grip[0]);
-    c.fillStyle = SIL; limb(c, grip, q.stick, 3.5, 3.5);
-    limb(c, q.stick, [q.stick[0] + Math.cos(dir + 1.9) * 9, q.stick[1] + Math.sin(dir + 1.9) * 9], 4, 4);   // the hook
-  });
-  const u = clamp01((t - .45) / .35);
-  const ball = [lerp(146, 246, u), 161];
-  ctx.fillStyle = SIL; disc(ctx, ball, 4.2);
-  if (u > 0 && u < 1){ ctx.strokeStyle = "rgba(243,246,249,.4)"; ctx.lineWidth = 1.5;
-    for (let i = 1; i <= 3; i++){ ctx.beginPath(); ctx.moveTo(ball[0] - 8 - i * 7, 158 + i); ctx.lineTo(ball[0] - 14 - i * 7, 158 + i); ctx.stroke(); } }
-}
-
-/* --- Kultuur: singer under a spotlight */
-const SINGER = [
-  [0,   { head:[112,50], neck:[110,62], hip:[106,106], lElbow:[124,80], lHand:[134,92], rElbow:[118,76], rHand:[118,60],
-          lKnee:[112,135], lFoot:[116,164], rKnee:[102,135], rFoot:[98,164] }],
-  [.5,  { head:[114,47], neck:[111,59], hip:[106,104], lElbow:[128,60], lHand:[146,46], rElbow:[119,73], rHand:[119,57],
-          lKnee:[112,134], lFoot:[116,164], rKnee:[102,134], rFoot:[98,164] }],
-  [1,   { head:[112,50], neck:[110,62], hip:[106,106], lElbow:[124,80], lHand:[134,92], rElbow:[118,76], rHand:[118,60],
-          lKnee:[112,135], lFoot:[116,164], rKnee:[102,135], rFoot:[98,164] }]
-];
-function spotlight(ctx, x){
-  const g = ctx.createLinearGradient(0, 0, 0, 170);
-  g.addColorStop(0, "rgba(243,246,249,.16)"); g.addColorStop(1, "rgba(243,246,249,.03)");
-  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - 8, 0); ctx.lineTo(x + 8, 0); ctx.lineTo(x + 46, 168); ctx.lineTo(x - 46, 168); ctx.fill();
-}
-function drawSinger(ctx, t){
-  spotlight(ctx, 110);
-  shadow(ctx, 108, 26, .14);
-  silhouette(ctx, poseAt(SINGER, t), 1, (c, q) => {    // the microphone at the mouth
-    c.fillStyle = SIL_ACCENT; limb(c, q.rHand, [q.rHand[0] + 4, q.rHand[1] - 7], 3, 5.5); c.fillStyle = SIL;
-  });
-  [[0, 132, 46, false], [.25, 148, 36, true], [.5, 138, 28, false]].forEach(([d, x, y, dbl]) => {
-    const u = clamp01((t - d) / .55);
-    if (u > 0) note(ctx, x + u * 14, y - u * 24, Math.sin(Math.PI * u), dbl);
-  });
-}
-
-/* --- Kultuur: drama — a bow on stage, between the curtains */
-const BOW = [
-  [0,   { head:[120,48], neck:[120,60], hip:[118,104], lElbow:[136,70], lHand:[150,60], rElbow:[104,70], rHand:[90,60],
-          lKnee:[122,134], lFoot:[124,164], rKnee:[114,134], rFoot:[110,164] }],
-  [.55, { head:[141,73], neck:[134,79], hip:[118,104], lElbow:[112,74], lHand:[96,62], rElbow:[132,95], rHand:[124,101],
-          lKnee:[124,134], lFoot:[128,164], rKnee:[112,134], rFoot:[104,164] }],
-  [1,   { head:[120,48], neck:[120,60], hip:[118,104], lElbow:[136,70], lHand:[150,60], rElbow:[104,70], rHand:[90,60],
-          lKnee:[122,134], lFoot:[124,164], rKnee:[114,134], rFoot:[110,164] }]
-];
-function drawDrama(ctx, t){
-  ctx.fillStyle = "rgba(90,183,214,.28)";             // curtains with folds
-  for (const side of [0, 1]){
-    ctx.beginPath();
-    const x0 = side ? 240 : 0, w = 46 * (side ? -1 : 1);
-    ctx.moveTo(x0, 0); ctx.lineTo(x0 + w, 0);
-    for (let y = 0; y <= 170; y += 34) ctx.quadraticCurveTo(x0 + w - 8 * Math.sign(w), y + 17, x0 + w, y + 34);
-    ctx.lineTo(x0, 170); ctx.fill();
+  for (let i = 0; i < 9; i++){                                              // bubbles
+    const u = (t * 1.6 + i / 9) % 1, x = cx - 26 + (i * 7) % 52 + Math.sin(u * 9 + i) * 3, y = base - 4 - u * 110;
+    ctx.strokeStyle = "rgba(243,246,249,.8)"; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2); ctx.stroke();
   }
-  spotlight(ctx, 120);
-  shadow(ctx, 118, 26, .14);
-  silhouette(ctx, poseAt(BOW, t), 1);
-  if (t > .5){ const a = Math.sin(Math.PI * clamp01((t - .5) / .5));         // applause sparkle
-    ctx.globalAlpha = a; ctx.fillStyle = SIL_ACCENT;
-    for (const [x, y] of [[70, 40], [172, 34], [62, 86], [180, 80]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(.785); ctx.fillRect(-3, -3, 6, 6); ctx.restore(); }
-    ctx.globalAlpha = 1; }
-}
-
-/* --- Kultuur: painter at the easel */
-function drawPainter(ctx, t){
-  ctx.fillStyle = SIL;                                 // easel
-  limb(ctx, [160, 40], [146, 166], 3, 3); limb(ctx, [178, 40], [192, 166], 3, 3); limb(ctx, [169, 40], [169, 166], 3, 3);
-  ctx.fillStyle = "#eef3f7"; ctx.fillRect(138, 30, 62, 50);
-  const prog = clamp01(t / .9);
-  // the painting: hills, then the sun
-  const hills = s => [142 + s * 54, 68 - 12 * Math.sin(s * Math.PI * 2.2) * (1 - s * .3)];
-  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 3; ctx.beginPath();
-  const hp = clamp01(prog / .65);
-  for (let i = 0; i <= 30 * hp; i++){ const [x, y] = hills(i / 30); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
-  ctx.stroke();
-  const sp = clamp01((prog - .65) / .35);
-  if (sp > 0){ ctx.strokeStyle = "#0b6a8a"; ctx.beginPath(); ctx.arc(184, 44, 6, -Math.PI / 2, -Math.PI / 2 + sp * Math.PI * 2); ctx.stroke(); }
-  const tip = sp > 0 ? [184 + Math.cos(-Math.PI / 2 + sp * Math.PI * 2) * 6, 44 + Math.sin(-Math.PI / 2 + sp * Math.PI * 2) * 6] : hills(hp);
-  const brushEnd = [tip[0] - 12, tip[1] + 10];        // the hand holds the brush 12 px back
-  const sh = [112, 74], mid = lerpPt(sh, brushEnd, .5), elbow = [mid[0] - 2, mid[1] + 12];
-  const p = { head:[110,58], neck:[112,70], hip:[109,112], lElbow:[104,92], lHand:[96,100], rElbow:elbow, rHand:brushEnd,
-              lKnee:[113,139], lFoot:[115,164], rKnee:[104,139], rFoot:[102,164] };
-  shadow(ctx, 110, 24);
-  silhouette(ctx, p, 1);
-  ctx.fillStyle = SIL; limb(ctx, brushEnd, tip, 2.4, 2); ctx.fillStyle = SIL_ACCENT; disc(ctx, tip, 2.4);
-  ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(92, 102, 9, 6, -.3, 0, Math.PI * 2); ctx.fill();   // palette
-}
-
-/* --- Akademie: reading — pages turn */
-function drawReader(ctx, t){
-  ctx.fillStyle = SIL;                                 // stool
-  ctx.fillRect(80, 118, 32, 5); limb(ctx, [84, 122], [80, 166], 3, 3); limb(ctx, [108, 122], [112, 166], 3, 3);
-  const nod = Math.sin(t * Math.PI * 2) * 1.2;
-  const p = { head:[103,62 + nod], neck:[100,74], hip:[96,116], lElbow:[112,104], lHand:[126,96], rElbow:[110,108], rHand:[124,100],
-              lKnee:[126,118], lFoot:[128,164], rKnee:[121,121], rFoot:[121,164] };
-  shadow(ctx, 104, 30);
-  silhouette(ctx, p, 1);
-  // the open book in the hands, a page turning twice
-  const bx = 130, by = 92;
-  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx - 20, by - 2); ctx.lineTo(bx - 20, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx + 20, by - 2); ctx.lineTo(bx + 20, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
-  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1.2; ctx.beginPath();
-  for (const k of [0, 6, 12]){ ctx.moveTo(bx - 16, by - 18 + k); ctx.lineTo(bx - 4, by - 14 + k); ctx.moveTo(bx + 4, by - 14 + k); ctx.lineTo(bx + 16, by - 18 + k); }
-  ctx.stroke();
-  const flip = (t * 2) % 1, w = Math.cos(easeInOut(flip) * Math.PI);  // 1 → -1
-  ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx + 20 * w, by - 2); ctx.lineTo(bx + 20 * w, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
-  silhouetteHandsOnBook(ctx, p);
-}
-function silhouetteHandsOnBook(ctx, p){ ctx.fillStyle = SIL; disc(ctx, p.rHand, 4); }
-
-/* --- Akademie: science — pouring into a flask, bubbles rise */
-function drawScience(ctx, t){
-  const tilt = easeInOut(clamp01(t / .35)) * 1.9;      // the test tube tips over
-  const p = { head:[100,52], neck:[100,64], hip:[98,108], lElbow:[116,62], lHand:[128,50], rElbow:[112,90], rHand:[128,96],
-              lKnee:[102,136], lFoot:[104,164], rKnee:[94,136], rFoot:[92,164] };
-  shadow(ctx, 100, 24);
-  silhouette(ctx, p, 1);
-  // flask in the near hand
-  const fx = 140, fy = 104, level = 4 + 10 * clamp01((t - .3) / .4);
-  ctx.save(); ctx.beginPath(); ctx.moveTo(fx - 4, fy - 30); ctx.lineTo(fx + 4, fy - 30); ctx.lineTo(fx + 4, fy - 18);
-  ctx.lineTo(fx + 16, fy); ctx.lineTo(fx - 16, fy); ctx.lineTo(fx - 4, fy - 18); ctx.closePath();
-  ctx.fillStyle = "rgba(243,246,249,.18)"; ctx.fill(); ctx.clip();
-  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(fx - 18, fy - level, 36, level); ctx.restore();
-  ctx.strokeStyle = SIL; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(fx - 4, fy - 30); ctx.lineTo(fx - 4, fy - 18); ctx.lineTo(fx - 16, fy);
-  ctx.lineTo(fx + 16, fy); ctx.lineTo(fx + 4, fy - 18); ctx.lineTo(fx + 4, fy - 30); ctx.stroke();
-  // test tube in the far hand
-  ctx.save(); ctx.translate(p.lHand[0], p.lHand[1]); ctx.rotate(tilt);
-  ctx.strokeStyle = SIL; ctx.lineWidth = 2.5; ctx.strokeRect(-3, -18, 6, 20);
-  if (tilt < 1.5){ ctx.fillStyle = SIL_ACCENT; ctx.fillRect(-2, -6, 4, 7); }
   ctx.restore();
-  if (t > .2 && t < .45){ const u = (t - .2) / .25; ctx.fillStyle = SIL_ACCENT; disc(ctx, [lerp(134, 140, u), lerp(48, 80, u)], 2.4); }
-  for (let i = 0; i < 5; i++){                         // bubbles
-    const u = clamp01((t - .5 - i * .08) / .4);
-    if (u <= 0 || u >= 1) continue;
-    ctx.globalAlpha = 1 - u; ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.arc(fx - 3 + (i % 3) * 3 + Math.sin(u * 8 + i) * 3, fy - 34 - u * 46, 2 + (i % 2), 0, Math.PI * 2); ctx.stroke();
+  shape(); ctx.strokeStyle = C_WHITE; ctx.lineWidth = 3; ctx.stroke();
+  ctx.fillStyle = C_WHITE; ctx.fillRect(cx - 12, 42, 24, 5);
+  if (mix > .45){ const u = clamp01((mix - .45) / .55);                     // a puff when it turns gold
+    ctx.globalAlpha = 1 - u; ctx.fillStyle = "rgba(243,246,249,.5)";
+    for (let k = 0; k < 3; k++) disc(ctx, [cx - 8 + k * 8, 38 - u * 26 - k * 4], 6 + u * 6); ctx.globalAlpha = 1;
+    sparkle(ctx, cx + 30, 40, 5, 1 - u); sparkle(ctx, cx - 32, 52, 4, 1 - u, C_TEAL); }
+}
+
+/* --- Akademie: graduation caps thrown in the air ------------------------- */
+function capShape(ctx, x, y, s, a){
+  ctx.save(); ctx.translate(x, y); ctx.rotate(a); ctx.scale(s, s);
+  ctx.fillStyle = C_DEEP; ctx.fillRect(-11, 2, 22, 10);
+  ctx.fillStyle = "#1d84ab"; ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(24, 0); ctx.lineTo(0, 10); ctx.lineTo(-24, 0); ctx.fill();
+  ctx.strokeStyle = C_WHITE; ctx.lineWidth = 1.6; ctx.stroke();
+  ctx.strokeStyle = C_GOLD; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 5); ctx.lineTo(18, 18); ctx.stroke();
+  ctx.fillStyle = C_GOLD; disc(ctx, [18, 20], 3);
+  ctx.restore();
+}
+function drawCaps(ctx, t){
+  [[60, .0, 1.1, 1], [120, .08, 1.3, -1], [180, .16, 1, 1]].forEach(([x, d, s, dir]) => {
+    const u = clamp01((t - d) / (1 - d));
+    const y = 190 - 300 * u + 260 * u * u;
+    capShape(ctx, x + dir * u * 14, y, s, dir * u * Math.PI * 3);
+  });
+  for (let i = 0; i < 14; i++){                                             // confetti
+    const u = clamp01((t - .35) / .65), x = 20 + i * 15, y = -10 + u * (90 + (i % 4) * 30);
+    ctx.globalAlpha = Math.sin(Math.PI * u); ctx.fillStyle = [C_GOLD, C_TEAL, C_WHITE][i % 3];
+    ctx.save(); ctx.translate(x + Math.sin(u * 6 + i) * 6, y); ctx.rotate(u * 8 + i); ctx.fillRect(-3, -1.5, 6, 3); ctx.restore();
   }
   ctx.globalAlpha = 1;
 }
 
-/* --- Akademie: coding — typing, lines of code appear */
-function drawCoder(ctx, t){
-  ctx.fillStyle = SIL;                                 // desk and stool
-  ctx.fillRect(118, 116, 92, 5); limb(ctx, [124, 120], [124, 166], 3, 3); limb(ctx, [204, 120], [204, 166], 3, 3);
-  ctx.fillRect(72, 122, 30, 5); limb(ctx, [76, 126], [74, 166], 3, 3); limb(ctx, [98, 126], [100, 166], 3, 3);
-  // laptop (screen towards the viewer so the code shows)
-  ctx.fillStyle = SIL; ctx.fillRect(140, 72, 46, 40);
-  ctx.fillStyle = "#0a3050"; ctx.fillRect(143, 75, 40, 33);
-  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(134, 116); ctx.lineTo(192, 116); ctx.lineTo(188, 112); ctx.lineTo(138, 112); ctx.fill();
-  const lines = Math.floor(t * 9);
-  [[30, 0], [22, 6], [34, 6], [18, 12], [28, 6], [24, 0], [32, 6], [16, 12], [26, 0]].slice(0, lines).forEach(([w, ind], i) => {
-    ctx.fillStyle = i % 3 === 2 ? SIL : SIL_ACCENT; ctx.fillRect(146 + ind * .6, 78 + i * 3.4, w * .85, 1.8);
-  });
-  if (Math.floor(t * 10) % 2){ ctx.fillStyle = SIL; ctx.fillRect(146, 78 + lines * 3.4, 3, 2); }
-  const tap = Math.sin(t * Math.PI * 14);
-  const p = { head:[94,64], neck:[94,76], hip:[90,120], lElbow:[110,108], lHand:[142,110 - Math.max(0, tap) * 3], rElbow:[108,112], rHand:[138,112 - Math.max(0, -tap) * 3],
-              lKnee:[118,120], lFoot:[118,164], rKnee:[114,123], rFoot:[112,164] };
-  shadow(ctx, 100, 34);
-  silhouette(ctx, p, 1);
+/* --- Akademie: a pencil marks a test "A+" and circles it ----------------- */
+function drawPencilTest(ctx, t){
+  ctx.save(); ctx.translate(120, 92); ctx.rotate(-.06);
+  ctx.fillStyle = "#f8f6ef"; ctx.fillRect(-70, -76, 140, 156);
+  ctx.strokeStyle = "rgba(90,183,214,.45)"; ctx.lineWidth = 1;
+  for (let i = 0; i < 9; i++){ ctx.beginPath(); ctx.moveTo(-58, -40 + i * 13); ctx.lineTo(58, -40 + i * 13); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 2;
+  for (let i = 0; i < 4; i++){ ctx.beginPath(); ctx.moveTo(-50, -14 + i * 26); ctx.lineTo(-50 + 60 - (i % 2) * 18, -14 + i * 26); ctx.stroke(); }
+  ctx.restore();
+  ctx.strokeStyle = "#c0262d"; ctx.lineWidth = 4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const strokes = [
+    [[138, 70], [150, 30], [162, 70]], [[143, 56], [157, 56]],               // A
+    [[176, 38], [176, 60]], [[165, 49], [187, 49]],                          // +
+    Array.from({ length: 33 }, (_, i) => [162 + Math.cos(i / 32 * Math.PI * 2 - 2) * 34, 50 + Math.sin(i / 32 * Math.PI * 2 - 2) * 30])   // circle
+  ];
+  const lens = [.22, .1, .1, .1, .48];
+  let acc = 0, tip = strokes[0][0], p = clamp01(t / .9);
+  strokes.forEach((s, i) => { const part = clamp01((p - acc) / lens[i]); if (part > 0) tip = strokeUpTo(ctx, s, part); acc += lens[i]; });
+  ctx.lineCap = "butt";
+  // the pencil
+  ctx.save(); ctx.translate(tip[0], tip[1]); ctx.rotate(-.55);
+  ctx.fillStyle = C_GOLD; ctx.fillRect(-4, -54, 8, 42);
+  ctx.fillStyle = "#f2c9a0"; ctx.beginPath(); ctx.moveTo(-4, -12); ctx.lineTo(4, -12); ctx.lineTo(0, 0); ctx.fill();
+  ctx.fillStyle = "#c0262d"; ctx.beginPath(); ctx.moveTo(-1.6, -4.5); ctx.lineTo(1.6, -4.5); ctx.lineTo(0, 0); ctx.fill();
+  ctx.fillStyle = "#e88aa0"; ctx.fillRect(-4, -60, 8, 6);
+  ctx.restore();
 }
 
 // Five scenes per field. Fields take turns (Sport, Kultuur, Akademie, ...);
@@ -1503,17 +1366,17 @@ function drawCoder(ctx, t){
 // have played. The last three per field are remembered between visits.
 const LOADER_FIELDS = ["Sport", "Kultuur", "Akademie"];
 const LOADER_SCENES = {
-  Sport:    [{ label:"Rugby", draw:drawRugby, ms:1800 }, { label:"Netbal", draw:drawNetball }, { label:"Hekkies", draw:drawHurdles },
-             { label:"Krieket", draw:drawCricket }, { label:"Hokkie", draw:drawHockey }],
-  Kultuur:  [{ label:"Ballet", draw:drawLeap }, { label:"Viool", draw:drawViolin }, { label:"Sang", draw:drawSinger },
-             { label:"Toneel", draw:drawDrama }, { label:"Kuns", draw:drawPainter }],
-  Akademie: [{ label:"Gradeplegtigheid", draw:drawGraduate }, { label:"Wiskunde", draw:drawBoard }, { label:"Lees", draw:drawReader },
-             { label:"Wetenskap", draw:drawScience }, { label:"Kodering", draw:drawCoder }]
+  Sport:    [{ label:"Rugby-skop", draw:drawKick }, { label:"Netbal", draw:drawNetballTop }, { label:"Krieket", draw:drawStumps },
+             { label:"Hokkie", draw:drawHockeyGoal }, { label:"Atletiek", draw:drawTrack }],
+  Kultuur:  [{ label:"Viool", draw:drawViolinSelf }, { label:"Klavier", draw:drawPiano }, { label:"Toneel", draw:drawCurtains },
+             { label:"Kuns", draw:drawBrushPaint }, { label:"Trom", draw:drawDrum }],
+  Akademie: [{ label:"Boeke", draw:drawBookFlip }, { label:"Wiskunde", draw:drawChalk }, { label:"Wetenskap", draw:drawFlask },
+             { label:"Gradeplegtigheid", draw:drawCaps }, { label:"Toets", draw:drawPencilTest }]
 };
 const SCENE_MEMORY = 3;
-// While we get one scene right, only that one plays (null = all scenes).
+// To work on one scene, set its label here and only that one plays (null = all).
 // Open the app with #animasie at the end of the address to watch it on a loop.
-const LOADER_ONLY = "Rugby";
+const LOADER_ONLY = null;
 const sceneHistory = (() => {
   const saved = loadJSON("garsie.sceneHistory") || {};
   return Object.fromEntries(LOADER_FIELDS.map(f => [f, Array.isArray(saved[f]) ? saved[f].filter(l => LOADER_SCENES[f].some(sc => sc.label === l)).slice(-SCENE_MEMORY) : []]));
