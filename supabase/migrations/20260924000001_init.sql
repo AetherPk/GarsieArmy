@@ -43,7 +43,7 @@ create table public.profiles (
   email      text not null,
   name       text not null check (char_length(name) between 1 and 40),
   surname    text not null check (char_length(surname) between 1 and 40),
-  grade      text not null check (grade = any (private.learner_grades() || array['Nie ''n leerder nie'])),
+  grade      text not null check (grade = any (private.learner_grades() || array['Alumni'])),
   gender     text check (gender in ('Seun','Meisie')),
   created_at timestamptz not null default now(),
   -- learners must say boy/girl (events can be for one of them only)

@@ -16,7 +16,7 @@
   Search "screenAuth".
 
   ROLES (from the admins table, managed in Bestuur — never picked by the user)
-    Gebruiker          supporter: Kalender, Kaart, Soek, Myne
+    Gebruiker          supporter: Kalender, Kaart, Soek, Ondersteun
     Departement-admin  + "Skep": create / edit / export events of ONE department
     Hoof-admin         + "Bestuur": departments and who is admin of what,
                        and can create / edit / export events of ANY department
@@ -37,7 +37,7 @@
     Kaart     OpenFreeMap map with each event's pin and check-in circle.
               "Meld aan" unlocks inside the circle. QR scans work offline.
     Soek      Search and filter by department.
-    Myne      Events you support, notifications, "Skrap my rekening".
+    Ondersteun Events you support, notifications, "Skrap my rekening".
 
   BACKEND
   Supabase (project "garsie-army"). Schema, security rules, push
@@ -48,7 +48,7 @@
   DATA KEPT
   At most 5 years: events (with their supports and check-ins) are deleted
   5 years after the event, accounts 5 years after their last sign-in.
-  People can delete their own account on Myne. The privacy notice is in the
+  People can delete their own account on Ondersteun. The privacy notice is in the
   app (PRIVACY_NOTICE) and at privacy.html — keep the two in step.
 
   LANGUAGE
@@ -97,10 +97,10 @@
 /* ---------------------------------------------------------------------------
    THEME — the school's look (from its VLR-inhuldiging poster)
    Navy ground, crest teal, white; Cinzel capitals for headings and labels,
-   Lora for reading text. Navy is the default; the sun/moon button switches
-   to the light version and is remembered. Use the tokens below for any new
+   Lora for reading text. Navy only (no light/dark switch). Use the tokens
+   below for any new
    UI instead of hard-coded colours. Deliberately NOT themed: the map
-   drawing, the QR code (black on white) and the Myne cards (always navy).
+   drawing, the QR code (black on white) and the Ondersteun cards (always navy).
 --------------------------------------------------------------------------- */
 :root{
   color-scheme:dark;
@@ -108,7 +108,7 @@
   --brand-text:#5ab7d6;     /* teal for text and icons on the navy */
   --brand-ink:#0b5f7c;      /* deep teal — the poster's icon column */
   --brand-wash:rgba(53,156,173,.20);
-  --myne-bg:#011a2e;        /* "Myne" tab background */
+  --myne-bg:#011a2e;        /* "Ondersteun" tab background */
 
   --page:#011628; --ink:#f3f6f9; --muted:#9db3c6;
   --btn:#0a2b47; --btn-border:rgba(173,205,226,.22);
@@ -117,14 +117,6 @@
 
   --font-display:"Cinzel","Trajan Pro",Georgia,"Times New Roman",serif;
   --font-body:"Lora",Georgia,"Times New Roman",serif;
-}
-:root[data-theme="light"]{
-  color-scheme:light;
-  --brand:#16799e; --brand-text:#11688a; --brand-ink:#0b5f7c; --brand-wash:#d9edf4;
-  --page:#e9eef2; --ink:#0d2238; --muted:#566a7d;
-  --btn:#fff; --btn-border:#c9d5df;
-  --surface:#f7f9fb; --surface-2:#e6edf3; --hairline:#d3dde6; --shadow-ink:#0d2238;
-  --danger:#c5221f; --warn:#a15c00; --ok:#1f8a3b;
 }
 
 *{box-sizing:border-box}
@@ -201,10 +193,22 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 @keyframes sc-brush{0%,100%{transform:rotate(4deg)}25%{transform:rotate(-8deg)}50%{transform:rotate(6deg)}75%{transform:rotate(-6deg)}}
 @keyframes sc-cap{0%{transform:translateY(16px) rotate(0)}45%{transform:translateY(-34px) rotate(200deg)}100%{transform:translateY(14px) rotate(360deg)}}
 
+/* Month sections (see MONTH GROUPS in the script) */
+.mgroup{border-bottom:.5px solid var(--hairline)}
+.mgroup>summary{list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 2px;cursor:pointer;font-family:var(--font-display);font-weight:600;letter-spacing:.06em;font-size:15px}
+.mgroup>summary::-webkit-details-marker{display:none}
+.mgroup-count{display:flex;align-items:center;gap:6px;font-family:var(--font-body);font-size:12px;font-weight:400;letter-spacing:0;color:var(--muted)}
+.mgroup-count svg{transition:transform .2s}
+.mgroup[open]>summary .mgroup-count svg{transform:rotate(90deg)}
+.mgroup[open]{padding-bottom:12px}
+.mgroup.on-dark{border-color:rgba(173,205,226,.2)}
+.mgroup.on-dark>summary{color:#fff}
+.mgroup.on-dark .mgroup-count{color:#c4d3df}
+.mgroup-past{margin:20px 2px 2px}
+
 /* School crest (drawn in SVG from the poster) */
 .crest{display:block}
 .watermark{position:absolute;right:-90px;top:120px;width:340px;opacity:.06;pointer-events:none}
-:root[data-theme="light"] .watermark{opacity:.07}
 
 /* Sign-in / sign-up screen */
 .auth{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;padding:24px 20px 40px;background:radial-gradient(120% 70% at 50% 0%,color-mix(in srgb,var(--brand) 16%,transparent),transparent 70%)}
@@ -221,10 +225,6 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .btn-link{background:none;border:none;color:var(--brand-text);font-size:14px;padding:8px}
 .screen{position:absolute;top:0;left:0;right:0;bottom:0;overflow:hidden}
 
-/* Theme toggle — floats top-right, above every screen. Screen headers keep
-   ~48px clear on the right so it never covers their buttons. */
-#theme-toggle{position:absolute;top:10px;right:14px;z-index:10;width:38px;height:38px;border-radius:19px;border:.5px solid var(--hairline);background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
-#theme-toggle svg{color:var(--shadow-ink)}
 
 /* Bottom tab bar — persistent across all four tabs */
 .tabbar{position:absolute;left:12px;right:12px;bottom:14px;max-width:520px;margin:0 auto;height:60px;border-radius:30px;background:color-mix(in srgb, var(--surface-2) 96%, transparent);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:space-around;z-index:5}
@@ -340,7 +340,6 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <body>
 
 <div class="phone" id="phone">
-  <button id="theme-toggle" aria-label="Wissel tussen ligte en donker modus" title="Wissel tema"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
   <div class="tabbar" role="tablist" id="tabbar"></div>
@@ -493,7 +492,7 @@ function deptById(id){
   return { ...d,
     wash: `color-mix(in srgb, ${d.colour} 26%, var(--surface))`,      // block / badge fill
     ink:  `color-mix(in srgb, ${d.colour} 40%, var(--shadow-ink))`,   // text on the wash
-    deep: `color-mix(in srgb, ${d.colour} 55%, #011628)` };          // Myne card background
+    deep: `color-mix(in srgb, ${d.colour} 55%, #011628)` };          // Ondersteun card background
 }
 function deptOf(e){ return deptById(e.department); }
 
@@ -687,7 +686,7 @@ function clearFieldError(el){
    which a Hoof-admin manages in Bestuur — nobody picks their own role.
    POPIA: name, grade and gender of a learner are personal data of a minor.
 ------------------------------------------------------------------------- */
-const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Nie 'n leerder nie"];
+const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Alumni"];
 const RESEND_WAIT_S = 60;           // Supabase allows one code per e-mail per minute
 
 function esc(s){
@@ -786,7 +785,7 @@ const PRIVACY_NOTICE = `
   <h3>Waar en hoe lank</h3>
   <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
   <h3>Jou regte</h3>
-  <p>Jy kan jou rekening self skrap: onderaan <b>Myne</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
+  <p>Jy kan jou rekening self skrap: onderaan <b>Ondersteun</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
   <p>Dan moet jou ouer of voog ook instem voordat jy die app gebruik.</p>`;
 function openPrivacy(){
@@ -1088,7 +1087,7 @@ function calendarHeader(){
   const navBtn = (dir, label, ic) => `<button data-action="cal-${dir}" aria-label="${label} ${unit}"
     style="width:32px;height:32px;border-radius:16px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon(ic,16,"var(--brand-text)")}</button>`;
   return `<div style="padding:6px 16px 0">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px;padding-right:48px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px">
       <div style="display:flex;align-items:center;gap:8px;min-width:0">
         <button data-action="cal-today" class="mini-btn" ${onToday ? "disabled" : ""}>Vandag</button>
         <div role="group" aria-label="Kalenderaansig" style="display:inline-flex;background:var(--hairline);border-radius:16px;padding:3px">
@@ -1418,7 +1417,8 @@ function mapCardHtml(){
     <div style="display:flex;align-items:center;gap:8px">
       <span class="dot" style="background:${deptOf(e).colour}"></span>
       <select id="map-event-select" aria-label="Kies geleentheid">
-        ${sorted.map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${esc(x.title)}</option>`).join("")}
+        ${[...new Set(sorted.map(x => x.date.slice(0, 7)))].map(k => `<optgroup label="${monthLabel(k)}">${
+          sorted.filter(x => x.date.startsWith(k)).map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${toDate(x.date).getDate()} · ${esc(x.title)}</option>`).join("")}</optgroup>`).join("")}
       </select>
     </div>
     <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${e.start} · ${esc(e.venue || loc.address)}</div>
@@ -1868,12 +1868,11 @@ function processPendingScan(){
 }
 
 /* --- 6c. Soek -----------------------------------------------------------
-   Client-side filter over the loaded events. Fine at this scale (a school year
-   is a few hundred events). TODO: server-side search once past ~1 000 events,
-   and add team/grade as filter dimensions.
+   Client-side filter over the loaded events, shown in month sections
+   (see MONTH GROUPS) so a long list stays easy to handle.
 ------------------------------------------------------------------------- */
 function screenSearch(){
-  return `<div class="content" style="padding:10px 16px">
+  return `<div style="position:absolute;inset:0;overflow-y:auto;padding-bottom:110px"><div class="content" style="padding:10px 16px">
     <h1 style="font-size:30px;font-weight:700;margin:0 0 10px">Soek</h1>
     <div style="display:flex;align-items:center;gap:8px;background:var(--surface-2);border-radius:14px;height:42px;padding:0 12px">
       ${icon("search",18,"var(--muted)")}
@@ -1883,8 +1882,54 @@ function screenSearch(){
     </div>
     <div style="margin:12px 0">${filterChips()}</div>
     <div id="results">${searchResults()}</div>
-  </div>`;
+  </div></div>`;
 }
+
+/* ---------------------------------------------------------------------------
+   MONTH GROUPS
+   Lists that can hold hundreds of events (Soek, Skep, Ondersteun) are folded
+   into one section per month, so nobody scrolls past a whole year. Coming
+   months first (soonest on top), then the past under "Verby" (latest on
+   top). The current or next month starts open, the rest stay shut until
+   tapped, and each stays the way the person left it while the app is open.
+--------------------------------------------------------------------------- */
+const openGroups = new Map();            // "list:YYYY-MM" -> open?
+function monthLabel(key){ const [y, m] = key.split("-").map(Number); return `${MONTHS[m - 1]} ${y}`; }
+function groupByMonth(events){
+  const today = toISO(TODAY);
+  const key = e => `${e.date} ${e.start}`;
+  const byMonth = list => {
+    const m = new Map();
+    list.forEach(e => { const k = e.date.slice(0, 7); if (!m.has(k)) m.set(k, []); m.get(k).push(e); });
+    return [...m];
+  };
+  return {
+    upcoming: byMonth(events.filter(e => e.date >= today).sort((a, b) => key(a).localeCompare(key(b)))),
+    past:     byMonth(events.filter(e => e.date <  today).sort((a, b) => key(b).localeCompare(key(a))))
+  };
+}
+// list: name for remembering what is open; items(events) -> html for one month;
+// wrap(html) -> the container around one month's items.
+function monthGroups(list, events, items, { openAll = false, wrap = h => h, dark = false } = {}){
+  const { upcoming, past } = groupByMonth(events);
+  const firstOpen = upcoming.length ? upcoming[0][0] : past.length ? past[0][0] : null;
+  // The current month can appear twice: its coming days, and under "Verby" its past days.
+  const section = ([k, evs], openByDefault, past) => {
+    const id = `${list}:${past ? "past:" : ""}${k}`;
+    const open = openAll || (openGroups.has(id) ? openGroups.get(id) : openByDefault);
+    return `<details class="mgroup${dark ? " on-dark" : ""}" data-group="${id}" ${open ? "open" : ""}>
+      <summary><span>${monthLabel(k)}</span>
+        <span class="mgroup-count">${evs.length} ${evs.length === 1 ? "geleentheid" : "geleenthede"} ${icon("right", 14, "currentColor")}</span></summary>
+      ${wrap(items(evs))}</details>`;
+  };
+  return upcoming.map(g => section(g, g[0] === firstOpen)).join("")
+    + (past.length ? `<div class="eyebrow mgroup-past">Verby</div>` + past.map(g => section(g, !upcoming.length && g[0] === firstOpen, true)).join("") : "");
+}
+// <details> "toggle" doesn't bubble: listen in the capture phase.
+document.addEventListener("toggle", ev => {
+  const d = ev.target;
+  if (d instanceof HTMLDetailsElement && d.dataset.group) openGroups.set(d.dataset.group, d.open);
+}, true);
 
 function searchResults(){
   const q = cleanText(state.query, LIMITS.search).toLowerCase();
@@ -1896,14 +1941,8 @@ function searchResults(){
   if (!matches.length){
     return `<p style="font-size:14px;color:var(--muted)">${q ? "Geen resultate nie. Probeer 'n ander woord." : "Daar is nog geen geleenthede nie."}</p>`;
   }
-  // Coming up first (soonest on top), then what's already happened (latest on top).
-  const today = toISO(TODAY);
-  const key = e => `${e.date} ${e.start}`;
-  const upcoming = matches.filter(e => e.date >= today).sort((a,b) => key(a).localeCompare(key(b)));
-  const past     = matches.filter(e => e.date <  today).sort((a,b) => key(b).localeCompare(key(a)));
-  const LIMIT = 30;   // TODO: paginate once there are hundreds
-  return upcoming.slice(0, LIMIT).map(eventRow).join("")
-    + (past.length ? `<h3 style="font-size:13px;color:var(--muted);font-weight:600;margin:16px 0 0">Verby</h3>${past.slice(0, 10).map(eventRow).join("")}` : "");
+  // One section per month; while searching, every month with a match is open.
+  return monthGroups("search", matches, evs => evs.map(eventRow).join(""), { openAll: !!q });
 }
 
 /* --- 6d. Myne -----------------------------------------------------------
@@ -1918,26 +1957,26 @@ function screenMine(){
     .sort((a,b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
 
   let html = `<div style="position:absolute;inset:0;background:var(--myne-bg);padding:16px 14px 0;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c4d3df;font-size:13px;min-height:38px;padding-right:52px">
+    <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c4d3df;font-size:13px;min-height:38px">
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
       <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
         ${isPhone() && !isStandalone() ? `<button data-action="install-help" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Sit op tuisskerm</button>` : ""}
         <button data-action="signout" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
       </span>
     </div>
-    <h1 style="font-size:30px;font-weight:700;color:#fff;margin:6px auto 10px;max-width:1100px">My geleenthede</h1>
+    <h1 style="font-size:30px;color:#fff;margin:6px auto 10px;max-width:1100px">Wat ek ondersteun</h1>
     <div id="push-card" style="max-width:1100px;margin:0 auto">${pushCardHtml()}</div>
     <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
-    <div class="mine-grid">`;
+    <div style="max-width:1100px;margin:0 auto">`;
 
   if (!mine.length){
     html += `<p style="color:#c4d3df;font-size:14px">Jy ondersteun nog niks nie. Kies 'n geleentheid in die kalender.</p>`;
   }
 
-  mine.forEach(e => {
+  const card = e => {
     const day = toDate(e.date);
     const dept = deptOf(e);
-    html += `<div data-event="${e.id}" tabindex="0" role="button"
+    return `<div data-event="${e.id}" tabindex="0" role="button"
       style="cursor:pointer;background:${dept.deep};border-radius:20px;padding:13px 15px;color:#fff;display:flex;justify-content:space-between;gap:8px">
       <div style="min-width:0">
         <div style="font-size:16px;font-weight:600;line-height:1.25">${esc(e.title)}</div>
@@ -1950,7 +1989,8 @@ function screenMine(){
         <div style="font-size:12px;margin-top:10px;color:#dfe8ef">${e.start}</div>
       </div>
     </div>`;
-  });
+  };
+  html += monthGroups("mine", mine, evs => evs.map(card).join(""), { dark: true, wrap: h => `<div class="mine-grid">${h}</div>` });
 
   return html + `</div>
     <div style="max-width:1100px;margin:28px auto 0;text-align:center">
@@ -2097,7 +2137,7 @@ function screenCreate(){
       <div class="field"><span>Wie mag kom?</span>
         <div class="card" style="background:var(--surface);padding:12px">
           <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
-            <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie ouers of personeel nie)</span>
+            <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie alumni nie)</span>
           </label>
           <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Grade — kies niks vir alle grade</div>
           <div class="check-row" style="margin-bottom:12px">
@@ -2117,8 +2157,7 @@ function screenCreate(){
     </form>
 
     <h2>Geleenthede wat jy bestuur (${mine.length})</h2>
-    <div class="card" style="padding:4px 14px">
-      ${mine.length ? mine.map(ev => {
+    ${mine.length ? monthGroups("create", mine, evs => evs.map(ev => {
         const d = toDate(ev.date);
         return `<div class="list-row">
           <span class="dot" style="background:${deptOf(ev).colour}"></span>
@@ -2131,8 +2170,8 @@ function screenCreate(){
           <button class="mini-btn" data-action="export" data-id="${ev.id}" aria-label="Laai Excel-lêer af">${icon("download",14)} Excel</button>
           <button class="mini-btn danger" data-action="delete-event" data-id="${ev.id}" aria-label="Skrap">${icon("trash",14)}</button>
         </div>`;
-      }).join("") : `<p style="font-size:14px;color:var(--muted)">Nog geen geleenthede nie.</p>`}
-    </div>
+      }).join(""), { wrap: h => `<div class="card" style="padding:4px 14px">${h}</div>` })
+      : `<p style="font-size:14px;color:var(--muted)">Nog geen geleenthede nie.</p>`}
   </div></div>`;
 }
 
@@ -2349,7 +2388,7 @@ const SCREENS = { manage:screenManage, create:screenCreate, calendar:screenCalen
 // Tabs per role. Admin tabs go in front: Bestuur (Hoof-admin), then Skep.
 function tabsForRole(){
   const calendar = ["calendar","calendar","Kalender"], map = ["map","pin","Kaart"],
-        search = ["search","search","Soek"], mine = ["mine","heart","Myne"];
+        search = ["search","search","Soek"], mine = ["mine","heart","Ondersteun"];
   const role = roleOf();
   // Admins don't check in, so they get no Kaart tab (pins are set in Skep).
   if (role === "key")  return [["manage","shield","Bestuur"], ["create","plus","Skep"], calendar, search, mine];
@@ -2847,33 +2886,8 @@ phoneEl.addEventListener("keydown", ev => {
   }
 });
 
-/* --- Theme toggle: light / dark, remembered between visits ---------------- */
-(function initThemeToggle(){
-  const root = document.documentElement;
-  const btn  = document.getElementById("theme-toggle");
-
-  // Navy is the school's look, so it is the default whatever the phone's setting.
-  function currentIsDark(){ return root.getAttribute("data-theme") !== "light"; }
-  function paint(){
-    btn.innerHTML = icon(currentIsDark() ? "sun" : "moon", 18);
-  }
-  paint();
-
-  try {
-    const saved = localStorage.getItem("garsie-theme");
-    if (saved === "dark" || saved === "light"){
-      root.setAttribute("data-theme", saved);
-      paint();
-    }
-  } catch (e) { /* localStorage unavailable — stay navy */ }
-
-  btn.addEventListener("click", () => {
-    const next = currentIsDark() ? "light" : "dark";
-    root.setAttribute("data-theme", next);
-    try { localStorage.setItem("garsie-theme", next); } catch (e) {}
-    paint();
-  });
-})();
+// The app is navy only. Forget a light/dark choice from the old switch.
+try { localStorage.removeItem("garsie-theme"); } catch (e) {}
 
 // Keep "today" and the red now-line current. Only the calendar redraws, and
 // only when something visible changed (a new minute on this week's now-line,
@@ -3102,7 +3116,7 @@ function isPhone(){ return isIos() || isAndroid() || matchMedia("(pointer:coarse
    what they'll see. Why it matters: on iPhone notifications only work from the
    home screen, and Safari forgets a website's sign-in after 7 days without
    use. Asked once (bump the key to ask everyone again); the "Sit op
-   tuisskerm" button on Myne opens it any time.
+   tuisskerm" button on Ondersteun opens it any time.
    The steps use the English button names: that's what most phones show. */
 const INSTALL_KEY = "garsie.installAsked.v2";
 let installEvent = null;          // Android/Chrome: lets us show the real "Install" prompt
