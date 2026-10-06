@@ -37,7 +37,7 @@
     Kaart     OpenFreeMap map with each event's pin and check-in circle.
               "Meld aan" unlocks inside the circle. QR scans work offline.
     Soek      Search and filter by department.
-    My program Events you support, notifications, "Skrap my rekening".
+    My program Events you support. The gear (top right) opens Instellings.
 
   BACKEND
   Supabase (project "garsie-army"). Schema, security rules, push
@@ -48,7 +48,7 @@
   DATA KEPT
   At most 5 years: events (with their supports and check-ins) are deleted
   5 years after the event, accounts 5 years after their last sign-in.
-  People can delete their own account on My program. The privacy notice is in the
+  People can delete their own account in Instellings (gear, top right). The privacy notice is in the
   app (PRIVACY_NOTICE) and at privacy.html — keep the two in step.
 
   LANGUAGE
@@ -164,6 +164,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .loader-fields span.on{color:var(--brand-text)}
 .loader-fields i{width:5px;height:5px;background:var(--hairline);transform:rotate(45deg)}
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* Settings button — floats top-right above every screen (screen headers keep room for it). */
+#settings-btn{position:absolute;top:10px;right:14px;z-index:10;width:38px;height:38px;border-radius:19px;border:.5px solid var(--hairline);background:var(--surface-2);color:var(--shadow-ink);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#settings-btn.on{color:var(--brand-text);border-color:var(--brand-text)}
+.settings-section{margin-top:22px}
+.settings-row{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:13px 2px;border:none;border-bottom:.5px solid var(--hairline);background:none;color:var(--shadow-ink);font-size:15px;text-align:left}
+.settings-row:last-child{border-bottom:none}
 
 /* Month sections (see MONTH GROUPS in the script) */
 .mgroup{border-bottom:.5px solid var(--hairline)}
@@ -312,6 +319,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 <body>
 
 <div class="phone" id="phone">
+  <button id="settings-btn" data-action="open-settings" aria-label="Instellings" title="Instellings" style="display:none"></button>
   <div class="screen" id="screen"></div>
   <!-- Tabs are built in render(): which ones appear depends on the user's role. -->
   <div class="tabbar" role="tablist" id="tabbar"></div>
@@ -411,8 +419,7 @@ const ICON_PATHS = {
   edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
   trash:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   wifi:'<path d="M12 18h.01M9.17 15.17a4 4 0 0 1 5.66 0M6.34 12.34a8 8 0 0 1 11.32 0M3.51 9.51a12 12 0 0 1 16.98 0"/>',
-  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
-  moon:'<path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5z"/>'
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>'
 };
 function icon(name, size = 20, colour = "currentColor"){
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none"
@@ -757,7 +764,7 @@ const PRIVACY_NOTICE = `
   <h3>Waar en hoe lank</h3>
   <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
   <h3>Jou regte</h3>
-  <p>Jy kan jou rekening self skrap: onderaan <b>My program</b>, "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
+  <p>Jy kan jou rekening self skrap: by <b>Instellings</b> (die rat regs bo), "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
   <p>Dan moet jou ouer of voog ook instem voordat jy die app gebruik.</p>`;
 function openPrivacy(){
@@ -889,7 +896,8 @@ function screenLoading(){
    LOADING ANIMATIONS
    While a screen loads, short scenes (1.6 s each) take turns: Sport,
    Kultuur, Akademie, Sport, ... — always in that rotation, so the three get
-   equal time and none dominates. Two scenes per field.
+   equal time and none dominates. Five scenes per field; one can't repeat
+   until three others of its field have played (see pickScene).
    The figures are solid silhouettes (white on the navy, accents in crest
    teal) drawn on a canvas from a simple skeleton: each scene gives a few
    key poses and the frames in between are eased. Coordinates are in a
@@ -1117,23 +1125,270 @@ function drawBoard(ctx, t){
   silhouette(ctx, p, 1);
 }
 
-const LOADER_SCENES = [
-  { field:"Sport",    label:"Rugby",     draw:drawRugby },
-  { field:"Kultuur",  label:"Ballet",    draw:drawLeap },
-  { field:"Akademie", label:"Gradeplegtigheid", draw:drawGraduate },
-  { field:"Sport",    label:"Netbal",    draw:drawNetball },
-  { field:"Kultuur",  label:"Viool",     draw:drawViolin },
-  { field:"Akademie", label:"Wiskunde",  draw:drawBoard }
+/* --- Sport: hurdles (athletics) — the runner clears a hurdle */
+const HURDLE = [
+  [0,   { head:[8,-52], neck:[6,-41], hip:[0,0], lElbow:[13,-27], lHand:[22,-17], rElbow:[-10,-26], rHand:[-17,-14],
+          lKnee:[13,24], lFoot:[6,52], rKnee:[-9,25], rFoot:[-25,40] }],
+  [.5,  { head:[17,-47], neck:[12,-37], hip:[0,0], lElbow:[27,-30], lHand:[41,-27], rElbow:[-9,-26], rHand:[-19,-15],
+          lKnee:[-20,-2], lFoot:[-36,11], rKnee:[25,-4], rFoot:[51,-6] }],
+  [1,   { head:[8,-52], neck:[6,-41], hip:[0,0], lElbow:[-10,-26], lHand:[-17,-14], rElbow:[13,-27], rHand:[22,-17],
+          lKnee:[-9,25], lFoot:[-25,40], rKnee:[13,24], rFoot:[6,52] }]
 ];
-let loaderStep = Math.floor(Math.random() * LOADER_SCENES.length);
+function drawHurdles(ctx, t){
+  ctx.fillStyle = SIL;                                 // the hurdle
+  ctx.fillRect(122, 128, 4, 38); ctx.fillRect(140, 128, 4, 38);
+  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(116, 124, 34, 6);
+  const x = lerp(46, 200, t), lift = t > .25 && t < .75 ? Math.sin(Math.PI * (t - .25) / .5) : 0;
+  const y = 109 - 24 * lift;
+  shadow(ctx, x, 24 - 8 * lift, .1);
+  const p = poseAt(HURDLE, t), at = {};
+  for (const k in p) at[k] = [p[k][0] + x, p[k][1] + y];
+  silhouette(ctx, at, 1);
+  ctx.strokeStyle = "rgba(90,183,214,.45)"; ctx.lineWidth = 2;           // speed lines
+  for (let i = 0; i < 3; i++){ ctx.beginPath(); ctx.moveTo(x - 34 - i * 6, y - 30 + i * 14); ctx.lineTo(x - 52 - i * 6, y - 30 + i * 14); ctx.stroke(); }
+}
+
+/* --- Sport: cricket — the batter drives the ball away */
+const BAT = [
+  [0,   { head:[104,54], neck:[103,65], hip:[98,106], lElbow:[94,80], lHand:[87,70], rElbow:[100,83], rHand:[91,73],
+          lKnee:[112,134], lFoot:[118,164], rKnee:[89,134], rFoot:[83,164], bat:[70,46] }],
+  [.5,  { head:[109,55], neck:[107,66], hip:[100,106], lElbow:[115,88], lHand:[121,100], rElbow:[111,90], rHand:[119,103],
+          lKnee:[114,134], lFoot:[120,164], rKnee:[90,135], rFoot:[84,164], bat:[150,124] }],
+  [1,   { head:[110,54], neck:[108,65], hip:[100,106], lElbow:[118,66], lHand:[127,53], rElbow:[115,68], rHand:[124,56],
+          lKnee:[114,134], lFoot:[120,164], rKnee:[92,135], rFoot:[88,164], bat:[110,28] }]
+];
+function drawCricket(ctx, t){
+  ctx.fillStyle = SIL;                                 // stumps behind the batter
+  for (const x of [64, 70, 76]) ctx.fillRect(x, 128, 3, 38);
+  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(63, 126, 15, 2.5);
+  shadow(ctx, 102, 28);
+  const p = poseAt(BAT, t);
+  silhouette(ctx, p, 1, (c, q) => {                    // the bat, gripped in both hands
+    const grip = lerpPt(q.lHand, q.rHand, .5);
+    c.fillStyle = SIL; limb(c, grip, lerpPt(grip, q.bat, .35), 3.5, 4); limb(c, lerpPt(grip, q.bat, .35), q.bat, 8, 9);
+  });
+  let ball;
+  if (t < .5){
+    const u = t / .5;
+    ball = u < .6 ? lerpPt([238, 112], [184, 158], u / .6) : lerpPt([184, 158], [150, 122], (u - .6) / .4);
+  } else ball = bezier([150, 122], [200, 40], [240, 18], (t - .5) / .5);
+  ctx.fillStyle = SIL_ACCENT; disc(ctx, ball, 4.5);
+  if (t > .5 && t < .62){ ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 2;   // the crack of the hit
+    for (const a of [-.9, -.4, .1]){ ctx.beginPath(); ctx.moveTo(150 + Math.cos(a) * 9, 122 + Math.sin(a) * 9); ctx.lineTo(150 + Math.cos(a) * 16, 122 + Math.sin(a) * 16); ctx.stroke(); } }
+}
+
+/* --- Sport: hockey — a hit along the turf */
+const HOCKEY = [
+  [0,   { head:[96,66], neck:[98,77], hip:[88,110], lElbow:[90,94], lHand:[82,86], rElbow:[96,96], rHand:[88,90],
+          lKnee:[104,136], lFoot:[110,164], rKnee:[80,138], rFoot:[74,164], stick:[60,62] }],
+  [.45, { head:[105,67], neck:[104,78], hip:[92,110], lElbow:[108,98], lHand:[114,108], rElbow:[104,100], rHand:[110,113],
+          lKnee:[106,136], lFoot:[112,164], rKnee:[82,138], rFoot:[76,164], stick:[138,160] }],
+  [1,   { head:[108,66], neck:[106,77], hip:[93,110], lElbow:[116,86], lHand:[128,80], rElbow:[112,88], rHand:[124,84],
+          lKnee:[106,136], lFoot:[112,164], rKnee:[84,138], rFoot:[78,164], stick:[160,62] }]
+];
+function drawHockey(ctx, t){
+  ctx.fillStyle = "rgba(90,183,214,.12)"; ctx.fillRect(0, 166, 240, 4);   // the turf
+  shadow(ctx, 94, 28);
+  const p = poseAt(HOCKEY, t);
+  silhouette(ctx, p, 1, (c, q) => {
+    const grip = lerpPt(q.lHand, q.rHand, .5), dir = Math.atan2(q.stick[1] - grip[1], q.stick[0] - grip[0]);
+    c.fillStyle = SIL; limb(c, grip, q.stick, 3.5, 3.5);
+    limb(c, q.stick, [q.stick[0] + Math.cos(dir + 1.9) * 9, q.stick[1] + Math.sin(dir + 1.9) * 9], 4, 4);   // the hook
+  });
+  const u = clamp01((t - .45) / .35);
+  const ball = [lerp(146, 246, u), 161];
+  ctx.fillStyle = SIL; disc(ctx, ball, 4.2);
+  if (u > 0 && u < 1){ ctx.strokeStyle = "rgba(243,246,249,.4)"; ctx.lineWidth = 1.5;
+    for (let i = 1; i <= 3; i++){ ctx.beginPath(); ctx.moveTo(ball[0] - 8 - i * 7, 158 + i); ctx.lineTo(ball[0] - 14 - i * 7, 158 + i); ctx.stroke(); } }
+}
+
+/* --- Kultuur: singer under a spotlight */
+const SINGER = [
+  [0,   { head:[112,50], neck:[110,62], hip:[106,106], lElbow:[124,80], lHand:[134,92], rElbow:[118,76], rHand:[118,60],
+          lKnee:[112,135], lFoot:[116,164], rKnee:[102,135], rFoot:[98,164] }],
+  [.5,  { head:[114,47], neck:[111,59], hip:[106,104], lElbow:[128,60], lHand:[146,46], rElbow:[119,73], rHand:[119,57],
+          lKnee:[112,134], lFoot:[116,164], rKnee:[102,134], rFoot:[98,164] }],
+  [1,   { head:[112,50], neck:[110,62], hip:[106,106], lElbow:[124,80], lHand:[134,92], rElbow:[118,76], rHand:[118,60],
+          lKnee:[112,135], lFoot:[116,164], rKnee:[102,135], rFoot:[98,164] }]
+];
+function spotlight(ctx, x){
+  const g = ctx.createLinearGradient(0, 0, 0, 170);
+  g.addColorStop(0, "rgba(243,246,249,.16)"); g.addColorStop(1, "rgba(243,246,249,.03)");
+  ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(x - 8, 0); ctx.lineTo(x + 8, 0); ctx.lineTo(x + 46, 168); ctx.lineTo(x - 46, 168); ctx.fill();
+}
+function drawSinger(ctx, t){
+  spotlight(ctx, 110);
+  shadow(ctx, 108, 26, .14);
+  silhouette(ctx, poseAt(SINGER, t), 1, (c, q) => {    // the microphone at the mouth
+    c.fillStyle = SIL_ACCENT; limb(c, q.rHand, [q.rHand[0] + 4, q.rHand[1] - 7], 3, 5.5); c.fillStyle = SIL;
+  });
+  [[0, 132, 46, false], [.25, 148, 36, true], [.5, 138, 28, false]].forEach(([d, x, y, dbl]) => {
+    const u = clamp01((t - d) / .55);
+    if (u > 0) note(ctx, x + u * 14, y - u * 24, Math.sin(Math.PI * u), dbl);
+  });
+}
+
+/* --- Kultuur: drama — a bow on stage, between the curtains */
+const BOW = [
+  [0,   { head:[120,48], neck:[120,60], hip:[118,104], lElbow:[136,70], lHand:[150,60], rElbow:[104,70], rHand:[90,60],
+          lKnee:[122,134], lFoot:[124,164], rKnee:[114,134], rFoot:[110,164] }],
+  [.55, { head:[141,73], neck:[134,79], hip:[118,104], lElbow:[112,74], lHand:[96,62], rElbow:[132,95], rHand:[124,101],
+          lKnee:[124,134], lFoot:[128,164], rKnee:[112,134], rFoot:[104,164] }],
+  [1,   { head:[120,48], neck:[120,60], hip:[118,104], lElbow:[136,70], lHand:[150,60], rElbow:[104,70], rHand:[90,60],
+          lKnee:[122,134], lFoot:[124,164], rKnee:[114,134], rFoot:[110,164] }]
+];
+function drawDrama(ctx, t){
+  ctx.fillStyle = "rgba(90,183,214,.28)";             // curtains with folds
+  for (const side of [0, 1]){
+    ctx.beginPath();
+    const x0 = side ? 240 : 0, w = 46 * (side ? -1 : 1);
+    ctx.moveTo(x0, 0); ctx.lineTo(x0 + w, 0);
+    for (let y = 0; y <= 170; y += 34) ctx.quadraticCurveTo(x0 + w - 8 * Math.sign(w), y + 17, x0 + w, y + 34);
+    ctx.lineTo(x0, 170); ctx.fill();
+  }
+  spotlight(ctx, 120);
+  shadow(ctx, 118, 26, .14);
+  silhouette(ctx, poseAt(BOW, t), 1);
+  if (t > .5){ const a = Math.sin(Math.PI * clamp01((t - .5) / .5));         // applause sparkle
+    ctx.globalAlpha = a; ctx.fillStyle = SIL_ACCENT;
+    for (const [x, y] of [[70, 40], [172, 34], [62, 86], [180, 80]]) { ctx.save(); ctx.translate(x, y); ctx.rotate(.785); ctx.fillRect(-3, -3, 6, 6); ctx.restore(); }
+    ctx.globalAlpha = 1; }
+}
+
+/* --- Kultuur: painter at the easel */
+function drawPainter(ctx, t){
+  ctx.fillStyle = SIL;                                 // easel
+  limb(ctx, [160, 40], [146, 166], 3, 3); limb(ctx, [178, 40], [192, 166], 3, 3); limb(ctx, [169, 40], [169, 166], 3, 3);
+  ctx.fillStyle = "#eef3f7"; ctx.fillRect(138, 30, 62, 50);
+  const prog = clamp01(t / .9);
+  // the painting: hills, then the sun
+  const hills = s => [142 + s * 54, 68 - 12 * Math.sin(s * Math.PI * 2.2) * (1 - s * .3)];
+  ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 3; ctx.beginPath();
+  const hp = clamp01(prog / .65);
+  for (let i = 0; i <= 30 * hp; i++){ const [x, y] = hills(i / 30); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+  ctx.stroke();
+  const sp = clamp01((prog - .65) / .35);
+  if (sp > 0){ ctx.strokeStyle = "#0b6a8a"; ctx.beginPath(); ctx.arc(184, 44, 6, -Math.PI / 2, -Math.PI / 2 + sp * Math.PI * 2); ctx.stroke(); }
+  const tip = sp > 0 ? [184 + Math.cos(-Math.PI / 2 + sp * Math.PI * 2) * 6, 44 + Math.sin(-Math.PI / 2 + sp * Math.PI * 2) * 6] : hills(hp);
+  const brushEnd = [tip[0] - 12, tip[1] + 10];        // the hand holds the brush 12 px back
+  const sh = [112, 74], mid = lerpPt(sh, brushEnd, .5), elbow = [mid[0] - 2, mid[1] + 12];
+  const p = { head:[110,58], neck:[112,70], hip:[109,112], lElbow:[104,92], lHand:[96,100], rElbow:elbow, rHand:brushEnd,
+              lKnee:[113,139], lFoot:[115,164], rKnee:[104,139], rFoot:[102,164] };
+  shadow(ctx, 110, 24);
+  silhouette(ctx, p, 1);
+  ctx.fillStyle = SIL; limb(ctx, brushEnd, tip, 2.4, 2); ctx.fillStyle = SIL_ACCENT; disc(ctx, tip, 2.4);
+  ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.ellipse(92, 102, 9, 6, -.3, 0, Math.PI * 2); ctx.fill();   // palette
+}
+
+/* --- Akademie: reading — pages turn */
+function drawReader(ctx, t){
+  ctx.fillStyle = SIL;                                 // stool
+  ctx.fillRect(80, 118, 32, 5); limb(ctx, [84, 122], [80, 166], 3, 3); limb(ctx, [108, 122], [112, 166], 3, 3);
+  const nod = Math.sin(t * Math.PI * 2) * 1.2;
+  const p = { head:[103,62 + nod], neck:[100,74], hip:[96,116], lElbow:[112,104], lHand:[126,96], rElbow:[110,108], rHand:[124,100],
+              lKnee:[126,118], lFoot:[128,164], rKnee:[121,121], rFoot:[121,164] };
+  shadow(ctx, 104, 30);
+  silhouette(ctx, p, 1);
+  // the open book in the hands, a page turning twice
+  const bx = 130, by = 92;
+  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx - 20, by - 2); ctx.lineTo(bx - 20, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx + 20, by - 2); ctx.lineTo(bx + 20, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
+  ctx.strokeStyle = "rgba(1,33,58,.5)"; ctx.lineWidth = 1.2; ctx.beginPath();
+  for (const k of [0, 6, 12]){ ctx.moveTo(bx - 16, by - 18 + k); ctx.lineTo(bx - 4, by - 14 + k); ctx.moveTo(bx + 4, by - 14 + k); ctx.lineTo(bx + 16, by - 18 + k); }
+  ctx.stroke();
+  const flip = (t * 2) % 1, w = Math.cos(easeInOut(flip) * Math.PI);  // 1 → -1
+  ctx.fillStyle = SIL_ACCENT; ctx.beginPath(); ctx.moveTo(bx, by + 4); ctx.lineTo(bx + 20 * w, by - 2); ctx.lineTo(bx + 20 * w, by - 24); ctx.lineTo(bx, by - 18); ctx.fill();
+  silhouetteHandsOnBook(ctx, p);
+}
+function silhouetteHandsOnBook(ctx, p){ ctx.fillStyle = SIL; disc(ctx, p.rHand, 4); }
+
+/* --- Akademie: science — pouring into a flask, bubbles rise */
+function drawScience(ctx, t){
+  const tilt = easeInOut(clamp01(t / .35)) * 1.9;      // the test tube tips over
+  const p = { head:[100,52], neck:[100,64], hip:[98,108], lElbow:[116,62], lHand:[128,50], rElbow:[112,90], rHand:[128,96],
+              lKnee:[102,136], lFoot:[104,164], rKnee:[94,136], rFoot:[92,164] };
+  shadow(ctx, 100, 24);
+  silhouette(ctx, p, 1);
+  // flask in the near hand
+  const fx = 140, fy = 104, level = 4 + 10 * clamp01((t - .3) / .4);
+  ctx.save(); ctx.beginPath(); ctx.moveTo(fx - 4, fy - 30); ctx.lineTo(fx + 4, fy - 30); ctx.lineTo(fx + 4, fy - 18);
+  ctx.lineTo(fx + 16, fy); ctx.lineTo(fx - 16, fy); ctx.lineTo(fx - 4, fy - 18); ctx.closePath();
+  ctx.fillStyle = "rgba(243,246,249,.18)"; ctx.fill(); ctx.clip();
+  ctx.fillStyle = SIL_ACCENT; ctx.fillRect(fx - 18, fy - level, 36, level); ctx.restore();
+  ctx.strokeStyle = SIL; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(fx - 4, fy - 30); ctx.lineTo(fx - 4, fy - 18); ctx.lineTo(fx - 16, fy);
+  ctx.lineTo(fx + 16, fy); ctx.lineTo(fx + 4, fy - 18); ctx.lineTo(fx + 4, fy - 30); ctx.stroke();
+  // test tube in the far hand
+  ctx.save(); ctx.translate(p.lHand[0], p.lHand[1]); ctx.rotate(tilt);
+  ctx.strokeStyle = SIL; ctx.lineWidth = 2.5; ctx.strokeRect(-3, -18, 6, 20);
+  if (tilt < 1.5){ ctx.fillStyle = SIL_ACCENT; ctx.fillRect(-2, -6, 4, 7); }
+  ctx.restore();
+  if (t > .2 && t < .45){ const u = (t - .2) / .25; ctx.fillStyle = SIL_ACCENT; disc(ctx, [lerp(134, 140, u), lerp(48, 80, u)], 2.4); }
+  for (let i = 0; i < 5; i++){                         // bubbles
+    const u = clamp01((t - .5 - i * .08) / .4);
+    if (u <= 0 || u >= 1) continue;
+    ctx.globalAlpha = 1 - u; ctx.strokeStyle = SIL_ACCENT; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.arc(fx - 3 + (i % 3) * 3 + Math.sin(u * 8 + i) * 3, fy - 34 - u * 46, 2 + (i % 2), 0, Math.PI * 2); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+/* --- Akademie: coding — typing, lines of code appear */
+function drawCoder(ctx, t){
+  ctx.fillStyle = SIL;                                 // desk and stool
+  ctx.fillRect(118, 116, 92, 5); limb(ctx, [124, 120], [124, 166], 3, 3); limb(ctx, [204, 120], [204, 166], 3, 3);
+  ctx.fillRect(72, 122, 30, 5); limb(ctx, [76, 126], [74, 166], 3, 3); limb(ctx, [98, 126], [100, 166], 3, 3);
+  // laptop (screen towards the viewer so the code shows)
+  ctx.fillStyle = SIL; ctx.fillRect(140, 72, 46, 40);
+  ctx.fillStyle = "#0a3050"; ctx.fillRect(143, 75, 40, 33);
+  ctx.fillStyle = SIL; ctx.beginPath(); ctx.moveTo(134, 116); ctx.lineTo(192, 116); ctx.lineTo(188, 112); ctx.lineTo(138, 112); ctx.fill();
+  const lines = Math.floor(t * 9);
+  [[30, 0], [22, 6], [34, 6], [18, 12], [28, 6], [24, 0], [32, 6], [16, 12], [26, 0]].slice(0, lines).forEach(([w, ind], i) => {
+    ctx.fillStyle = i % 3 === 2 ? SIL : SIL_ACCENT; ctx.fillRect(146 + ind * .6, 78 + i * 3.4, w * .85, 1.8);
+  });
+  if (Math.floor(t * 10) % 2){ ctx.fillStyle = SIL; ctx.fillRect(146, 78 + lines * 3.4, 3, 2); }
+  const tap = Math.sin(t * Math.PI * 14);
+  const p = { head:[94,64], neck:[94,76], hip:[90,120], lElbow:[110,108], lHand:[142,110 - Math.max(0, tap) * 3], rElbow:[108,112], rHand:[138,112 - Math.max(0, -tap) * 3],
+              lKnee:[118,120], lFoot:[118,164], rKnee:[114,123], rFoot:[112,164] };
+  shadow(ctx, 100, 34);
+  silhouette(ctx, p, 1);
+}
+
+// Five scenes per field. Fields take turns (Sport, Kultuur, Akademie, ...);
+// within a field a scene can't come back until three others of that field
+// have played. The last three per field are remembered between visits.
+const LOADER_FIELDS = ["Sport", "Kultuur", "Akademie"];
+const LOADER_SCENES = {
+  Sport:    [{ label:"Rugby", draw:drawRugby }, { label:"Netbal", draw:drawNetball }, { label:"Hekkies", draw:drawHurdles },
+             { label:"Krieket", draw:drawCricket }, { label:"Hokkie", draw:drawHockey }],
+  Kultuur:  [{ label:"Ballet", draw:drawLeap }, { label:"Viool", draw:drawViolin }, { label:"Sang", draw:drawSinger },
+             { label:"Toneel", draw:drawDrama }, { label:"Kuns", draw:drawPainter }],
+  Akademie: [{ label:"Gradeplegtigheid", draw:drawGraduate }, { label:"Wiskunde", draw:drawBoard }, { label:"Lees", draw:drawReader },
+             { label:"Wetenskap", draw:drawScience }, { label:"Kodering", draw:drawCoder }]
+};
+const SCENE_MEMORY = 3;
+const sceneHistory = (() => {
+  const saved = loadJSON("garsie.sceneHistory") || {};
+  return Object.fromEntries(LOADER_FIELDS.map(f => [f, Array.isArray(saved[f]) ? saved[f].filter(l => LOADER_SCENES[f].some(sc => sc.label === l)).slice(-SCENE_MEMORY) : []]));
+})();
+function pickScene(field){
+  const recent = sceneHistory[field];
+  const free = LOADER_SCENES[field].filter(sc => !recent.includes(sc.label));
+  const sc = free[Math.floor(Math.random() * free.length)];
+  recent.push(sc.label);
+  if (recent.length > SCENE_MEMORY) recent.shift();
+  saveJSON("garsie.sceneHistory", sceneHistory);
+  return sc;
+}
+let loaderField = Math.floor(Math.random() * LOADER_FIELDS.length);
+let loaderScene = pickScene(LOADER_FIELDS[loaderField]);
 let loaderFrame = null, loaderSceneStart = 0;
 
 function loaderHtml(){
-  const sc = LOADER_SCENES[loaderStep];
+  const field = LOADER_FIELDS[loaderField];
   return `<div class="loader">
-    <canvas class="loader-canvas" id="loader-canvas" width="240" height="180" role="img" aria-label="${sc.field}: ${sc.label}"></canvas>
-    <div class="loader-fields" aria-hidden="true">${["Sport","Kultuur","Akademie"].map(f =>
-      `<span data-field="${f}" class="${f === sc.field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
+    <canvas class="loader-canvas" id="loader-canvas" width="240" height="180" role="img" aria-label="${field}: ${loaderScene.label}"></canvas>
+    <div class="loader-fields" aria-hidden="true">${LOADER_FIELDS.map(f =>
+      `<span data-field="${f}" class="${f === field ? "on" : ""}">${f}</span>`).join("<i></i>")}</div>
     <p class="sr-only" role="status">Laai…</p>
   </div>`;
 }
@@ -1151,17 +1406,18 @@ function startLoader(){
     if (cv.width !== 240 * dpr){ cv.width = 240 * dpr; cv.height = 180 * dpr; }
     let t = (now - loaderSceneStart) / SCENE_MS;
     if (t >= 1){                                       // next field's turn
-      loaderStep = (loaderStep + 1) % LOADER_SCENES.length;
+      loaderField = (loaderField + 1) % LOADER_FIELDS.length;
+      const field = LOADER_FIELDS[loaderField];
+      loaderScene = pickScene(field);
       loaderSceneStart = now; t = 0;
-      const sc = LOADER_SCENES[loaderStep];
-      cv.setAttribute("aria-label", `${sc.field}: ${sc.label}`);
-      document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === sc.field));
+      cv.setAttribute("aria-label", `${field}: ${loaderScene.label}`);
+      document.querySelectorAll(".loader-fields span").forEach(el => el.classList.toggle("on", el.dataset.field === field));
     }
     const ctx = cv.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, 240, 180);
     ctx.lineCap = "round"; ctx.lineJoin = "round";
-    LOADER_SCENES[loaderStep].draw(ctx, still ? .5 : t);
+    loaderScene.draw(ctx, still ? .5 : t);
     loaderFrame = requestAnimationFrame(frame);
   };
   loaderFrame = requestAnimationFrame(frame);
@@ -1261,7 +1517,7 @@ function calendarHeader(){
   const navBtn = (dir, label, ic) => `<button data-action="cal-${dir}" aria-label="${label} ${unit}"
     style="width:32px;height:32px;border-radius:16px;border:none;background:var(--surface-2);display:flex;align-items:center;justify-content:center">${icon(ic,16,"var(--brand-text)")}</button>`;
   return `<div style="padding:6px 16px 0">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:42px;padding-right:48px">
       <div style="display:flex;align-items:center;gap:8px;min-width:0">
         <button data-action="cal-today" class="mini-btn" ${onToday ? "disabled" : ""}>Vandag</button>
         <div role="group" aria-label="Kalenderaansig" style="display:inline-flex;background:var(--hairline);border-radius:16px;padding:3px">
@@ -2150,13 +2406,8 @@ function screenMine(){
   let html = `<div style="position:absolute;inset:0;background:var(--myne-bg);padding:16px 14px 0;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:center;max-width:1100px;margin:0 auto;color:#c4d3df;font-size:13px;min-height:38px">
       <span>Hallo, ${esc(state.user.name || state.user.email.split("@")[0] || "Garsie")}${state.user.grade ? " · " + esc(state.user.grade) : ""}</span>
-      <span style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end">
-        ${isPhone() && !isStandalone() ? `<button data-action="install-help" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Sit op tuisskerm</button>` : ""}
-        <button data-action="signout" style="background:none;border:.5px solid rgba(173,205,226,.35);color:#fff;border-radius:14px;padding:4px 12px;font-size:12px">Teken uit</button>
-      </span>
     </div>
     <h1 style="font-size:30px;color:#fff;margin:6px auto 10px;max-width:1100px">My program</h1>
-    <div id="push-card" style="max-width:1100px;margin:0 auto">${pushCardHtml()}</div>
     <div style="max-width:1100px;margin:0 auto 12px">${filterChips(true)}</div>
     <div style="max-width:1100px;margin:0 auto">`;
 
@@ -2184,10 +2435,49 @@ function screenMine(){
   html += monthGroups("mine", mine, evs => evs.map(card).join(""), { dark: true, wrap: h => `<div class="mine-grid">${h}</div>` });
 
   return html + `</div>
-    <div style="max-width:1100px;margin:28px auto 0;text-align:center">
-      <button data-action="delete-account" style="background:none;border:none;color:#8fa6ba;font-size:13px;text-decoration:underline;padding:8px">Skrap my rekening</button>
-    </div>
     <div style="height:90px"></div></div>`;
+}
+
+/* --- Instellings (the gear, top right) ------------------------------------
+   Profile (a learner's grade changes every year), notifications, the app
+   (home screen, privacy notice) and the account (sign out, delete).
+------------------------------------------------------------------------- */
+function screenSettings(){
+  const u = state.user;
+  return `<div class="panel"><div class="content" style="max-width:560px">
+    <button data-action="close-settings" aria-label="Terug" style="width:36px;height:36px;border-radius:18px;background:var(--surface-2);border:none;display:flex;align-items:center;justify-content:center">${icon("left",20,"var(--brand-text)")}</button>
+    <h1 style="margin:10px 0 2px">Instellings</h1>
+    <div style="font-size:13px;color:var(--muted)">${esc(u.email)}</div>
+
+    <section class="settings-section">
+      <h2>Profiel</h2>
+      <form data-form="settings-profile" novalidate class="card">
+        ${profileFields(u)}
+        <button class="btn-primary" type="submit">Stoor profiel</button>
+      </form>
+    </section>
+
+    <section class="settings-section">
+      <h2>Kennisgewings</h2>
+      <div id="push-card">${pushCardHtml()}</div>
+    </section>
+
+    <section class="settings-section">
+      <h2>App</h2>
+      <div class="card" style="padding:0 14px">
+        ${isPhone() && !isStandalone() ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>` : ""}
+        <button class="settings-row" data-action="privacy-open"><span>Privaatheidskennisgewing</span>${icon("right",16,"var(--muted)")}</button>
+      </div>
+    </section>
+
+    <section class="settings-section">
+      <h2>Rekening</h2>
+      <div class="card" style="padding:0 14px">
+        <button class="settings-row" data-action="signout"><span>Teken uit</span>${icon("right",16,"var(--muted)")}</button>
+        <button class="settings-row" data-action="delete-account" style="color:var(--danger)"><span>Skrap my rekening</span>${icon("trash",16,"var(--danger)")}</button>
+      </div>
+    </section>
+  </div></div>`;
 }
 
 /* --- 6e. Event detail ---------------------------------------------------
@@ -2593,6 +2883,10 @@ const tabbarEl = document.getElementById("tabbar");
 function render(){
   // Not signed in: the auth screen replaces the whole app, tab bar included.
   tabbarEl.style.display = state.user && !state.loading && !state.needsConsent ? "" : "none";
+  const gearBtn = document.getElementById("settings-btn");
+  gearBtn.style.display = tabbarEl.style.display === "none" ? "none" : "";
+  gearBtn.innerHTML = icon("gear", 19);
+  gearBtn.classList.toggle("on", !!state.settingsOpen);
   unmountMaps(); stopScanner(); stopQrTicker();
   if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); startLoader(); return; }
   if (state.session && state.needsProfile){ screenEl.innerHTML = screenProfile(); return; }
@@ -2607,7 +2901,8 @@ function render(){
   if (state.qrEventId != null && !(eventById(state.qrEventId) && canAdmin(eventById(state.qrEventId)))) state.qrEventId = null;
 
   const keepMonthScroll = (document.getElementById("monthview") || {}).scrollTop;
-  screenEl.innerHTML = state.qrEventId != null ? screenQr()
+  screenEl.innerHTML = state.settingsOpen ? screenSettings()
+                     : state.qrEventId != null ? screenQr()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
   if (!maybeOfferInstall()) maybeOfferPush();
@@ -2645,6 +2940,7 @@ function handle(target){
     state.tab = target.dataset.tab;
     state.qrEventId = null;
     state.openEventId = null;
+    state.settingsOpen = false;
   } else if (target.dataset.event){
     state.openEventId = Number(target.dataset.event);
   } else if (target.dataset.filter){
@@ -2742,6 +3038,8 @@ function handle(target){
         return;
       }
       case "signout":        signOut(); return;
+      case "open-settings":  state.settingsOpen = !state.settingsOpen; state.openEventId = null; state.qrEventId = null; break;
+      case "close-settings": state.settingsOpen = false; break;
       case "delete-account": openDeleteAccount(); return;
       case "push-on":        enablePush(); return;
       case "install-help":   openInstallHelp(); return;
@@ -2888,6 +3186,18 @@ phoneEl.addEventListener("submit", async ev => {
     busy(false);
     if (error){ toast(dbMessage(error)); return; }
     await loadAll(); render();
+    return;
+  }
+
+  if (form.dataset.form === "settings-profile"){
+    const [p, errors] = checkProfile(data);
+    if (!showErrors(form, errors)) return;
+    busy(true);
+    const { error } = await sb.from("profiles").update({ name:p.name, surname:p.surname, grade:p.grade, gender:p.gender || null }).eq("id", state.user.id);
+    busy(false);
+    if (error){ toast(dbMessage(error)); return; }
+    await loadAll(); render();
+    toast("Profiel gestoor");
     return;
   }
 
@@ -3307,7 +3617,7 @@ function isPhone(){ return isIos() || isAndroid() || matchMedia("(pointer:coarse
    what they'll see. Why it matters: on iPhone notifications only work from the
    home screen, and Safari forgets a website's sign-in after 7 days without
    use. Asked once (bump the key to ask everyone again); the "Sit op
-   tuisskerm" button on My program opens it any time.
+   tuisskerm" row in Instellings opens it any time.
    The steps use the English button names: that's what most phones show. */
 const INSTALL_KEY = "garsie.installAsked.v2";
 let installEvent = null;          // Android/Chrome: lets us show the real "Install" prompt
@@ -3727,7 +4037,7 @@ async function signOut(){
   try { if (sb) await sb.auth.signOut({ scope:"local" }); } catch {}
   saveJSON(CACHE_KEY, null);                    // don't leave data behind on a shared phone
   Object.assign(state, { session:null, user:null, needsProfile:false, offline:false, mapEventId:null,
-                         tab:"calendar", openEventId:null, editingId:null, qrEventId:null,
+                         tab:"calendar", openEventId:null, editingId:null, qrEventId:null, settingsOpen:false,
                          auth:{ mode:"signin", step:"details", draft:{} } });
   DEPARTMENTS = []; EVENTS = []; ADMINS = []; CHECKINS = {}; STATS = {}; state.supported = new Set();
   render();
