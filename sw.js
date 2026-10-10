@@ -6,7 +6,7 @@
    It also receives push notifications (see "Push" at the bottom).
 
    Bump CACHE whenever LIBS change, so phones fetch the new files. */
-const CACHE = "garsie-v5";
+const CACHE = "garsie-v6";
 const APP = "./garsie-army-prototype.html";
 const FILES = ["./manifest.json", "./icons/icon-192.png", "./icons/badge-96.png"];
 // The map library (~1 MB) is saved the first time a map is shown, not at

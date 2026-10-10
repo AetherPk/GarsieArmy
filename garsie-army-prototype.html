@@ -277,6 +277,25 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .switch::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
 .switch.on::after{left:16px}
 .notify-box>summary{cursor:pointer;font-size:14px;padding:4px 0;color:var(--shadow-ink)}
+/* Department chip with a dropdown of its subafdelings (the arrow part holds
+   an invisible <select>, so the phone's own list opens). */
+.chip-split{flex:none;display:inline-flex}
+.chip-split .chip-left{border-radius:14px 0 0 14px;padding-right:8px}
+.chip-caret{position:relative;padding:5px 9px 5px 7px;border-radius:0 14px 14px 0;margin-left:-1px;cursor:pointer}
+.chip-caret svg{transform:rotate(90deg)}
+.chip-caret select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;border:none}
+/* Bestuur ▸ group: people found while typing */
+.person-results{margin-top:6px;border-radius:12px;overflow:hidden}
+.person-results:not(:empty){border:.5px solid var(--hairline)}
+.person-results button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface);border:none;border-bottom:.5px solid var(--hairline);padding:9px 12px;color:var(--shadow-ink);cursor:pointer;font-family:inherit}
+.person-results button:last-child{border-bottom:none}
+.person-results button:disabled{opacity:.6;cursor:default}
+.person-results small{display:block;font-size:12px;color:var(--muted);word-break:break-all}
+.person-empty{padding:9px 12px;font-size:13px;color:var(--muted);background:var(--surface)}
+/* Soek: the microphone while it listens */
+#mic-btn.listening{animation:mic-pulse 1s ease-in-out infinite}
+#mic-btn.listening svg{stroke:var(--brand-text)}
+@keyframes mic-pulse{50%{opacity:.35}}
 .check-chip{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:12px;border:.5px solid var(--hairline);background:var(--surface);font-size:14px;cursor:pointer;color:var(--shadow-ink)}
 .check-chip:has(input:checked){border-color:var(--brand);background:var(--brand-wash)}
 .audience-badge{font-size:12px;padding:3px 10px;border-radius:10px;background:var(--surface-2);color:var(--shadow-ink);display:inline-flex;align-items:center;gap:4px}
@@ -556,8 +575,13 @@ function audienceLabel(e){
   return parts.join(" · ");
 }
 
-// Shared department filter (state.filter is "Alles" or a department id).
-function passesFilter(e){ return state.filter === "Alles" || e.department === state.filter; }
+// Shared department filter: state.filter is "Alles", a department id, or
+// "g:" + a subafdeling id (picked from the chip's dropdown).
+function passesFilter(e){
+  if (state.filter === "Alles") return true;
+  if (state.filter.startsWith("g:")) return e.group === state.filter.slice(2);
+  return e.department === state.filter;
+}
 
 /* ---------------------------------------------------------------------------
    ROLES & PERMISSIONS
@@ -1545,15 +1569,28 @@ function readableOn(colour){ return isHexColour(colour) && luminance(colour) > 0
 
 // Department filter chips, shared by Kalender, Soek and Myne so the choice
 // carries across tabs. New departments show up here automatically.
+// A department with subafdelings gets an arrow on the right of its chip:
+// a dropdown with "Hele <afdeling>" and each subafdeling.
 function filterChips(onDark = false){
-  const chip = (value, label, colour) => {
-    const active = state.filter === value;
-    const text = readableOn(colour);
-    const style = active ? `background:${colour};border-color:${colour};color:${text}` : "";
-    return `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""}" data-filter="${esc(value)}" style="${style}" aria-pressed="${active}">
-      ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? text : colour}"></span>`}${esc(label)}</button>`;
+  const look = (active, colour) => active ? `background:${colour};border-color:${colour};color:${readableOn(colour)}` : "";
+  const chip = (value, label, colour, active, extra = "") =>
+    `<button class="chip ${onDark ? "on-dark" : ""} ${active ? "is-active" : ""} ${extra}" data-filter="${esc(value)}" style="${look(active, colour)}" aria-pressed="${active}">
+      ${value === "Alles" ? "" : `<span class="dot" style="background:${active ? readableOn(colour) : colour}"></span>`}${esc(label)}</button>`;
+  const picked = state.filter.startsWith("g:") ? groupById(state.filter.slice(2)) : null;
+  const dept = d => {
+    const colour = deptById(d.id).colour, groups = groupsOf(d.id);
+    const inDept = state.filter === d.id || (!!picked && picked.department === d.id);
+    if (!groups.length) return chip(d.id, d.name, colour, inDept);
+    const label = picked && picked.department === d.id ? `${d.name} · ${picked.name}` : d.name;
+    return `<span class="chip-split">${chip(d.id, label, colour, inDept, "chip-left")}<span class="chip chip-caret ${onDark ? "on-dark" : ""} ${inDept ? "is-active" : ""}" style="${look(inDept, colour)}">
+        ${icon("right", 12, inDept ? readableOn(colour) : "currentColor")}
+        <select data-filter-select aria-label="Subafdelings van ${esc(d.name)}">
+          <option value="" disabled hidden ${inDept ? "" : "selected"}>Kies</option>
+          <option value="${esc(d.id)}" ${state.filter === d.id ? "selected" : ""}>Hele ${esc(d.name)}</option>
+          ${groups.map(g => `<option value="g:${esc(g.id)}" ${state.filter === "g:" + g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}
+        </select></span></span>`;
   };
-  return `<div class="chips">${chip("Alles", "Alles", "var(--brand-text)")}${DEPARTMENTS.map(d => chip(d.id, d.name, deptById(d.id).colour)).join("")}</div>`;
+  return `<div class="chips">${chip("Alles", "Alles", "var(--brand-text)", state.filter === "Alles")}${DEPARTMENTS.map(dept).join("")}</div>`;
 }
 
 // One event as a list row (Soek, and the day list under the month view).
@@ -2419,6 +2456,33 @@ function processPendingScan(){
   handleScan(token);
 }
 
+/* Dictation in Soek: the browser's own speech recognition (Chrome, Edge,
+   Safari). Afrikaans first; where the browser can't do Afrikaans, English.
+   Browsers without it (Firefox) don't show the microphone at all. */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+let recognizer = null;
+function dictate(lang = "af-ZA"){
+  if (!SpeechRec) return;
+  if (recognizer){ recognizer.stop(); return; }          // tap again to stop
+  const rec = recognizer = new SpeechRec();
+  rec.lang = lang; rec.interimResults = true; rec.maxAlternatives = 1;
+  const mic = () => document.getElementById("mic-btn"), box = () => document.getElementById("searchbox");
+  rec.onstart = () => { mic()?.classList.add("listening"); if (box()) box().placeholder = "Luister… praat nou"; };
+  rec.onresult = ev => {
+    state.query = [...ev.results].map(r => r[0].transcript).join(" ").trim().slice(0, LIMITS.search);
+    if (box()) box().value = state.query;
+    const results = document.getElementById("results");
+    if (results) results.innerHTML = searchResults();
+  };
+  rec.onerror = ev => {
+    if (ev.error === "language-not-supported" && lang !== "en-ZA"){ rec.onend = null; recognizer = null; dictate("en-ZA"); return; }
+    toast(ev.error === "not-allowed" || ev.error === "service-not-allowed" ? "Laat die mikrofoon toe in jou blaaier se instellings."
+        : ev.error === "no-speech" ? "Ek het niks gehoor nie. Probeer weer." : "Kon nie luister nie. Probeer weer.");
+  };
+  rec.onend = () => { recognizer = null; mic()?.classList.remove("listening"); if (box()) box().placeholder = "Naam, plek of datum, bv. 12 Okt"; };
+  try { rec.start(); } catch { recognizer = null; }
+}
+
 /* --- 6c. Soek -----------------------------------------------------------
    Search by name, department, place or date (any combination of words),
    over the loaded events, shown in month sections
@@ -2431,7 +2495,8 @@ function screenSearch(){
       ${icon("search",18,"var(--muted)")}
       <input id="searchbox" type="search" maxlength="${LIMITS.search}" autocomplete="off" value="${esc(state.query)}" placeholder="Naam, plek of datum, bv. 12 Okt" aria-label="Soek op naam, plek of datum"
         style="flex:1;min-width:0;border:none;outline:none;background:transparent;height:38px;font-size:16px;color:var(--shadow-ink)">
-      ${icon("mic",18,"var(--muted)")}
+      ${SpeechRec ? `<button data-action="dictate" id="mic-btn" aria-label="Praat om te soek" title="Praat om te soek"
+        style="background:none;border:none;padding:4px;display:flex;cursor:pointer">${icon("mic",18,"var(--muted)")}</button>` : ""}
     </div>
     <div style="margin:12px 0">${filterChips()}</div>
     <div id="results">${searchResults()}</div>
@@ -2687,7 +2752,9 @@ function screenSettings(){
     <section class="settings-section">
       <h2>App</h2>
       <div class="card" style="padding:0 14px">
-        ${isPhone() && !isStandalone() ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>` : ""}
+        ${isStandalone() ? "" : isPhone()
+          ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>`
+          : `<button class="settings-row" data-action="install-desktop"><span>Installeer die app op hierdie rekenaar</span>${icon("right",16,"var(--muted)")}</button>`}
         <button class="settings-row" data-action="privacy-open"><span>Privaatheidskennisgewing</span>${icon("right",16,"var(--muted)")}</button>
       </div>
     </section>
@@ -3135,8 +3202,13 @@ function screenGroup(){
       <div class="check-row" style="margin-bottom:10px">${radio(1, "Oop", g.open)}${radio(0, "Privaat", !g.open)}</div>
       <button class="btn-primary" type="submit">Stoor</button>
     </form>
+    <div class="card" style="margin-top:12px">
+      <label class="field" style="margin:0"><span>Soek iemand op naam, van of e-pos</span>
+        <input id="person-search" type="search" autocomplete="off" maxlength="60" placeholder="bv. Jan Smit"></label>
+      <div id="person-results" class="person-results" aria-live="polite"></div>
+    </div>
     <form data-form="add-members" class="card" novalidate style="margin-top:12px">
-      <label class="field"><span>Voeg mense by (e-posadresse, een per reël of met kommas)</span>
+      <label class="field"><span>Of plak 'n lys e-posadresse (een per reël of met kommas)</span>
         <textarea name="emails" placeholder="naam@voorbeeld.co.za"></textarea></label>
       <button class="btn-primary" type="submit">Voeg by</button>
     </form>
@@ -3179,6 +3251,36 @@ async function loadMemberList(groupId, deptId){
   state.memberList = error ? { key, rows:[], error:dbMessage(error) } : { key, rows:data };
   render();
 }
+// Typing in "Soek iemand": names that match, a moment after the last key.
+let peopleTimer = null, peopleSeq = 0;
+function searchPeople(q){
+  clearTimeout(peopleTimer);
+  const box = document.getElementById("person-results");
+  if (q.trim().length < 2){ peopleSeq++; if (box) box.innerHTML = ""; return; }
+  peopleTimer = setTimeout(async () => {
+    const seq = ++peopleSeq;
+    const { data, error } = await sb.rpc("admin_search_people", { p_query:q });
+    const out = document.getElementById("person-results");
+    if (seq !== peopleSeq || !out) return;
+    if (error){ out.innerHTML = `<div class="person-empty">${esc(dbMessage(error))}</div>`; return; }
+    const members = new Set(((state.memberList && state.memberList.rows) || []).map(r => r.user_id));
+    out.innerHTML = data.length ? data.map(p => `<button type="button" data-action="add-person" data-user="${esc(p.user_id)}" ${members.has(p.user_id) ? "disabled" : ""}>
+        <span style="flex:1;min-width:0"><b>${esc(p.name)} ${esc(p.surname)}</b><small>${esc(p.grade)}${p.gender ? " · " + esc(p.gender) : ""} · ${esc(p.email)}</small></span>
+        <span class="pill">${members.has(p.user_id) ? "Reeds lid" : "+ Voeg by"}</span></button>`).join("")
+      : `<div class="person-empty">Niemand gevind nie. Kyk die spelling, of soek op e-pos.</div>`;
+  }, 250);
+}
+async function addPerson(userId){
+  const g = groupById(state.manageGroupId);
+  if (!g || !canAdminDept(g.department)) return;
+  const { data:n, error } = await sb.rpc("admin_group_add_users", { p_group:g.id, p_users:[userId] });
+  if (error){ toast(dbMessage(error)); return; }
+  toast(n ? "Bygevoeg" : "Reeds lid");
+  state.memberList = null;
+  await loadAll(); render();
+  document.getElementById("person-search")?.focus();
+}
+
 async function removeMember(userId){
   const g = groupById(state.manageGroupId);
   if (!g || !canAdminDept(g.department) || !state.memberList) return;
@@ -3441,7 +3543,8 @@ function render(){
   const tabs = tabsForRole();
   if (!tabs.some(([id]) => id === state.tab)) state.tab = "calendar";
   if (state.openEventId != null && !(eventById(state.openEventId) && isForUser(eventById(state.openEventId)))) state.openEventId = null;
-  if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)) state.filter = "Alles";
+  if (state.filter !== "Alles" && !DEPARTMENTS.some(d => d.id === state.filter)
+      && !(state.filter.startsWith("g:") && groupById(state.filter.slice(2)))) state.filter = "Alles";
   if (state.qrEventId != null && !(eventById(state.qrEventId) && canAdmin(eventById(state.qrEventId)))) state.qrEventId = null;
   if (state.inviteEventId != null && !(eventById(state.inviteEventId) && canAdmin(eventById(state.inviteEventId)))) state.inviteEventId = null;
 
@@ -3593,6 +3696,9 @@ function handle(target){
       case "close-settings": state.settingsOpen = false; state.settingsPage = null; break;
       case "settings-page":  state.settingsPage = target.dataset.page || null; if (!state.settingsPage) state.learnerEdit = null; break;
       case "end-preview":    endPreview(); return;
+      case "dictate":        dictate(); return;
+      case "add-person":     addPerson(target.dataset.user); return;
+      case "install-desktop": installOnComputer(); return;
       case "answer-invite":  answerInvite(Number(target.dataset.id), target.dataset.accept === "1"); return;
       case "toggle-follow-dept": toggleFollowDept(target.dataset.id); return;
       case "toggle-group":   toggleGroup(target.dataset.id); return;
@@ -4018,6 +4124,7 @@ phoneEl.addEventListener("input", ev => {
   const el = ev.target;
   clearFieldError(el);            // the message disappears as soon as they fix it
   if (el.name === "radius" && el.closest('[data-form="event"]')) setPickerRadius(el.value);
+  if (el.id === "person-search") searchPeople(el.value);
   if (el.name === "code") el.value = el.value.replace(/\D/g, "").slice(0, 6);   // digits only, even when pasted
   if (el.name === "description"){
     const c = document.getElementById("desc-count");
@@ -4032,6 +4139,8 @@ phoneEl.addEventListener("change", ev => {
   if (el.name === "grade" && el.closest('[data-form="auth-details"], [data-form="profile"], [data-form="edit-learner"]')){
     // Boy/girl only matters for learners (events can be for girls or boys only).
     document.getElementById("auth-gender").style.display = LEARNER_GRADES.includes(el.value) ? "" : "none";
+  } else if (el.matches("[data-filter-select]")){
+    if (el.value){ state.filter = el.value; render(); }
   } else if (el.name === "department" && el.closest('[data-form="event"]')){
     const sel = document.getElementById("group-select");
     if (sel) sel.innerHTML = groupOptions(el.value, "");
@@ -4473,6 +4582,41 @@ function openInstallHelp(){
     }
     if (ev.target === el || ev.target.closest("[data-close]")) closeInstallHelp();
   });
+  document.body.appendChild(el);
+}
+
+/* ---- Install on a computer ---------------------------------------------------
+   Chrome and Edge can install the app with their own prompt (we keep the
+   beforeinstallprompt event for that). Otherwise show the steps for the
+   browser in use. Installed, it opens in its own window with its own icon
+   (desktop / Start menu / Dock) and updates itself like the website. */
+async function installOnComputer(){
+  if (installEvent){
+    installEvent.prompt();
+    const { outcome } = await installEvent.userChoice;
+    installEvent = null;
+    if (outcome === "accepted") toast("Die app word geïnstalleer");
+    return;
+  }
+  const ua = navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? "edge" : /Firefox\//.test(ua) ? "firefox" : /Chrome\//.test(ua) ? "chrome" : /Safari\//.test(ua) ? "safari" : "other";
+  const steps = {
+    chrome: `Klik op die <b>installeer-ikoon</b> regs in die adresbalk (’n skermpie met ’n pyltjie).<br>Of: <b>⋮</b> (regs bo) → <b>Cast, save, and share</b> → <b>Install page as app</b>.`,
+    edge: `Klik op die <b>installeer-ikoon</b> regs in die adresbalk.<br>Of: <b>···</b> (regs bo) → <b>Apps</b> → <b>Install this site as an app</b>.`,
+    safari: `In die kieslys bo: <b>File</b> → <b>Add to Dock</b>. (Nodig: macOS Sonoma of nuwer.)`,
+    firefox: `Firefox kan nie webapps installeer nie. Maak hierdie bladsy in <b>Chrome</b> of <b>Edge</b> oop en installeer dit daar.`,
+    other: `Maak hierdie bladsy in <b>Chrome</b> of <b>Edge</b> oop en kies <b>Install</b> in die adresbalk of die kieslys.`
+  }[browser];
+  const el = document.createElement("div");
+  el.id = "install-help";
+  el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Installeer die app");
+  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px";
+  el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:460px;width:100%;padding:22px;font-size:14px;line-height:1.55">
+      <h2 style="font-size:20px;margin:0 0 6px">Installeer Garsie Army op jou rekenaar</h2>
+      <p style="margin:0 0 12px;color:var(--muted)">Dan kry dit sy eie venster en ikoon, en jy maak dit oop soos enige ander program.</p>
+      <div class="card" style="font-size:14px;line-height:1.6">${steps}</div>
+      <button class="btn-primary" data-close style="margin-top:16px">Reg so</button></div>`;
+  el.addEventListener("click", ev => { if (ev.target === el || ev.target.closest("[data-close]")) el.remove(); });
   document.body.appendChild(el);
 }
 

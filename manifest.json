@@ -1,7 +1,8 @@
 {
+  "id": "./garsie-army-prototype.html",
   "name": "Garsie Army",
   "short_name": "Garsie Army",
-  "description": "Al die skool se geleenthede, en wie kom ondersteun.",
+  "description": "Al die skool se geleenthede op een plek: bespreek, meld aan en kry kennisgewings.",
   "lang": "af",
   "start_url": "./garsie-army-prototype.html",
   "scope": "./",
