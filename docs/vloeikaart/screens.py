@@ -45,9 +45,10 @@ SCREENS = [
     ('.inbox-item[data-event]', "Boodskap", "Nuwe geleentheid, verandering, kansellasie of \"bygevoeg by groep\". Tik om oop te maak.", ""),
     ('.mine-grid [data-event]', "Jou besprekings", "Alles wat jy bespreek het, per maand.", ""),
   ]),
-  dict(id="instellings", group="Almal", title="Instellings", h=1180, setup=KEY + 'state.settingsOpen=true; state.settingsPage=null;', calls=[
+  dict(id="instellings", group="Almal", title="Instellings", h=1380, setup=KEY + 'state.settingsOpen=true; state.settingsPage=null;', calls=[
     ('#push-card', "Kennisgewings", "Skakel kennisgewings op hierdie toestel aan of af; stuur 'n toets.", "Sonder dit kom boodskappe net in die Inbox"),
     ('[data-page="follow"]', "Wat ek volg", "Afdelings en oop groepe aan- of afskakel.", ""),
+    ('#cal-card', "Kalender", "Sit jou besprekings in jou foon se kalender (Apple, Google, Outlook).", "Veranderings kom vanself"),
     ('[data-action="install-help"]', "Sit op tuisskerm", "Wys hoe om die app op jou foon se tuisskerm te sit.", "Nodig vir kennisgewings op iPhone"),
     ('[data-page="learner"]', "Verander 'n leerder (Hoof-admin)", "Naam, graad of geslag van 'n leerder regstel.", ""),
     ('[data-page="preview"]', "Leerder-aansig (Hoof-admin)", "Sien die app soos 'n leerder; niks word gestoor nie.", ""),

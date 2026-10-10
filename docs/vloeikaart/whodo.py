@@ -31,6 +31,10 @@ ENTITIES = [
              ("a", "Volg 'n oop groep"), ("r", "Kry Nuwe geleentheid as die admin daardie groep kies")]),
    ("Kennisgewings", [("a", "Skakel kennisgewings aan"), ("r", "Foon vra Allow; toestel geregistreer"), ("r", "Push vir alles hierbo"),
                       ("a", "Stuur toets"), ("r", "Toetsboodskap op jou eie toestelle")]),
+   ("Kalender", [("a", "Instellings ▸ Kalender ▸ skakel aan"), ("r", "Privaat skakel net vir jou"),
+                 ("a", "Voeg by Apple- of Google-kalender, of kopieer die skakel vir Outlook"), ("r", "Jou besprekings verskyn in jou foon se kalender"),
+                 ("r", "Veranderings en kansellasies kom vanself (Apple elke uur, Google elke paar uur)"),
+                 ("a", "Skakel af"), ("r", "Skakel werk nie meer nie; die geleenthede verdwyn by die volgende bywerking")]),
    ("Rekening", [("a", "Teken uit"), ("r", "Uit op hierdie toestel"), ("a", "Skrap my rekening en bevestig"), ("r", "Alles van jou uitgevee")]),
  ]),
  ("dept", "Departement-admin", "Vir sy eie afdeling. By ander afdelings is hy net 'n gewone gebruiker, en hy het geen Kaart-oortjie nie.", [

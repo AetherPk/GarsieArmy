@@ -30,7 +30,7 @@ SCREENS = [
     [('[data-action="open-map"]', 'kaart', 'Meld aan by die geleentheid')]),
   S("instellings-l", "Leerder", "Instellings (leerder)", COL * 3, ROW_A, L + 'state.settingsOpen=true; state.settingsPage=null;',
     [c for c in calls_of("instellings") if 'learner' not in c[0] and 'preview' not in c[0]],
-    [('[data-page="follow"]', 'volg', 'Wat ek volg')]),
+    [('[data-page="follow"]', 'volg', 'Wat ek volg')], full=True),
   S("volg", "Leerder", "Wat ek volg", COL * 4, ROW_A, base["volg"]["setup"], calls_of("volg")),
 
   # ---------------------------------------------------------------- admin lane
