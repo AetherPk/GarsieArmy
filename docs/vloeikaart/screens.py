@@ -28,6 +28,7 @@ SCREENS = [
   dict(id="kaart", group="Leerder", title="Kaart", h=844, setup=LEARNER + 'state.tab="map"; state.mapMode="map"; state.mapEventId=1; geo.status="on"; geo.pos={lat:-25.79735,lng:28.30550,accuracy:12};', wait=2500, calls=[
     ('[data-action="map-map"]', "Kaart / QR", "Wissel tussen die kaart en die QR-skandeerder.", ""),
     ('[data-action="locate-me"]', "My ligging", "Wys waar jy is.", "Vra eers toestemming vir ligging"),
+    ('#map-dept-select', "Afdeling en subafdeling", "Kies eers die afdeling, dan (as daar is) die subafdeling.", "Die lys hieronder word korter"),
     ('#map-event-select', "Kies geleentheid", "Watter geleentheid se sirkel jy wil sien.", ""),
     ('[data-action="checkin"]', "Meld aan", "Werk net binne die sirkel.", "checkin() kyk weer die afstand · offline: gestoor en later gestuur"),
   ]),
