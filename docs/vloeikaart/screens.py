@@ -19,6 +19,7 @@ SCREENS = [
   ]),
   dict(id="geleentheid", group="Leerder", title="Geleentheid (leerder)", h=844, setup=LEARNER + 'state.tab="calendar"; state.openEventId=2;', calls=[
     ('[data-action="back"]', "Terug", "Terug na waar jy was.", ""),
+    ('#home-btn', "Huis", "Terug na die kalender by vandag, van enige skerm af.", "Nie op die kalender self nie"),
     ('.audience-badge', "Kentekens", "Afdeling · subafdeling, vir wie dit is, en of dit net op uitnodiging is.", ""),
     ('[data-action="open-map"]', "Meld aan by die geleentheid", "Gaan na Kaart by hierdie geleentheid.", ""),
     ('[data-action="answer-invite"][data-accept="1"]', "Aanvaar / Weier", "Antwoord op 'n uitnodiging.", "Aanvaar = jou plek word bespreek · admin sien dit in Excel"),

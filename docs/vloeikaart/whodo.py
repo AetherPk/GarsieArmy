@@ -17,6 +17,7 @@ ENTITIES = [
    ("Kyk na geleenthede", [("a", "Kies 'n afdeling of subafdeling in die filter"), ("r", "Net daardie geleenthede in Kalender, Soek en My program"),
                            ("a", "Kies Week of Maand"), ("r", "Ander uitleg; die foon onthou dit"),
                            ("r", "Alumni en ouers sien nie geleenthede wat net vir leerders, sekere grade of een geslag is nie, tensy genooi")]),
+   ("Terug huis toe", [("a", "Tik op die huis regs bo (langs die rat)"), ("r", "Kalender by vandag, van enige skerm af")]),
    ("Soek", [("a", "Tik, of tik op die mikrofoon en praat"), ("r", "Resultate per maand, terwyl jy tik")]),
    ("Bespreek", [("a", "Tik Bespreek op 'n geleentheid"), ("r", "Verskyn in My program"), ("r", "Admin se telling en Excel word bygewerk"),
                  ("r", "Herinnering 'n uur voor"), ("r", "Boodskap as dit verskuif of gekanselleer word"), ("a", "Tik weer"), ("r", "Bespreking gekanselleer")]),
