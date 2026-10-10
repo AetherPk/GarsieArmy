@@ -1503,7 +1503,9 @@ function startLoader(){
     const cv = document.getElementById("loader-canvas");
     if (!cv){ loaderFrame = null; return; }
     if (cv.width !== 240 * dpr){ cv.width = 240 * dpr; cv.height = 180 * dpr; }
-    let t = (now - loaderSceneStart) / (loaderScene.ms || SCENE_MS);
+    // The frame's timestamp can be a hair before loaderSceneStart; a negative
+    // t made some scenes draw negative sizes and stopped the loop.
+    let t = Math.max(0, (now - loaderSceneStart) / (loaderScene.ms || SCENE_MS));
     if (t >= 1){                                       // next field's turn
       loaderField = (loaderField + 1) % LOADER_FIELDS.length;
       loaderScene = pickScene(LOADER_FIELDS[loaderField]);
