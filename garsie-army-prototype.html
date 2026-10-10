@@ -11,7 +11,7 @@
   no build step; installable on the home screen (manifest.json).
 
   SIGN IN
-  E-mailed 6-digit code (Supabase OTP) or "Gaan voort met Google". Sign-up
+  E-mailed 6-digit code (Supabase OTP), "Gaan voort met Microsoft" (school account) or "Gaan voort met Google". Sign-up
   asks name, surname, grade (+ gender for learners) and POPIA consent.
   Search "screenAuth".
 
@@ -828,7 +828,7 @@ const PRIVACY_NOTICE = `
     <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
     <li>As jy kennisgewings aanskakel: jou toestel se kennisgewingadres.</li>
   </ul>
-  <p>As jy met Google inteken, kry ons net jou naam en e-posadres van Google.</p>
+  <p>As jy met Google of Microsoft (jou skool-e-pos) inteken, kry ons net jou naam en e-posadres daarvandaan.</p>
   <h3>Hoekom</h3>
   <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
@@ -913,17 +913,23 @@ function screenAuth(){
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
     <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
-    ${state.googleEnabled ? `
+    ${state.googleEnabled || state.microsoftEnabled ? `
     <div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:6px 0 12px">
-      <span style="flex:1;height:.5px;background:var(--hairline)"></span>of<span style="flex:1;height:.5px;background:var(--hairline)"></span></div>
+      <span style="flex:1;height:.5px;background:var(--hairline)"></span>of<span style="flex:1;height:.5px;background:var(--hairline)"></span></div>` : ""}
+    ${state.microsoftEnabled ? `
+    <button data-action="auth-microsoft" style="width:100%;height:48px;border-radius:24px;border:1px solid #8c8c8c;background:#fff;color:#1f1f1f;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;margin-bottom:10px">
+      <svg width="18" height="18" viewBox="0 0 21 21" aria-hidden="true"><path fill="#f25022" d="M0 0h10v10H0z"/><path fill="#7fba00" d="M11 0h10v10H11z"/><path fill="#00a4ef" d="M0 11h10v10H0z"/><path fill="#ffb900" d="M11 11h10v10H11z"/></svg>
+      Gaan voort met Microsoft (skool-e-pos)</button>` : ""}
+    ${state.googleEnabled ? `
     <button data-action="auth-google" style="width:100%;height:48px;border-radius:24px;border:1px solid #dadce0;background:#fff;color:#1f1f1f;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer">
       <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
       Gaan voort met Google</button>` : ""}
   </div></div>`;
 }
 
-// Signed in but no profile yet: signed up with Google (or an account made in
-// the Supabase dashboard). Google gives us the name; we still need the grade.
+// Signed in but no profile yet: signed up with Google or Microsoft (or an
+// account made in the Supabase dashboard). They give us the name; we still
+// need the grade.
 function screenProfile(){
   let draft = state.auth.draft || {};
   if (!draft.name){
@@ -3691,6 +3697,7 @@ function handle(target){
       case "auth-back":      state.auth.step = "details"; break;
       case "privacy-open":   openPrivacy(); return;
       case "auth-google":    signInWithGoogle(); return;
+      case "auth-microsoft": signInWithMicrosoft(); return;
       case "auth-resend": {
         const wait = Math.ceil(RESEND_WAIT_S - (Date.now() - (state.auth.sentAt || 0)) / 1000);
         if (wait > 0){ toast(`Wag nog ${wait} ${wait === 1 ? "sekonde" : "sekondes"} voordat jy weer 'n kode vra.`); return; }
@@ -4258,22 +4265,34 @@ async function signInWithGoogle(){
   });
   if (error) toast(dbMessage(error));
 }
+// "Gaan voort met Microsoft": the school's Microsoft (Teams) account. Supabase
+// only accepts accounts of the school's own tenant (set in the dashboard), so
+// a private Outlook/Hotmail address can't get in this way.
+async function signInWithMicrosoft(){
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: "azure",
+    options: { scopes: "openid profile email", redirectTo: location.origin + location.pathname, queryParams: { prompt: "select_account" } }
+  });
+  if (error) toast(dbMessage(error));
+}
 // Public copy of the notice: privacy.html (Google links to it).
-// Show the Google button only once Google is switched on in Supabase.
+// Show each button only once that sign-in is switched on in Supabase.
 async function checkGoogle(){
   try {
     const res = await fetch(`${SUPABASE_URL}/auth/v1/settings`, { headers: { apikey: SUPABASE_KEY } });
-    state.googleEnabled = !!(res.ok && (await res.json()).external?.google);
-  } catch { state.googleEnabled = false; }
+    const ext = res.ok ? (await res.json()).external || {} : {};
+    state.googleEnabled = !!ext.google;
+    state.microsoftEnabled = !!ext.azure;
+  } catch { state.googleEnabled = false; state.microsoftEnabled = false; }
   if (!state.user && !state.session && !state.loading) render();
 }
-// Coming back from Google with an error (e.g. pressed Cancel).
+// Coming back from Google or Microsoft with an error (e.g. pressed Cancel).
 function takeOAuthError(){
   const q = new URLSearchParams(location.hash.slice(1) + "&" + location.search.slice(1));
   if (!q.get("error")) return;
   history.replaceState(null, "", location.pathname);
-  setTimeout(() => toast(q.get("error") === "access_denied" ? "Google-inteken is gekanselleer."
-                                                            : "Kon nie met Google inteken nie. Probeer weer."), 300);
+  setTimeout(() => toast(q.get("error") === "access_denied" ? "Inteken is gekanselleer."
+                                                            : "Kon nie inteken nie. Probeer weer."), 300);
 }
 
 // Database rows -> the shapes the screens use.
