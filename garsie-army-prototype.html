@@ -1321,7 +1321,7 @@ function drawDrum(ctx, t){
   ctx.fillStyle = "#1d84ab"; ctx.beginPath(); ctx.ellipse(cx, cy + 36, 56, 12, 0, 0, Math.PI); ctx.fill();
   ctx.fillStyle = "#eef3f7"; ctx.beginPath(); ctx.ellipse(cx, cy, 56, 13, 0, 0, Math.PI * 2); ctx.fill();   // head
   ctx.strokeStyle = C_ACCENT; ctx.lineWidth = 3; ctx.stroke();
-  const beat = t * 6, phase = beat % 1, left = Math.floor(beat) % 2 === 0;
+  const beat = Math.max(0, t) * 6, phase = beat % 1, left = Math.floor(beat) % 2 === 0;
   for (const side of [-1, 1]){
     const active = (side < 0) === left, lift = active ? Math.abs(Math.cos(phase * Math.PI)) : 1;
     const ang = side * (.5 + lift * .55);
