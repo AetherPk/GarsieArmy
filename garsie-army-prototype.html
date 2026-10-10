@@ -257,6 +257,9 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .map-fab{position:absolute;right:14px;z-index:3;width:40px;height:40px;border-radius:20px;background:var(--surface);border:.5px solid var(--hairline);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.12)}
 .map-card{position:absolute;left:12px;right:12px;bottom:88px;z-index:3;background:var(--surface);border-radius:18px;border:.5px solid var(--hairline);padding:12px 14px;box-shadow:0 2px 12px rgba(0,0,0,.12)}
 .map-card select{width:100%;border:none;background:transparent;font-size:15px;font-weight:600;color:var(--shadow-ink);font-family:inherit;padding:0;outline:none}
+/* Kaart: pick a department, then a subafdeling, then the event */
+.map-pick{display:flex;gap:6px;margin-bottom:8px}
+.map-card .map-pick select{flex:1;min-width:0;width:auto;font-size:13px;font-weight:500;padding:7px 10px;border-radius:12px;background:var(--surface-2);border:.5px solid var(--hairline)}
 .me-dot{width:16px;height:16px;border-radius:8px;background:#4285f4;border:3px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.25)}
 .btn-checkin{width:100%;height:42px;border-radius:21px;border:none;background:var(--brand);color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
 .btn-checkin:disabled{background:var(--surface-2);color:var(--muted);cursor:not-allowed}
@@ -2071,12 +2074,31 @@ function mapCardHtml(){
     button = `<button class="btn-checkin" data-action="start-location">${icon("locate",16,"#fff")} Deel my ligging</button>`;
   }
 
+  // Narrow the list: department, then subafdeling (only if it has any), then the event.
+  // (Opened from an event elsewhere? Then follow that event's department.)
+  let dept = state.mapDept === undefined ? e.department : state.mapDept;
+  if (dept && e.department !== dept) dept = e.department;
+  const inDept = sorted.filter(x => !dept || x.department === dept);
+  const groups = dept ? groupsOf(dept).filter(g => inDept.some(x => x.group === g.id)) : [];
+  const grp = groups.some(g => g.id === state.mapGroup) && e.group === state.mapGroup ? state.mapGroup : "";
+  const picks = inDept.filter(x => !grp || x.group === grp);
+  const depts = DEPARTMENTS.filter(d => sorted.some(x => x.department === d.id));
   return `
+    <div class="map-pick">
+      <select id="map-dept-select" aria-label="Kies afdeling">
+        <option value="">Alle afdelings</option>
+        ${depts.map(d => `<option value="${esc(d.id)}" ${d.id === dept ? "selected" : ""}>${esc(d.name)}</option>`).join("")}
+      </select>
+      ${groups.length ? `<select id="map-group-select" aria-label="Kies subafdeling">
+        <option value="">Alle subafdelings</option>
+        ${groups.map(g => `<option value="${esc(g.id)}" ${g.id === grp ? "selected" : ""}>${esc(g.name)}</option>`).join("")}
+      </select>` : ""}
+    </div>
     <div style="display:flex;align-items:center;gap:8px">
       <span class="dot" style="background:${deptOf(e).colour}"></span>
       <select id="map-event-select" aria-label="Kies geleentheid">
-        ${[...new Set(sorted.map(x => x.date.slice(0, 7)))].map(k => `<optgroup label="${monthLabel(k)}">${
-          sorted.filter(x => x.date.startsWith(k)).map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${toDate(x.date).getDate()} · ${esc(x.title)}</option>`).join("")}</optgroup>`).join("")}
+        ${[...new Set(picks.map(x => x.date.slice(0, 7)))].map(k => `<optgroup label="${monthLabel(k)}">${
+          picks.filter(x => x.date.startsWith(k)).map(x => `<option value="${x.id}" ${x.id === e.id ? "selected" : ""}>${toDate(x.date).getDate()} · ${esc(x.title)}</option>`).join("")}</optgroup>`).join("")}
       </select>
     </div>
     <div style="font-size:12px;color:var(--muted);margin:2px 0 8px 16px">${d.getDate()} ${MONTHS_SHORT[d.getMonth()]} · ${e.start} · ${esc(e.venue || loc.address)}</div>
@@ -4260,6 +4282,15 @@ phoneEl.addEventListener("change", ev => {
     dbAction(() => sb.from("admins").update({ department_id: el.value }).eq("email", el.dataset.adminDept), "Departement opgedateer");
   } else if (el.id === "map-event-select"){
     state.mapEventId = Number(el.value); geo.framed = false; render();
+  } else if (el.id === "map-dept-select" || el.id === "map-group-select"){
+    // Jump to the next event in the new choice (or the latest one if all are past).
+    if (el.id === "map-dept-select"){ state.mapDept = el.value; state.mapGroup = ""; } else state.mapGroup = el.value;
+    const at = x => new Date(`${x.date}T${x.end}`);
+    const list = visibleEvents().filter(x => (!state.mapDept || x.department === state.mapDept) && (!state.mapGroup || x.group === state.mapGroup))
+      .sort((a,b) => at(a) - at(b));
+    const next = list.find(x => at(x) >= TODAY) || list[list.length - 1];
+    if (next) state.mapEventId = next.id;
+    geo.framed = false; render();
   } else if (el.dataset.deptColour && roleOf() === "key"){
     const problem = colourProblem(el.value);
     if (problem){ toast(problem); el.value = deptById(el.dataset.deptColour).colour; return; }
