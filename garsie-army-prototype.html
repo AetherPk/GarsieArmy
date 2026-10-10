@@ -166,6 +166,10 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 
 /* Settings button — floats top-right above every screen (screen headers keep room for it). */
+.nudge-dot{position:absolute;top:1px;right:1px;width:11px;height:11px;border-radius:6px;background:var(--danger);box-shadow:0 0 0 2px var(--surface-2)}
+.nudge-inline{display:inline-block;width:9px;height:9px;border-radius:5px;background:var(--danger);margin-left:8px;vertical-align:middle}
+#cal-card.nudge{animation:cal-nudge 1.4s ease-in-out 3}
+@keyframes cal-nudge{50%{box-shadow:0 0 0 3px var(--danger)}}
 #settings-btn{position:absolute;top:10px;right:14px;z-index:10;width:38px;height:38px;border-radius:19px;border:.5px solid var(--hairline);background:var(--surface-2);color:var(--shadow-ink);display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 #settings-btn.on{color:var(--brand-text);border-color:var(--brand-text)}
 .settings-section{margin-top:22px}
@@ -2767,7 +2771,7 @@ function screenSettings(){
     </section>
 
     <section class="settings-section">
-      <h2>Kalender</h2>
+      <h2>Kalender${calNudge() ? '<span class="nudge-inline" aria-hidden="true"></span>' : ""}</h2>
       <div class="card" id="cal-card">${calCardHtml()}</div>
     </section>
 
@@ -3551,7 +3555,7 @@ function render(){
   banner.style.display = state.preview && state.user ? "" : "none";
   if (state.preview) banner.innerHTML = `<span>${icon("eye",15,"#fff")} Leerder-aansig · ${esc(state.preview.grade)}${state.preview.gender ? " · " + esc(state.preview.gender) : ""}</span>
     <button data-action="end-preview">Verlaat</button>`;
-  gearBtn.innerHTML = icon("gear", 19);
+  gearBtn.innerHTML = icon("gear", 19) + (calNudge() && !state.settingsOpen ? '<span class="nudge-dot" aria-label="Nuut: kalender"></span>' : "");
   gearBtn.classList.toggle("on", !!state.settingsOpen);
   unmountMaps(); stopScanner(); stopQrTicker();
   if (state.loading || (state.fatal && !state.user)){ screenEl.innerHTML = screenLoading(); startLoader(); return; }
@@ -3569,11 +3573,13 @@ function render(){
   if (state.inviteEventId != null && !(eventById(state.inviteEventId) && canAdmin(eventById(state.inviteEventId)))) state.inviteEventId = null;
 
   const keepMonthScroll = (document.getElementById("monthview") || {}).scrollTop;
+  const focusCal = state.calFocus && state.settingsOpen; state.calFocus = false;
   screenEl.innerHTML = state.settingsOpen ? screenSettings()
                      : state.qrEventId != null ? screenQr()
                      : state.inviteEventId != null ? screenInvite()
                      : state.openEventId ? screenEventDetail() : SCREENS[state.tab]();
   mountMaps();
+  if (focusCal) showCalCard();
   if (!maybeOfferInstall()) maybeOfferPush();
   maybeWatchArrival();
   if (state.qrEventId != null) startQrTicker();
@@ -3713,7 +3719,7 @@ function handle(target){
         return;
       }
       case "signout":        signOut(); return;
-      case "open-settings":  state.settingsOpen = !state.settingsOpen; state.openEventId = null; state.qrEventId = null; break;
+      case "open-settings":  state.settingsOpen = !state.settingsOpen; state.openEventId = null; state.qrEventId = null; state.calFocus = state.settingsOpen && calNudge(); break;
       case "close-settings": state.settingsOpen = false; state.settingsPage = null; break;
       case "settings-page":  state.settingsPage = target.dataset.page || null; if (!state.settingsPage) state.learnerEdit = null; break;
       case "end-preview":    endPreview(); return;
@@ -4646,7 +4652,21 @@ function calCardHtml(){
       <button data-action="cal-copy" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:12px;background:var(--surface);border:.5px solid var(--hairline);color:var(--shadow-ink);font:inherit;font-size:14px;cursor:pointer;text-align:left">
         <span>Kopieer skakel (Outlook en ander)</span>${icon("edit",16,"var(--brand-text)")}</button>
     </div>
-    <p style="font-size:12.5px;color:var(--muted);line-height:1.45;margin:10px 0 0">Doen dit een keer per toestel. Apple werk die kalender elke uur by, Google elke paar uur. Hou die skakel vir jouself: wie dit het, sien jou besprekings.</p>`;
+    <p style="font-size:13px;line-height:1.45;margin:10px 0 0;padding:9px 11px;border-radius:10px;background:rgba(242,179,84,.12);color:var(--warn)">Let wel: veranderinge verskyn nie dadelik in jou kalender nie. Apple werk dit elke uur by, Google elke paar uur.</p>
+    <p style="font-size:12.5px;color:var(--muted);line-height:1.45;margin:8px 0 0">Doen dit een keer per toestel. Hou die skakel vir jouself: wie dit het, sien jou besprekings.</p>`;
+}
+// A red dot on the gear (like the unread count on My program) until the
+// person has seen the calendar option once, or switched it on. No pop-up.
+const CAL_SEEN_KEY = "garsie.calSeen";
+function calNudge(){ return !!state.user && !state.preview && !state.calFeed && loadJSON(CAL_SEEN_KEY) !== state.user.id; }
+function showCalCard(){
+  const card = document.getElementById("cal-card");
+  if (!card) return;
+  card.scrollIntoView({ block:"center", behavior:"smooth" });
+  card.classList.add("nudge");
+  saveJSON(CAL_SEEN_KEY, state.user.id);
+  const dot = document.getElementById("settings-btn").querySelector(".nudge-dot");
+  if (dot) dot.remove();
 }
 function renderCalCard(){
   const el = document.getElementById("cal-card");
@@ -4660,6 +4680,7 @@ async function toggleCalFeed(){
   state.calBusy = false;
   if (error){ toast(dbMessage(error)); renderCalCard(); return; }
   state.calFeed = on ? data : null;
+  if (on) saveJSON(CAL_SEEN_KEY, state.user.id);
   renderCalCard();
   toast(on ? "Kies hieronder jou kalender" : "Af: die geleenthede verdwyn by die volgende bywerking");
 }
