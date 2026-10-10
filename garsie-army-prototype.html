@@ -827,6 +827,7 @@ const PRIVACY_NOTICE = `
     <li>Watter geleenthede jy bespreek, watter afdelings en groepe jy volg, en uitnodigings wat jy kry.</li>
     <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
     <li>As jy kennisgewings aanskakel: jou toestel se kennisgewingadres.</li>
+    <li>As jy jou kalender koppel: 'n privaat skakel na jou besprekings. Wie die skakel het, sien wat jy bespreek het; skakel dit af om die skakel ongeldig te maak.</li>
   </ul>
   <p>As jy met Google of Microsoft (jou skool-e-pos) inteken, kry ons net jou naam en e-posadres daarvandaan.</p>
   <h3>Hoekom</h3>
@@ -912,7 +913,7 @@ function screenAuth(){
       ${isSignup ? profileFields(draft) + consentField(draft.popia) : ""}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
-    <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos; geen wagwoord nodig nie. Leerders: gebruik jou <b style="color:var(--shadow-ink)">skool-e-pos</b> (dieselfde as vir Teams), dan kom die kode in jou skool se Outlook.</p>
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
     ${state.googleEnabled || state.microsoftEnabled ? `
     <div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:6px 0 12px">
       <span style="flex:1;height:.5px;background:var(--hairline)"></span>of<span style="flex:1;height:.5px;background:var(--hairline)"></span></div>` : ""}
@@ -2766,6 +2767,11 @@ function screenSettings(){
     </section>
 
     <section class="settings-section">
+      <h2>Kalender</h2>
+      <div class="card" id="cal-card">${calCardHtml()}</div>
+    </section>
+
+    <section class="settings-section">
       <h2>App</h2>
       <div class="card" style="padding:0 14px">
         ${isPhone() && !isStandalone() ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>` : ""}
@@ -2843,12 +2849,12 @@ function screenPreviewStart(){
    pretend learner, and "Verlaat" puts everything back exactly as it was.
 --------------------------------------------------------------------------- */
 function previewOverlay(){
-  const real = { user:state.user, supported:state.supported, checkins:CHECKINS, invites:INVITES, inbox:INBOX,
+  const real = { user:state.user, supported:state.supported, checkins:CHECKINS, invites:INVITES, inbox:INBOX, calFeed:state.calFeed,
                  myGroups:state.myGroups, unfollowed:state.unfollowed };
   state.preview.real = real;
   state.user = { ...real.user, grade:state.preview.grade, gender:state.preview.gender, role:"user", department:null };
   state.supported = new Set();
-  CHECKINS = {}; INVITES = {}; INBOX = [];
+  CHECKINS = {}; INVITES = {}; INBOX = []; state.calFeed = null;
   state.myGroups = new Set(); state.unfollowed = new Set();
 }
 function startPreview(grade, gender){
@@ -2862,7 +2868,7 @@ function endPreview(){
   const real = state.preview.real;
   state.preview = null;
   state.user = real.user; state.supported = real.supported; CHECKINS = real.checkins;
-  INVITES = real.invites; INBOX = real.inbox; state.myGroups = real.myGroups; state.unfollowed = real.unfollowed;
+  INVITES = real.invites; INBOX = real.inbox; state.myGroups = real.myGroups; state.unfollowed = real.unfollowed; state.calFeed = real.calFeed;
   Object.assign(state, { tab:"calendar", openEventId:null, qrEventId:null, settingsOpen:true, settingsPage:null });
   render();
 }
@@ -3740,6 +3746,8 @@ function handle(target){
       case "install-help":   openInstallHelp(); return;
       case "push-off":       disablePush(); return;
       case "push-test":      testPush(); return;
+      case "cal-toggle":     toggleCalFeed(); return;
+      case "cal-copy":       copyCalLink(); return;
 
       // --- Admin actions. Each re-checks permission; the UI hiding a button isn't enough.
       case "new-event":      state.editingId = null; state.tab = "create"; state.openEventId = null; break;
@@ -4331,7 +4339,7 @@ async function loadAll(){
   const u = state.session && state.session.user;
   if (!u) return;
   try {
-    const [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb] = await Promise.all([
+    const [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb, cal] = await Promise.all([
       sb.from("profiles").select("name,surname,grade,gender,popia_accepted_at").eq("id", u.id).maybeSingle(),
       sb.rpc("my_role"),
       sb.from("departments").select("id,name,colour").order("name"),
@@ -4342,9 +4350,10 @@ async function loadAll(){
       sb.from("group_members").select("group_id").eq("user_id", u.id),
       sb.from("department_unfollows").select("department_id"),
       fetchAll(() => sb.from("invitations").select("event_id,status").order("event_id")),
-      sb.from("inbox").select("id,event_id,kind,title,body,created_at,read_at").order("created_at", { ascending:false }).limit(100)
+      sb.from("inbox").select("id,event_id,kind,title,body,created_at,read_at").order("created_at", { ascending:false }).limit(100),
+      sb.from("calendar_feeds").select("token").maybeSingle()
     ]);
-    for (const r of [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb]) if (r.error) throw r.error;
+    for (const r of [prof, role, depts, evs, sup, chk, grp, mem, unf, inv, inb, cal]) if (r.error) throw r.error;
     const myRole = (role.data || [])[0] || null;
     let admins = [], stats = [], groupStats = [];
     if (myRole){
@@ -4361,7 +4370,7 @@ async function loadAll(){
     }
     const d = { uid:u.id, email:u.email, profile:prof.data, role:myRole, departments:depts.data, events:evs.data,
                 supports:sup.data, checkins:chk.data, admins, stats, groups:grp.data, members:mem.data, unfollows:unf.data,
-                invites:inv.data, inbox:inb.data, groupStats, savedAt:new Date().toISOString() };
+                invites:inv.data, inbox:inb.data, calFeed:cal.data ? cal.data.token : null, groupStats, savedAt:new Date().toISOString() };
     applyData(d);
     saveJSON(CACHE_KEY, d);
     state.offline = false;
@@ -4400,6 +4409,7 @@ function applyData(d){
   INVITES = {};
   (d.invites || []).forEach(i => { INVITES[i.event_id] = i.status; });
   INBOX = (d.inbox || []).map(m => ({ id:m.id, eventId:m.event_id, kind:m.kind, title:m.title, body:m.body, at:m.created_at, read:!!m.read_at }));
+  state.calFeed = d.calFeed || null;
   GROUP_STATS = {};
   (d.groupStats || []).forEach(x => { GROUP_STATS[x.group_id || "dept:" + x.department_id] = x.members; });
   if (state.preview && state.user) previewOverlay();     // fresh data, same pretend learner
@@ -4609,6 +4619,55 @@ function openInstallHelp(){
     if (ev.target === el || ev.target.closest("[data-close]")) closeInstallHelp();
   });
   document.body.appendChild(el);
+}
+
+/* ---- Kalender: your bookings in the phone's own calendar --------------------
+   Switching it on gives a private link (calendar_feed_on). Apple, Google or
+   Outlook subscribe to it once and then keep the events you booked up to
+   date by themselves (the calendar Edge Function). Switching it off deletes
+   the link: the events disappear from the calendar at its next refresh.
+   Separate from push notifications: each has its own switch. */
+const CAL_FEED = `${SUPABASE_URL.replace(/^https:/, "")}/functions/v1/calendar?t=`;
+function calCardHtml(){
+  const on = !!state.calFeed, busy = !!state.calBusy;
+  const sw = `<button data-action="cal-toggle" role="switch" aria-checked="${on}" ${busy ? "disabled" : ""} aria-label="Sit my besprekings in my kalender"
+      style="background:none;border:none;padding:4px;cursor:pointer;flex:none"><span class="switch ${on ? "on" : ""}"></span></button>`;
+  const head = `<div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+      <div><div style="font-size:15px">Sit my besprekings in my kalender</div>
+        <div style="font-size:12.5px;color:var(--muted);line-height:1.45;margin-top:2px">Apple, Google of Outlook. Net wat jy bespreek het; veranderings en kansellasies kom vanself.</div></div>${sw}</div>`;
+  if (!on) return head;
+  const webcal = "webcal:" + CAL_FEED + state.calFeed;
+  const link = (href, label, ic, blank) => `<a href="${esc(href)}" ${blank ? 'target="_blank" rel="noopener"' : ""}
+      style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:12px;background:var(--surface);border:.5px solid var(--hairline);color:var(--shadow-ink);text-decoration:none;font-size:14px">
+      <span>${label}</span>${icon(ic,16,"var(--brand-text)")}</a>`;
+  return head + `<div style="display:grid;gap:8px;margin-top:12px">
+      ${link(webcal, "Voeg by Apple-kalender (iPhone, Mac)", "plus")}
+      ${link("https://calendar.google.com/calendar/render?cid=" + encodeURIComponent(webcal), "Voeg by Google-kalender", "external", true)}
+      <button data-action="cal-copy" style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;border-radius:12px;background:var(--surface);border:.5px solid var(--hairline);color:var(--shadow-ink);font:inherit;font-size:14px;cursor:pointer;text-align:left">
+        <span>Kopieer skakel (Outlook en ander)</span>${icon("edit",16,"var(--brand-text)")}</button>
+    </div>
+    <p style="font-size:12.5px;color:var(--muted);line-height:1.45;margin:10px 0 0">Doen dit een keer per toestel. Apple werk die kalender elke uur by, Google elke paar uur. Hou die skakel vir jouself: wie dit het, sien jou besprekings.</p>`;
+}
+function renderCalCard(){
+  const el = document.getElementById("cal-card");
+  if (el) el.innerHTML = calCardHtml();
+}
+async function toggleCalFeed(){
+  if (previewBlocks() || state.calBusy) return;
+  const on = !state.calFeed;
+  state.calBusy = true; renderCalCard();
+  const { data, error } = on ? await sb.rpc("calendar_feed_on") : await sb.rpc("calendar_feed_off");
+  state.calBusy = false;
+  if (error){ toast(dbMessage(error)); renderCalCard(); return; }
+  state.calFeed = on ? data : null;
+  renderCalCard();
+  toast(on ? "Kies hieronder jou kalender" : "Af: die geleenthede verdwyn by die volgende bywerking");
+}
+async function copyCalLink(){
+  if (!state.calFeed) return;
+  const url = "https:" + CAL_FEED + state.calFeed;
+  try { await navigator.clipboard.writeText(url); toast("Skakel gekopieer"); }
+  catch { prompt("Kopieer hierdie skakel:", url); }
 }
 
 /* ---- "Skakel kennisgewings aan" --------------------------------------------
