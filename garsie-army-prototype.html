@@ -2752,9 +2752,7 @@ function screenSettings(){
     <section class="settings-section">
       <h2>App</h2>
       <div class="card" style="padding:0 14px">
-        ${isStandalone() ? "" : isPhone()
-          ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>`
-          : `<button class="settings-row" data-action="install-desktop"><span>Installeer die app op hierdie rekenaar</span>${icon("right",16,"var(--muted)")}</button>`}
+        ${isPhone() && !isStandalone() ? `<button class="settings-row" data-action="install-help"><span>Sit die app op jou tuisskerm</span>${icon("right",16,"var(--muted)")}</button>` : ""}
         <button class="settings-row" data-action="privacy-open"><span>Privaatheidskennisgewing</span>${icon("right",16,"var(--muted)")}</button>
       </div>
     </section>
@@ -3698,7 +3696,6 @@ function handle(target){
       case "end-preview":    endPreview(); return;
       case "dictate":        dictate(); return;
       case "add-person":     addPerson(target.dataset.user); return;
-      case "install-desktop": installOnComputer(); return;
       case "answer-invite":  answerInvite(Number(target.dataset.id), target.dataset.accept === "1"); return;
       case "toggle-follow-dept": toggleFollowDept(target.dataset.id); return;
       case "toggle-group":   toggleGroup(target.dataset.id); return;
@@ -4582,41 +4579,6 @@ function openInstallHelp(){
     }
     if (ev.target === el || ev.target.closest("[data-close]")) closeInstallHelp();
   });
-  document.body.appendChild(el);
-}
-
-/* ---- Install on a computer ---------------------------------------------------
-   Chrome and Edge can install the app with their own prompt (we keep the
-   beforeinstallprompt event for that). Otherwise show the steps for the
-   browser in use. Installed, it opens in its own window with its own icon
-   (desktop / Start menu / Dock) and updates itself like the website. */
-async function installOnComputer(){
-  if (installEvent){
-    installEvent.prompt();
-    const { outcome } = await installEvent.userChoice;
-    installEvent = null;
-    if (outcome === "accepted") toast("Die app word geïnstalleer");
-    return;
-  }
-  const ua = navigator.userAgent;
-  const browser = /Edg\//.test(ua) ? "edge" : /Firefox\//.test(ua) ? "firefox" : /Chrome\//.test(ua) ? "chrome" : /Safari\//.test(ua) ? "safari" : "other";
-  const steps = {
-    chrome: `Klik op die <b>installeer-ikoon</b> regs in die adresbalk (’n skermpie met ’n pyltjie).<br>Of: <b>⋮</b> (regs bo) → <b>Cast, save, and share</b> → <b>Install page as app</b>.`,
-    edge: `Klik op die <b>installeer-ikoon</b> regs in die adresbalk.<br>Of: <b>···</b> (regs bo) → <b>Apps</b> → <b>Install this site as an app</b>.`,
-    safari: `In die kieslys bo: <b>File</b> → <b>Add to Dock</b>. (Nodig: macOS Sonoma of nuwer.)`,
-    firefox: `Firefox kan nie webapps installeer nie. Maak hierdie bladsy in <b>Chrome</b> of <b>Edge</b> oop en installeer dit daar.`,
-    other: `Maak hierdie bladsy in <b>Chrome</b> of <b>Edge</b> oop en kies <b>Install</b> in die adresbalk of die kieslys.`
-  }[browser];
-  const el = document.createElement("div");
-  el.id = "install-help";
-  el.setAttribute("role", "dialog"); el.setAttribute("aria-modal", "true"); el.setAttribute("aria-label", "Installeer die app");
-  el.style.cssText = "position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px";
-  el.innerHTML = `<div style="background:var(--surface);color:var(--shadow-ink);border-radius:20px;max-width:460px;width:100%;padding:22px;font-size:14px;line-height:1.55">
-      <h2 style="font-size:20px;margin:0 0 6px">Installeer Garsie Army op jou rekenaar</h2>
-      <p style="margin:0 0 12px;color:var(--muted)">Dan kry dit sy eie venster en ikoon, en jy maak dit oop soos enige ander program.</p>
-      <div class="card" style="font-size:14px;line-height:1.6">${steps}</div>
-      <button class="btn-primary" data-close style="margin-top:16px">Reg so</button></div>`;
-  el.addEventListener("click", ev => { if (ev.target === el || ev.target.closest("[data-close]")) el.remove(); });
   document.body.appendChild(el);
 }
 
