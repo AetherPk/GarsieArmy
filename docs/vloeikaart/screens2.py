@@ -27,7 +27,7 @@ SCREENS = [
   S("myprogram", "Leerder", "My program + Inbox", COL, ROW_A + 2300, base["myprogram"]["setup"], calls_of("myprogram"),
     [('.mine-grid [data-event]', 'geleentheid', 'Tik op bespreking'), ('.inbox-item[data-event]', 'geleentheid', 'Tik op boodskap')]),
   S("geleentheid", "Leerder", "Geleentheid (leerder)", COL * 2, ROW_A + 1150, base["geleentheid"]["setup"], calls_of("geleentheid"),
-    [('[data-action="open-map"]', 'kaart', 'Meld aan by die geleentheid')]),
+    []),
   S("instellings-l", "Leerder", "Instellings (leerder)", COL * 3, ROW_A, L + 'state.settingsOpen=true; state.settingsPage=null;',
     [c for c in calls_of("instellings") if 'learner' not in c[0] and 'preview' not in c[0]],
     [('[data-page="follow"]', 'volg', 'Wat ek volg')], full=True),

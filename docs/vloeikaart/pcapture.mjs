@@ -83,7 +83,7 @@ const measure = sels => ev(`(() => ${JSON.stringify(sels)}.map(sel => {
   }))()`);
 const prep = async (s, h) => {
   await send("Emulation.setDeviceMetricsOverride", { width: W, height: h, deviceScaleFactor: 2, mobile: true });
-  await ev(`(() => { if (!document.getElementById("pdf-fix")) document.head.insertAdjacentHTML("beforeend", "<style id=pdf-fix>[style*=repeating-linear-gradient]{background:none !important}</style>"); document.querySelectorAll("#install-help,#push-ask,#delete-account").forEach(n => n.remove()); if (state.preview) endPreview();
+  await ev(`(() => { if (!document.getElementById("pdf-fix")) document.head.insertAdjacentHTML("beforeend", "<style id=pdf-fix>[style*=repeating-linear-gradient]{background:none !important}</style>"); TODAY = new Date(2026, 9, 10, 13, 30); document.querySelectorAll("#install-help,#push-ask,#delete-account").forEach(n => n.remove()); if (state.preview) endPreview();
     state.loading = false; state.fatal = null; state.needsProfile = false; state.needsConsent = false; state.session = { user:{ id:"u1" } };
     state.auth = { mode:"signin", step:"details", draft:{} }; state.push = { status:"off", busy:false }; geo.status = "idle"; geo.pos = null; CHECKINS = {};
     ${s.setup} render(); ${s.post || ""} return 1; })()`);

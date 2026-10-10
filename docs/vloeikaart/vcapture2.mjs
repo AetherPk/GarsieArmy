@@ -83,7 +83,7 @@ const measure = sels => ev(`(() => ${JSON.stringify(sels)}.map(sel => {
   }))()`);
 const prep = async (s, h) => {
   await send("Emulation.setDeviceMetricsOverride", { width: W, height: h, deviceScaleFactor: 2, mobile: true });
-  await ev(`(() => { if (!document.getElementById("pdf-fix")) document.head.insertAdjacentHTML("beforeend", "<style id=pdf-fix>[style*=repeating-linear-gradient]{background:none !important}</style>"); document.querySelectorAll("#install-help,#push-ask").forEach(n => n.remove()); ${s.setup} render(); return 1; })()`);
+  await ev(`(() => { if (!document.getElementById("pdf-fix")) document.head.insertAdjacentHTML("beforeend", "<style id=pdf-fix>[style*=repeating-linear-gradient]{background:none !important}</style>"); TODAY = new Date(2026, 9, 10, 13, 30); document.querySelectorAll("#install-help,#push-ask").forEach(n => n.remove()); ${s.setup} render(); return 1; })()`);
   await sleep(s.wait || 700);
   if (s.open) await ev(`(() => { const d = document.querySelector(${JSON.stringify(s.open)}); if (d) d.open = true; return 1; })()`);
   if (s.type) { await ev(`(() => { const i = document.querySelector(${JSON.stringify(s.type[0])}); i.value = ${JSON.stringify(s.type[1])}; i.dispatchEvent(new Event("input", { bubbles:true })); return 1; })()`); await sleep(700); }

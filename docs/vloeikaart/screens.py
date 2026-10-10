@@ -21,15 +21,14 @@ SCREENS = [
     ('[data-action="back"]', "Terug", "Terug na waar jy was.", ""),
     ('#home-btn', "Huis", "Terug na die kalender by vandag, van enige skerm af.", "Nie op die kalender self nie"),
     ('.audience-badge', "Kentekens", "Afdeling · subafdeling, vir wie dit is, en of dit net op uitnodiging is.", ""),
-    ('[data-action="open-map"]', "Meld aan by die geleentheid", "Gaan na Kaart by hierdie geleentheid.", ""),
+
     ('[data-action="answer-invite"][data-accept="1"]', "Aanvaar / Weier", "Antwoord op 'n uitnodiging.", "Aanvaar = jou plek word bespreek · admin sien dit in Excel"),
     ('[data-action="toggle-support"]', "Bespreek", "Bespreek jou plek (tik weer om te kanselleer).", "Herinnering 'n uur voor · boodskap as dit verskuif of gekanselleer word"),
   ]),
   dict(id="kaart", group="Leerder", title="Kaart", h=844, setup=LEARNER + 'state.tab="map"; state.mapMode="map"; state.mapEventId=1; geo.status="on"; geo.pos={lat:-25.79735,lng:28.30550,accuracy:12};', wait=2500, calls=[
     ('[data-action="map-map"]', "Kaart / QR", "Wissel tussen die kaart en die QR-skandeerder.", ""),
     ('[data-action="locate-me"]', "My ligging", "Wys waar jy is.", "Vra eers toestemming vir ligging"),
-    ('#map-dept-select', "Afdeling en subafdeling", "Kies eers die afdeling, dan (as daar is) die subafdeling.", "Die lys hieronder word korter"),
-    ('#map-event-select', "Kies geleentheid", "Watter geleentheid se sirkel jy wil sien.", ""),
+    ('#map-card', "Vandag se geleentheid", "Kaart wys net vandag se geleenthede; is daar meer as een, kies jy tussen hulle.", "Geen geleentheid vandag: niks om by aan te meld nie"),
     ('[data-action="checkin"]', "Meld aan", "Werk net binne die sirkel.", "checkin() kyk weer die afstand · offline: gestoor en later gestuur"),
   ]),
   dict(id="qr", group="Leerder", title="Kaart ▸ QR", h=844, setup=LEARNER + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"idle",message:""};', calls=[
