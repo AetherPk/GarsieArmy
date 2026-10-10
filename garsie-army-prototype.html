@@ -289,6 +289,12 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid #0a84ff;outline-
 .chip-split .chip-left{border-radius:14px 0 0 14px;padding-right:8px}
 .chip-caret{position:relative;padding:5px 9px 5px 7px;border-radius:0 14px 14px 0;margin-left:-1px;cursor:pointer}
 .chip-caret svg{transform:rotate(90deg)}
+/* Calendar on/off chips: hidden ones are dimmed and struck through */
+.cal-chip.off{opacity:.55;text-decoration:line-through}
+.cal-part{font-size:11px;color:var(--muted);text-decoration:none}
+.cal-caret.is-open svg{transform:rotate(-90deg)}
+.cal-reset{color:var(--brand-text)}
+.cal-sub{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;padding:8px;border-radius:12px;background:var(--surface-2)}
 .chip-caret select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:16px;border:none}
 /* Bestuur ▸ group: people found while typing */
 .person-results{margin-top:6px;border-radius:12px;overflow:hidden}
@@ -524,7 +530,7 @@ function sameDay(a, b){ return toISO(a) === toISO(b); }
 // Events on a given day, earliest first.
 function eventsOn(date){
   const iso = toISO(date);
-  return visibleEvents().filter(e => e.date === iso && passesFilter(e))
+  return visibleEvents().filter(e => e.date === iso && calShown(e))
                .sort((a,b) => hmToDecimal(a.start) - hmToDecimal(b.start));
 }
 function eventById(id){ return EVENTS.find(e => e.id === id); }
@@ -1618,6 +1624,53 @@ function filterChips(onDark = false){
   return `<div class="chips">${chip("Alles", "Alles", "var(--brand-text)", state.filter === "Alles")}${DEPARTMENTS.map(dept).join("")}</div>`;
 }
 
+/* Calendar filter: switch things OFF instead of picking one to show.
+   Tap a department to hide or show it; the arrow opens its subafdelings,
+   each with its own on/off. Remembered on this phone, per person. Only the
+   calendar uses this; Soek and My program keep the "show only" chips. */
+const CAL_HIDDEN_KEY = "garsie.calHidden";
+function calHidden(){
+  if (!state.calHidden){
+    const saved = state.user && loadJSON(CAL_HIDDEN_KEY + "." + state.user.id);
+    state.calHidden = new Set(Array.isArray(saved) ? saved : []);
+  }
+  return state.calHidden;
+}
+function calShown(e){
+  const h = calHidden();
+  return !h.has(e.department) && !(e.group && h.has("g:" + e.group));
+}
+function toggleCalHidden(key){
+  const h = calHidden();
+  h.has(key) ? h.delete(key) : h.add(key);
+  if (state.user) saveJSON(CAL_HIDDEN_KEY + "." + state.user.id, [...h]);
+}
+function calChips(){
+  const h = calHidden();
+  const known = new Set([...DEPARTMENTS.map(d => d.id), ...GROUPS.map(g => "g:" + g.id)]);
+  const hiddenCount = [...h].filter(k => known.has(k)).length;
+  const chip = d => {
+    const off = h.has(d.id), colour = deptById(d.id).colour, groups = groupsOf(d.id);
+    const offGroups = groups.filter(g => h.has("g:" + g.id)).length;
+    const open = state.calMenu === d.id;
+    return `<span class="chip-split">
+      <button class="chip cal-chip ${off ? "off" : ""} ${groups.length ? "chip-left" : ""}" data-action="cal-hide" data-key="${esc(d.id)}" aria-pressed="${!off}"
+        title="${off ? "Versteek — tik om te wys" : "Tik om te versteek"}">
+        <span class="dot" style="background:${off ? "transparent" : colour};border:1.5px solid ${colour}"></span>${esc(d.name)}${
+        !off && offGroups ? ` <small class="cal-part">−${offGroups}</small>` : ""}</button>${
+      groups.length ? `<button class="chip chip-caret cal-caret ${open ? "is-open" : ""}" data-action="cal-menu" data-key="${esc(d.id)}" aria-expanded="${open}" aria-label="Subafdelings van ${esc(d.name)}">${icon("right", 12)}</button>` : ""}
+    </span>`;
+  };
+  const menuDept = state.calMenu && DEPARTMENTS.find(d => d.id === state.calMenu);
+  const menu = menuDept ? `<div class="cal-sub">
+      ${groupsOf(menuDept.id).map(g => { const off = h.has("g:" + g.id) || h.has(menuDept.id);
+        return `<button class="chip cal-chip ${off ? "off" : ""}" data-action="cal-hide" data-key="g:${esc(g.id)}" aria-pressed="${!off}" ${h.has(menuDept.id) ? "disabled" : ""}>
+          <span class="dot" style="background:${off ? "transparent" : deptById(menuDept.id).colour};border:1.5px solid ${deptById(menuDept.id).colour}"></span>${esc(g.name)}</button>`; }).join("")}
+    </div>` : "";
+  return `<div class="chips">${DEPARTMENTS.map(chip).join("")}${
+    hiddenCount ? `<button class="chip cal-reset" data-action="cal-show-all">Wys alles</button>` : ""}</div>${menu}`;
+}
+
 // One event as a list row (Soek, and the day list under the month view).
 function eventRow(e){
   const day = toDate(e.date), dept = deptOf(e);
@@ -1659,7 +1712,7 @@ function calendarHeader(){
       <input type="date" id="date-jump" value="${state.selectedDate}" min="2000-01-01" max="2100-12-31" tabindex="-1" aria-label="Spring na 'n datum">
       <div style="display:flex;gap:4px;flex:none">${navBtn("prev","Vorige","left")}${navBtn("next","Volgende","right")}</div>
     </div>
-    <div style="margin-top:8px">${filterChips()}</div>
+    <div style="margin-top:8px">${calChips()}</div>
   </div>`;
 }
 
@@ -3609,6 +3662,9 @@ function render(){
     grid.addEventListener("scroll", () => { state.scrollLeft = grid.scrollLeft; });
   }
 
+  // Subafdelings strip open under the calendar chips: start the calendar below it.
+  const calSub = document.querySelector(".cal-sub"), calBody = document.getElementById("monthview") || grid;
+  if (calSub && calBody) calBody.style.top = Math.ceil(calSub.getBoundingClientRect().bottom - screenEl.getBoundingClientRect().top + 8) + "px";
   const monthView = document.getElementById("monthview");
   if (monthView && keepMonthScroll) monthView.scrollTop = keepMonthScroll;
 
@@ -3727,6 +3783,9 @@ function handle(target){
         return;
       }
       case "signout":        signOut(); return;
+      case "cal-hide":       toggleCalHidden(target.dataset.key); break;
+      case "cal-menu":       state.calMenu = state.calMenu === target.dataset.key ? null : target.dataset.key; break;
+      case "cal-show-all":   calHidden().clear(); if (state.user) saveJSON(CAL_HIDDEN_KEY + "." + state.user.id, []); break;
       case "go-home":
         Object.assign(state, { tab:"calendar", openEventId:null, qrEventId:null, inviteEventId:null, settingsOpen:false, settingsPage:null,
                                manageGroupId:null, manageFollowers:null, memberList:null, editingId:null });
@@ -4406,6 +4465,7 @@ async function loadAll(){
   state.lastLoad = Date.now();
 }
 function applyData(d){
+  if (!state.user || state.user.id !== d.uid) state.calHidden = null;
   state.needsProfile = !d.profile;
   state.needsConsent = !!d.profile && !d.profile.popia_accepted_at;
   state.user = d.profile ? {
