@@ -13,7 +13,7 @@ SCREENS = [
     ('[aria-label="Kalenderaansig"]', "Week / Maand", "Wissel tussen die week-uitleg en die maand-uitleg.", "Onthou op die foon"),
     ('[data-action="cal-jump"]', "Maand-titel", "Kies enige datum om heen te spring.", ""),
     ('[data-action="cal-next"]', "Vorige / volgende", "Een week of maand terug of vorentoe.", ""),
-    ('.chips', "Afdeling-filter", "Wys net een afdeling. Die pyltjie langs 'n afdeling is 'n dropdown met sy subafdelings.", "Geld ook in Soek en My program"),
+    ('.chips', "Afdelings aan/af", "Tik op 'n afdeling om dit op die kalender te versteek of weer te wys. Die pyltjie wys sy subafdelings, elk met sy eie aan/af.", "Die foon onthou dit; net vir die kalender"),
     ('.block', "Geleentheid-blok", "Maak die geleentheid oop.", ""),
     ('.tabbar', "Oortjies", "Kalender, Kaart, Soek, My program. Admins kry Bestuur en Skep voor aan, en geen Kaart nie.", "Rooi getal = ongelees in Inbox"),
   ]),

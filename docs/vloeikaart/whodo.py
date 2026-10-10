@@ -14,7 +14,9 @@ ENTITIES = [
                             ("r", "Profiel geskep")]),
  ]),
  ("leerder", "Leerder", "Ook alumni en ouers, behalwe waar anders gesê.", [
-   ("Kyk na geleenthede", [("a", "Kies 'n afdeling of subafdeling in die filter"), ("r", "Net daardie geleenthede in Kalender, Soek en My program"),
+   ("Kyk na geleenthede", [("a", "Kalender: tik op 'n afdeling of subafdeling om dit af te skakel"), ("r", "Dit verdwyn van die kalender; die foon onthou dit"),
+                           ("a", "Wys alles"), ("r", "Alles is terug"),
+                           ("a", "Soek en My program: kies 'n afdeling"), ("r", "Net daardie afdeling se geleenthede"),
                            ("a", "Kies Week of Maand"), ("r", "Ander uitleg; die foon onthou dit"),
                            ("r", "Alumni en ouers sien nie geleenthede wat net vir leerders, sekere grade of een geslag is nie, tensy genooi")]),
    ("Terug huis toe", [("a", "Tik op die huis regs bo (langs die rat)"), ("r", "Kalender by vandag, van enige skerm af")]),
