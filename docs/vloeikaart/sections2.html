@@ -1,0 +1,49 @@
+<section id="rolle">
+    <div class="sec-head"><span class="no">1</span><h2>Wie doen wat</h2></div>
+    <div class="rule"></div>
+    <p class="lead">Kies wie: vir elke soort gebruiker staan wat hulle kan doen, en wat dan gebeur.</p>
+    {{WHO}}
+  </section>
+
+  <section id="kaart" class="mapsection">
+    <div class="sec-head"><span class="no">2</span><h2>Skermkaart</h2></div>
+    <div class="rule"></div>
+    <p class="lead">Al die skerms op een kaart. Goue pyltjies wys watter knoppie jou na watter skerm neem; die genommerde punte se verduideliking staan onder elke skerm. Zoom so ver in as jy wil: die skerms bly skerp.</p>
+    <div class="mapwrap">
+      <div id="mapview" tabindex="0" aria-label="Skermkaart: sleep om te skuif, rol of knyp om te zoom">{{WORLD}}</div>
+      <div class="mapbar">
+        <button type="button" id="z-fit">Pas alles</button>
+        <button type="button" class="sq" id="z-out" aria-label="Zoom uit">−</button>
+        <span class="zoomlvl" id="z-lvl">100%</span>
+        <button type="button" class="sq" id="z-in" aria-label="Zoom in">+</button>
+        <select id="z-jump" aria-label="Spring na skerm"><option value="">Spring na skerm…</option>{{JUMP}}</select>
+        <button type="button" id="z-full">Volskerm</button>
+        <span class="hint">Rol of knyp om te zoom · sleep om te skuif · dubbelklik om in te zoom</span>
+      </div>
+    </div>
+  </section>
+
+  <section id="prosesse">
+    <div class="sec-head"><span class="no">3</span><h2>Prosesse</h2></div>
+    <div class="rule"></div>
+    <p class="lead">Tik op 'n proses om sy eie kaart oop te maak: die regte skerms in volgorde, die knoppie wat jy druk gemerk, en wat die bediener tussenin doen. Kyk of jy met elke stap gelukkig is.</p>
+    <div class="procs">{{PROCLIST}}</div>
+    {{PROCTEMPLATES}}
+  </section>
+
+  <dialog id="procdlg" aria-labelledby="p-title">
+    <div class="phead">
+      <div style="min-width:0"><div class="eyebrow" id="p-who"></div><h3 id="p-title"></h3><p id="p-sum"></p></div>
+      <button type="button" id="p-close" aria-label="Maak toe">×</button>
+    </div>
+    <div class="pbody">
+      <div id="pview" tabindex="0" aria-label="Proses-kaart: sleep om te skuif, rol of knyp om te zoom"><div id="pworld"></div></div>
+      <div class="mapbar">
+        <button type="button" id="p-fit">Pas alles</button>
+        <button type="button" class="sq" id="p-out" aria-label="Zoom uit">−</button>
+        <span class="zoomlvl" id="p-lvl">100%</span>
+        <button type="button" class="sq" id="p-in" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+  </dialog>
+

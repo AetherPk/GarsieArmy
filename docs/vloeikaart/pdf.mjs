@@ -1,0 +1,15 @@
+import { spawn } from "node:child_process"; import { mkdtempSync, writeFileSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path";
+const proc = spawn("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", ["--headless=new","--remote-debugging-port=9357",`--user-data-dir=${mkdtempSync(join(tmpdir(),"pdf-"))}`,"about:blank"], { stdio:"ignore" });
+const sleep = ms => new Promise(r => setTimeout(r, ms)); await sleep(5000);
+const page = (await (await fetch("http://127.0.0.1:9357/json")).json()).find(t => t.type === "page");
+const ws = new WebSocket(page.webSocketDebuggerUrl); let id = 0; const pend = new Map();
+ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)){ pend.get(d.id)(d); pend.delete(d.id); } };
+await new Promise(r => ws.onopen = r);
+const send = (method, params = {}) => new Promise(res => { const i = ++id; pend.set(i, res); ws.send(JSON.stringify({ id:i, method, params })); });
+await send("Page.enable"); await send("Runtime.enable");
+await send("Page.navigate", { url:"http://localhost:8766/standalone.html" }); await sleep(30000);
+const n = await send("Runtime.evaluate", { expression:"document.querySelectorAll('pre.mermaid svg').length + ' svgs, errors: ' + document.querySelectorAll('[id^=d] .error-text, .error-icon').length", returnByValue:true });
+console.log(n.result.result.value);
+const pdf = await send("Page.printToPDF", { printBackground:true, paperWidth:8.27, paperHeight:11.69, marginTop:0, marginBottom:0, marginLeft:0, marginRight:0, preferCSSPageSize:true });
+writeFileSync("vloeikaart.pdf", Buffer.from(pdf.result.data, "base64"));
+console.log("pdf ok"); proc.kill(); process.exit(0);
