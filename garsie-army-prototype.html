@@ -912,7 +912,7 @@ function screenAuth(){
       ${isSignup ? profileFields(draft) + consentField(draft.popia) : ""}
       <button class="btn-primary" type="submit">Stuur kode</button>
     </form>
-    <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Leerders: gebruik jou <b style="color:var(--shadow-ink)">skool-e-pos</b> (dieselfde as vir Teams); die kode kom in jou skool se Outlook. Ons stuur 'n eenmalige kode na jou e-pos. Geen wagwoord nodig nie.</p>
+    <p style="font-size:13px;color:var(--muted);text-align:center;margin-top:14px">Ons stuur 'n eenmalige kode na jou e-pos; geen wagwoord nodig nie. Leerders: gebruik jou <b style="color:var(--shadow-ink)">skool-e-pos</b> (dieselfde as vir Teams), dan kom die kode in jou skool se Outlook.</p>
     ${state.googleEnabled || state.microsoftEnabled ? `
     <div style="display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px;margin:6px 0 12px">
       <span style="flex:1;height:.5px;background:var(--hairline)"></span>of<span style="flex:1;height:.5px;background:var(--hairline)"></span></div>` : ""}
