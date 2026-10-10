@@ -48,6 +48,7 @@ await ev(`(() => {
   state.loading = false; state.session = { user:{ id:"u1" } }; state.needsProfile = false; state.needsConsent = false;
   state.push = { status:"off", busy:false }; state.pushOffered = true; state.installOffered = true;
   window.asLearner = () => {
+    localStorage.setItem("garsie.calSeen", JSON.stringify("u1"));
     state.user = { id:"u1", email:"jan.smit@voorbeeld.co.za", name:"Jan", surname:"Smit", grade:"Graad 11", gender:"Seun", role:"user", department:null };
     EVENTS = ALL_EVENTS; INVITES = { 2:"pending" }; state.supported = new Set([1, 3]);
     INBOX = [{ id:3, eventId:null, kind:"group", title:"Jy is bygevoeg by Eerste span", body:"Sport · Jy hoor nou van geleenthede vir hierdie groep.", at:"2026-10-09T17:40:00", read:false },
@@ -57,6 +58,7 @@ await ev(`(() => {
     Object.assign(state, { settingsOpen:false, settingsPage:null, openEventId:null, inviteEventId:null, manageGroupId:null, filter:"Alles" });
   };
   const admin = (role, dept) => {
+    localStorage.setItem("garsie.calSeen", JSON.stringify("a1"));
     state.user = { id:"a1", email:"admin@garsies.co.za", name:"Anna", surname:"Admin", grade:"Alumni", gender:"", role, department:dept };
     EVENTS = ALL_EVENTS; INVITES = {}; INBOX = []; state.supported = new Set(); state.myGroups = new Set(); state.unfollowed = new Set();
     STATS = { 1:{ supporters:142, checkedIn:118, suspicious:2, invited:0, accepted:0, declined:0 }, 2:{ supporters:19, checkedIn:0, suspicious:0, invited:24, accepted:19, declined:3 } };
