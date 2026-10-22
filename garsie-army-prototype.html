@@ -839,7 +839,7 @@ const PRIVACY_NOTICE = `
   <ul>
     <li>Jou naam, van, e-posadres, graad en geslag.</li>
     <li>Watter geleenthede jy bespreek, watter afdelings en groepe jy volg, en uitnodigings wat jy kry.</li>
-    <li>As jy aanmeld: die tyd, jou ligging op daardie oomblik en 'n kode vir jou toestel.</li>
+    <li>As jy aanmeld: die tyd, dat jy binne die geleentheid se sirkel was (en hoe ver, in meter) en 'n kode vir jou toestel. Jou ligging self word nie gestoor nie.</li>
     <li>As jy kennisgewings aanskakel: jou toestel se kennisgewingadres.</li>
     <li>As jy jou kalender koppel: 'n privaat skakel na jou besprekings. Wie die skakel het, sien wat jy bespreek het; skakel dit af om die skakel ongeldig te maak.</li>
   </ul>
@@ -847,7 +847,7 @@ const PRIVACY_NOTICE = `
   <h3>Hoekom</h3>
   <p>Om vir jou die geleenthede te wys wat vir jou bedoel is, om bywoning te bevestig, om vals aanmeldings op te spoor en om vir jou kennisgewings te stuur.</p>
   <h3>Jou ligging</h3>
-  <p>Ons gebruik jou ligging net terwyl die app oop is: om te sien of jy by 'n geleentheid is (dan sê ons jy mag aanmeld), en wanneer jy aanmeld. Dit word net gestoor wanneer jy aanmeld, en nooit in die agtergrond gelees nie.</p>
+  <p>Ons gebruik jou ligging net terwyl die app oop is: om te sien of jy by 'n geleentheid is (dan sê ons jy mag aanmeld), en wanneer jy aanmeld. Dit word nooit gestoor nie: ons hou net dat jy binne die sirkel was en hoe ver jy van die geleentheid was. Dit word ook nooit in die agtergrond gelees nie.</p>
   <h3>Wie dit sien</h3>
   <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat bespreek het, genooi is of aangemeld het, en kan dit as 'n Excel-lys aflaai. 'n Afdeling se admins sien ook wie hul afdeling volg en wie in hul groepe is. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
@@ -3928,10 +3928,6 @@ phoneEl.addEventListener("submit", async ev => {
     if (!showErrors(form, errors)) return;
 
     busy(true);
-    if (isSignup){
-      const { data:taken, error } = await sb.rpc("email_registered", { p_email: email });
-      if (!error && taken){ busy(false); showErrors(form, { email: "Hierdie e-posadres is reeds geregistreer. Kies \"Teken in\" hierbo." }); return; }
-    }
     const err = await sendCode(v, isSignup);
     busy(false);
     if (err){ showErrors(form, { email: err }); return; }
@@ -4338,14 +4334,15 @@ async function sendCode(draft, isSignup){
   if (!sb) return "Die app kon nie aan die bediener koppel nie.";
   const { error } = await sb.auth.signInWithOtp({
     email: draft.email,
+    // Always send a code, account or not, so the app never tells anyone
+    // whether an address is registered. Someone new who chose "Teken in"
+    // lands on "Voltooi jou profiel"; someone known who chose "Registreer"
+    // is simply signed in (their existing profile is kept).
     options: isSignup
       ? { shouldCreateUser: true, data: { name: draft.name, surname: draft.surname, grade: draft.grade, gender: draft.gender || "", popia: "true" } }
-      : { shouldCreateUser: false }
+      : { shouldCreateUser: true }
   });
   if (!error){ state.auth.sentAt = Date.now(); return ""; }
-  if (!isSignup && /signups? not allowed|user not found|otp_disabled/i.test(error.message + " " + (error.code || ""))){
-    return "Hierdie e-posadres is nie geregistreer nie. Kies \"Registreer\" hierbo.";
-  }
   if (/rate limit|security purposes|seconds/i.test(error.message)) return "Te veel kodes gevra. Wag 'n minuut (of langer) en probeer weer.";
   return dbMessage(error);
 }

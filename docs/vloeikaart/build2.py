@@ -16,7 +16,7 @@ screens = {s['id']: s for s in cfg['screens']}
 # Columns per lane; cards stack down a column. A card can ask to start no
 # higher than another card (so its arrows stay short).
 GRID = [   # (lane, title, [(card, column, row), ...])
-  ("Leerder", "Leerder, ouer of alumnus", [("kalender",0,0), ("kaart",1,0), ("soek",1,1), ("qr",2,0), ("geleentheid",2,1),
+  ("Leerder", "Leerder of alumnus", [("kalender",0,0), ("kaart",1,0), ("soek",1,1), ("qr",2,0), ("geleentheid",2,1),
                                             ("instellings-l",3,0), ("myprogram",3,1), ("volg",4,0)]),
   ("Admin", "Admins", [("kalender-a",0,0), ("bestuur",1,0), ("groep",2,0), ("volgers",2,1), ("skep",3,0), ("admingeleentheid",4,0),
                        ("nooi",5,0), ("qr-admin",5,1), ("excel",6,0), ("instellings",7,0), ("leerder-edit",8,0), ("preview",8,1)]),

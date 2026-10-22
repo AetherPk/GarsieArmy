@@ -9,9 +9,11 @@ mkdirSync(join(here, "vec"), { recursive: true });
 const W = 390;
 const proc = spawn("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", ["--headless=new", "--remote-debugging-port=9364", `--user-data-dir=${mkdtempSync(join(tmpdir(), "doc-"))}`, "about:blank"], { stdio: "ignore" });
 const sleep = ms => new Promise(r => setTimeout(r, ms)); await sleep(5000);
-const page = (await (await fetch("http://127.0.0.1:9364/json")).json()).find(t => t.type === "page");
+// A fresh tab: Edge sometimes opens an internal page first that cannot print.
+const page = await (await fetch("http://127.0.0.1:9364/json/new?about:blank", { method: "PUT" })).json();
 const ws = new WebSocket(page.webSocketDebuggerUrl); let id = 0; const pend = new Map(); const ex = [];
-ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)) { pend.get(d.id)(d); pend.delete(d.id); } if (d.method === "Runtime.exceptionThrown") ex.push(d.params.exceptionDetails.exception?.description); };
+ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)) { pend.get(d.id)(d); pend.delete(d.id); } if (d.method === "Runtime.exceptionThrown") ex.push(d.params.exceptionDetails.exception?.description);
+  if (d.method === "Page.javascriptDialogOpening") { console.log("dialog:", d.params.type, d.params.message); ws.send(JSON.stringify({ id: ++id, method: "Page.handleJavaScriptDialog", params: { accept: false } })); } };
 await new Promise(r => ws.onopen = r);
 const send = (method, params = {}) => new Promise(res => { const i = ++id; pend.set(i, res); ws.send(JSON.stringify({ id: i, method, params })); });
 const ev = async e => { const r = await send("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true }); if (r.result.exceptionDetails) throw new Error(r.result.exceptionDetails.exception?.description || r.result.exceptionDetails.text); return r.result.result?.value; };
@@ -103,6 +105,7 @@ for (const s of SCREENS) {
   const links = [];
   await send("Emulation.setEmulatedMedia", { media: "screen" });
   const pdf = await send("Page.printToPDF", { printBackground: true, paperWidth: W / 96, paperHeight: h / 96, marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0, pageRanges: "1" });
+  if (!pdf.result) { console.log("print failed", s.id, JSON.stringify(pdf.error), await ev("location.href + ' ' + document.readyState").catch(e => String(e)), ex.slice(-3)); process.exit(1); }
   writeFileSync(join(here, "vec", s.id + ".pdf"), Buffer.from(pdf.result.data, "base64"));
   out.push({ id: s.id, w: W, h, rects: Object.fromEntries(s.sels.map((sel, i) => [sel, rects[i]])) });
   console.log(s.id, h, rects.map((r, i) => r ? "" : "MISSING:" + s.sels[i]).filter(Boolean).join(" "));

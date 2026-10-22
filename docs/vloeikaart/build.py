@@ -22,7 +22,7 @@ def screen_card(s):
   <div class="legend"><div class="eyebrow">{e(s['group'])}</div><h3>{e(s['title'])}</h3><ol>{''.join(items)}</ol></div>
 </article>'''
 
-groups = [("Leerder", "Wat 'n leerder (of ouer, of alumnus) sien"), ("Almal", "Vir almal"), ("Admin", "Net vir admins")]
+groups = [("Leerder", "Wat 'n leerder (of alumnus) sien"), ("Almal", "Vir almal"), ("Admin", "Net vir admins")]
 screen_html = ''
 for g, sub in groups:
     cards = ''.join(screen_card(s) for s in screens if s['group'] == g and s['id'] in rects)

@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process"; import { mkdtempSync, writeFileSync } from "node:fs"; import { tmpdir } from "node:os"; import { join } from "node:path";
 const proc = spawn("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", ["--headless=new","--remote-debugging-port=9357",`--user-data-dir=${mkdtempSync(join(tmpdir(),"pdf-"))}`,"about:blank"], { stdio:"ignore" });
 const sleep = ms => new Promise(r => setTimeout(r, ms)); await sleep(5000);
-const page = (await (await fetch("http://127.0.0.1:9357/json")).json()).find(t => t.type === "page");
+// A fresh tab: Edge sometimes opens an internal page first that cannot print.
+const page = await (await fetch("http://127.0.0.1:9357/json/new?about:blank", { method: "PUT" })).json();
 const ws = new WebSocket(page.webSocketDebuggerUrl); let id = 0; const pend = new Map();
 ws.onmessage = m => { const d = JSON.parse(m.data); if (d.id && pend.has(d.id)){ pend.get(d.id)(d); pend.delete(d.id); } };
 await new Promise(r => ws.onopen = r);
