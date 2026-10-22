@@ -39,7 +39,7 @@ SHOTS = {
   "p-qr-idle": (L + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"idle",message:""};', False, ''),
   "p-qr-ok": (L + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"ok",message:"Jy is aangemeld by Rugby: Garsies teen Affies!"};', False, ''),
   "p-qr-err": (L + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"error",message:"Jy is 1,2 km van die geleentheid af. Jy moet binne die area wees om aan te meld."};', False, ''),
-  "p-qr-queued": (L + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"queued",message:"Gestoor! Jy word aangemeld sodra jy weer internet het."};', False, ''),
+  "p-qr-queued": (L + 'state.tab="map"; state.mapMode="qr"; state.scan={status:"queued",message:"Gestoor! Maak die app weer oop wanneer jy internet het, dan word jy aangemeld."};', False, ''),
   "p-qr-admin": (DP + 'state.tab="calendar"; state.qrEventId=1; state.qrMode="live";', False, ''),
   "p-nooi": (DP + 'state.tab="calendar"; state.openEventId=2; state.inviteEventId=2; state.inviteResult="";', False,
              'document.querySelector(\'#groups-box input[value="g2"]\').checked=true;'),

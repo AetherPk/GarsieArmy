@@ -2394,7 +2394,7 @@ function scanCardHtml(){
   }
   return `<div style="font-size:14px;margin-bottom:10px;line-height:1.4">${body}</div>
     ${!navigator.onLine ? `<div style="font-size:12px;color:var(--muted);margin:-4px 0 10px">Geen internet nie — skanderings word op jou foon gestoor en later gestuur.</div>` : ""}
-    ${waiting ? `<div style="font-size:12px;color:var(--warn);margin:-4px 0 10px">${waiting} aanmelding${waiting > 1 ? "s" : ""} wag om gestuur te word.</div>` : ""}
+    ${waiting ? `<div style="font-size:12px;color:var(--warn);margin:-4px 0 10px">${waiting} aanmelding${waiting > 1 ? "s" : ""} wag om gestuur te word. Maak die app oop wanneer jy internet het.</div>` : ""}
     ${button}`;
 }
 
@@ -2485,7 +2485,7 @@ async function handleScan(text){
 async function queueCheckin({ eventId, method, token, pos }){
   if (previewBlocks()){ setScan("error", "Leerder-aansig: aanmeldings word nie gestoor nie."); return; }
   if (myOutbox().some(o => o.eventId === eventId)){
-    setScan("queued", "Reeds gestoor — dit word gestuur sodra jy internet het."); return;
+    setScan("queued", "Reeds gestoor. Maak die app weer oop wanneer jy internet het, dan word dit gestuur."); return;
   }
   OUTBOX = [...OUTBOX, { uid:state.user.id, eventId, method, token, scannedAt:new Date().toISOString(), pos, device:deviceId() }];
   saveOutbox();
@@ -2493,7 +2493,7 @@ async function queueCheckin({ eventId, method, token, pos }){
   const mine = sent.find(x => x.item.eventId === eventId && x.item.uid === state.user.id);
   if (mine) setScan(mine.outcome.status, mine.outcome.message);
   else if (navigator.onLine && lastSyncError) setScan("queued", `Gestoor, maar kon nie nou stuur nie (${lastSyncError}). Ons probeer later weer.`);
-  else setScan("queued", "Gestoor! Jy word aangemeld sodra jy weer internet het.");
+  else setScan("queued", "Gestoor! Maak die app weer oop wanneer jy internet het, dan word jy aangemeld.");
 }
 
 // Send waiting check-ins to the database. Stops at the first network error
