@@ -64,7 +64,7 @@
 <html lang="af">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Garsie Army</title>
 <!-- Home-screen install. On iPhone notifications only work from the home screen. -->
 <link rel="manifest" href="manifest.json">
@@ -120,6 +120,9 @@
 }
 
 *{box-sizing:border-box}
+/* No page zoom, like a normal app: no pinch, no double-tap zoom. The map
+   still zooms (Leaflet handles its own pinch). See also "No page zoom" in JS. */
+html,body{touch-action:pan-x pan-y}
 body{
   margin:0; background:var(--surface); color:var(--ink);
   font-family:var(--font-body);
@@ -5092,6 +5095,15 @@ async function onConnectionChange(){
 }
 window.addEventListener("online", onConnectionChange);
 window.addEventListener("offline", onConnectionChange);
+
+// No page zoom, like a normal app. iPhone Safari ignores user-scalable=no,
+// so stop its pinch gesture; on a computer stop Ctrl + wheel / trackpad pinch
+// and Ctrl +, Ctrl -, Ctrl 0. The map zooms itself and is not affected.
+["gesturestart", "gesturechange", "gestureend"].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive:false }));
+document.addEventListener("wheel", e => { if (e.ctrlKey) e.preventDefault(); }, { passive:false });
+document.addEventListener("keydown", e => {
+  if ((e.ctrlKey || e.metaKey) && ["+", "=", "-", "_", "0"].includes(e.key)) e.preventDefault();
+});
 
 // Coming back to the app after a while: fetch fresh data, but never while
 // someone is typing in a form.
