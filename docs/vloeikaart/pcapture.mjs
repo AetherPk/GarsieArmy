@@ -61,7 +61,7 @@ await ev(`(() => {
   };
   const admin = (role, dept) => {
     localStorage.setItem("garsie.calSeen", JSON.stringify("a1"));
-    state.user = { id:"a1", email:"admin@garsies.co.za", name:"Anna", surname:"Admin", grade:"Alumni", gender:"", role, department:dept };
+    state.user = { id:"a1", email:"admin@garsies.co.za", name:"Anna", surname:"Admin", grade:"Personeel", gender:"", role, department:dept };
     EVENTS = ALL_EVENTS; INVITES = {}; INBOX = []; state.supported = new Set(); state.myGroups = new Set(); state.unfollowed = new Set();
     STATS = { 1:{ supporters:142, checkedIn:118, suspicious:2, invited:0, accepted:0, declined:0 }, 2:{ supporters:19, checkedIn:0, suspicious:0, invited:24, accepted:19, declined:3 } };
     GROUP_STATS = { "dept:d1":1840, g1:212, g2:24, g4:96, "dept:d2":1795, g3:58, "dept:d3":1810, g5:41 };

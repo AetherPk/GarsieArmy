@@ -748,7 +748,7 @@ function clearFieldError(el){
    which a Hoof-admin manages in Bestuur — nobody picks their own role.
    POPIA: name, grade and gender of a learner are personal data of a minor.
 ------------------------------------------------------------------------- */
-const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Alumni"];
+const GRADES = ["Graad 8","Graad 9","Graad 10","Graad 11","Graad 12","Personeel"];
 const RESEND_WAIT_S = 60;           // Supabase allows one code per e-mail per minute
 
 function esc(s){
@@ -854,7 +854,7 @@ const PRIVACY_NOTICE = `
   <h3>Wie dit sien</h3>
   <p>Die admins van 'n geleentheid sien die naam, van, graad, geslag en e-pos van almal wat bespreek het, genooi is of aangemeld het, en kan dit as 'n Excel-lys aflaai. 'n Afdeling se admins sien ook wie hul afdeling volg en wie in hul groepe is. Niemand anders sien dit nie. Ons verkoop of deel dit nie.</p>
   <h3>Waar en hoe lank</h3>
-  <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is.</p>
+  <p>Op 'n beveiligde bediener (Supabase, in Ierland), hoogstens 5 jaar. Geleenthede en hul aanmeldings word 5 jaar ná die geleentheid uitgevee, en rekeninge 5 jaar nadat hulle laas gebruik is. Matrieks se rekeninge word op 1 Januarie ná hul matriekjaar uitgevee.</p>
   <h3>Jou regte</h3>
   <p>Jy kan jou rekening self skrap: by <b>Instellings</b> (die rat regs bo), "Skrap my rekening". Dit vee alles van jou uit. Om jou inligting te sien of te laat regstel, vra die skool se inligtingsbeampte.</p>
   <h3>Jonger as 18?</h3>
@@ -2879,7 +2879,7 @@ function settingsSubHead(title, intro){
 function screenLearnerEdit(){
   const found = state.learnerEdit;
   return `<div class="panel"><div class="content" style="max-width:560px">
-    ${settingsSubHead("Verander 'n leerder", "Soek die leerder op met sy of haar e-posadres. Almal gaan op 1 Januarie outomaties 'n graad hoër (Graad 12 word Alumni), so dit is net vir regstellings.")}
+    ${settingsSubHead("Verander 'n leerder", "Soek die leerder op met sy of haar e-posadres. Almal gaan op 1 Januarie outomaties 'n graad hoër (Graad 12-rekeninge word dan uitgevee), so dit is net vir regstellings.")}
     <form data-form="find-learner" class="card" novalidate style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
       <label class="field" style="flex:1;min-width:200px;margin:0"><span>E-posadres</span>
         <input name="email" type="email" inputmode="email" autocapitalize="off" spellcheck="false" maxlength="${LIMITS.email}" value="${esc(found ? found.email : "")}" placeholder="naam@voorbeeld.co.za"></label>
@@ -3166,7 +3166,7 @@ function screenCreate(){
             <input type="checkbox" name="inviteOnly" ${e.inviteOnly ? "checked" : ""}> Net op uitnodiging <span style="color:var(--muted);font-size:12px">(net wie genooi is, sien dit)</span>
           </label>
           <label class="check-chip" style="width:100%;border:none;padding:0 0 10px;background:none">
-            <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie alumni nie)</span>
+            <input type="checkbox" name="learnersOnly" ${aud.learnersOnly ? "checked" : ""}> Net leerders <span style="color:var(--muted);font-size:12px">(nie personeel nie)</span>
           </label>
           <div style="font-size:13px;color:var(--muted);margin-bottom:6px">Grade — kies niks vir alle grade</div>
           <div class="check-row" style="margin-bottom:12px">

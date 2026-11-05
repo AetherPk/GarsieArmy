@@ -13,12 +13,12 @@ ENTITIES = [
    ("Teken in met Google", [("a", "Gaan voort met Google"), ("r", "Google gee net naam en e-pos"), ("a", "Eerste keer: kies graad en geslag, merk privaatheid"),
                             ("r", "Profiel geskep")]),
  ]),
- ("leerder", "Leerder", "Ook alumni en ouers, behalwe waar anders gesê.", [
+ ("leerder", "Leerder", "Ook personeel, behalwe waar anders gesê.", [
    ("Kyk na geleenthede", [("a", "Kalender: tik op 'n afdeling of subafdeling om dit af te skakel"), ("r", "Dit verdwyn van die kalender; die foon onthou dit"),
                            ("a", "Wys alles"), ("r", "Alles is terug"),
                            ("a", "Soek en My program: kies 'n afdeling"), ("r", "Net daardie afdeling se geleenthede"),
                            ("a", "Kies Week of Maand"), ("r", "Ander uitleg; die foon onthou dit"),
-                           ("r", "Alumni en ouers sien nie geleenthede wat net vir leerders, sekere grade of een geslag is nie, tensy genooi")]),
+                           ("r", "Personeel sien nie geleenthede wat net vir leerders, sekere grade of een geslag is nie, tensy genooi")]),
    ("Terug huis toe", [("a", "Tik op die huis regs bo (langs die rat)"), ("r", "Kalender by vandag, van enige skerm af")]),
    ("Soek", [("a", "Tik, of tik op die mikrofoon en praat"), ("r", "Resultate per maand, terwyl jy tik")]),
    ("Bespreek", [("a", "Tik Bespreek op 'n geleentheid"), ("r", "Verskyn in My program"), ("r", "Admin se telling en Excel word bygewerk"),

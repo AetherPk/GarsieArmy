@@ -22,7 +22,7 @@ def screen_card(s):
   <div class="legend"><div class="eyebrow">{e(s['group'])}</div><h3>{e(s['title'])}</h3><ol>{''.join(items)}</ol></div>
 </article>'''
 
-groups = [("Leerder", "Wat 'n leerder (of alumnus) sien"), ("Almal", "Vir almal"), ("Admin", "Net vir admins")]
+groups = [("Leerder", "Wat 'n leerder (of personeellid) sien"), ("Almal", "Vir almal"), ("Admin", "Net vir admins")]
 screen_html = ''
 for g, sub in groups:
     cards = ''.join(screen_card(s) for s in screens if s['group'] == g and s['id'] in rects)
@@ -192,7 +192,7 @@ matrix_html = '<div class="tablewrap"><table class="matrix"><thead><tr><th>As di
   ''.join('<tr><th>' + e(r) + '</th>' + ''.join(f'<td>{"<i class=dot-on></i>" if v else "<i class=dot-off></i>"}</td>' for v in vals) + '</tr>' for r, vals in MATRIX) + '</tbody></table></div>'
 
 MODULES = [
-  ("Profiel en grade", "c-blue", ["Naam, graad en geslag is gesluit: net 'n Hoof-admin verander dit.", "Elke 31 Desember gaan almal een graad op; Graad 12 word Alumni."], ["Wie mag kom", "Kennisgewings"]),
+  ("Profiel en grade", "c-blue", ["Naam, graad en geslag is gesluit: net 'n Hoof-admin verander dit.", "Elke 1 Januarie gaan almal een graad op; Graad 12-rekeninge word uitgevee."], ["Wie mag kom", "Kennisgewings"]),
   ("Geleenthede", "c-green", ["Skep en wysig in Skep; departement-admins net hul eie afdeling.", "Subafdeling, wie mag kom, net op uitnodiging, sirkel en radius."], ["Kalender", "Kennisgewings", "Aanmelding"]),
   ("Bespreek", "c-teal", ["Een tik; tik weer om te kanselleer.", "Aanvaar van 'n uitnodiging bespreek ook."], ["My program", "Herinnering", "Excel"]),
   ("Aanmelding", "c-teal", ["Meld aan op Kaart of skandeer QR: net binne die sirkel.", "Werk offline: gestoor en later gestuur."], ["Excel", "Admin-tellings"]),
